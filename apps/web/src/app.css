@@ -32,6 +32,18 @@
   --status-clear: calc(env(safe-area-inset-top) + min(30px, env(safe-area-inset-top)));
 }
 
+/* App installed on the iPhone home screen: with the default status bar style the page starts
+   below the status bar, so the inset is 0 and the rule above adds nothing, yet the system blur
+   still covers about the first 30px of the page. Start content 36px down there. The touch-callout
+   test matches iOS only, so Android apps and every browser tab keep their margins. */
+@supports (-webkit-touch-callout: none) {
+  @media (display-mode: standalone) {
+    :root {
+      --status-clear: max(36px, calc(env(safe-area-inset-top) + min(30px, env(safe-area-inset-top))));
+    }
+  }
+}
+
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     color-scheme: dark;
