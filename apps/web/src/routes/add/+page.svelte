@@ -14,6 +14,7 @@
     type Estimate,
     type EstimateItem,
     type Favorite,
+    type FoodCategory,
     type Nutrient,
     type Suggestion,
     type Slot
@@ -22,6 +23,7 @@
   import { preparePhoto, type PreparedPhoto } from '$lib/image';
   import { enqueueEntry, net } from '$lib/offline.svelte';
   import { app, errorMessage, formatDate, formatNumber, t } from '$lib/state.svelte';
+  import CategoryPicker from '$lib/CategoryPicker.svelte';
   import FoodIcon from '$lib/FoodIcon.svelte';
   import Icon from '$lib/Icon.svelte';
   import TopBar from '$lib/TopBar.svelte';
@@ -37,6 +39,8 @@
   let description = $state('');
   let quantity = $state('');
   let notes = $state('');
+  // null = guessed from the description (and the estimated items).
+  let category = $state<FoodCategory | null>(null);
   const nutrients: { key: Nutrient; unit: string }[] = [
     { key: 'kcal', unit: 'kcal' },
     { key: 'protein', unit: 'g' },
@@ -100,6 +104,7 @@
           .join(' · ')
   );
   const back = $derived(date === today ? '/' : `/?d=${date}`);
+  const autoCategory = $derived(mealCategory([description], items));
 
   onMount(async () => {
     try {
@@ -115,6 +120,7 @@
         description = entry.description;
         quantity = entry.quantity ?? '';
         notes = entry.notes ?? '';
+        category = entry.category;
         items = entry.items;
         existingPhotoId = entry.photoId;
         for (const n of nutrients) values[n.key] = toText(entry[n.key]);
@@ -145,6 +151,7 @@
     quantity = q.quantity ?? '';
     for (const n of NUTRIENTS) values[n] = toText(q[n]);
     items = q.items;
+    category = q.category;
     estimate = null;
     estimatedValues = null;
   }
@@ -157,7 +164,8 @@
         quantity: quantity || null,
         ...parsed,
         items,
-        slotId
+        slotId,
+        category
       });
       favSaved = true;
     } catch (e) {
@@ -225,6 +233,7 @@
       description,
       quantity: quantity || null,
       notes: notes || null,
+      category,
       ...parsed
     };
     if (estimatedValues) {
@@ -299,7 +308,7 @@
           <div class="chips">
             {#each quick as q (q.key)}
               <button type="button" class="chip" aria-label={t('fav.use', { name: q.label })} onclick={() => useQuick(q.value)}>
-                <FoodIcon category={mealCategory([q.label, q.value.description], q.value.items)} size={24} badge={false} />{q.label}{#if q.star}<Icon name="star" size={16} />{/if}
+                <FoodIcon category={q.value.category ?? mealCategory([q.label, q.value.description], q.value.items)} size={24} badge={false} />{q.label}{#if q.star}<Icon name="star" size={16} />{/if}
               </button>
             {/each}
           </div>
@@ -370,6 +379,8 @@
           <p class="help"><Icon name="alert" size={16} /> {t('ai.editHint')}</p>
         </section>
       {/if}
+
+      <CategoryPicker bind:value={category} auto={autoCategory} />
 
       <div class="field">
         <label for="quantity">{t('entry.quantity')} <span class="muted small">({t('common.optional')})</span></label>

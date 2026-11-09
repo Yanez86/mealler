@@ -5,6 +5,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { and, between, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import {
+  FOOD_CATEGORIES,
   NUTRIENTS,
   addDays,
   isIsoDate,
@@ -54,6 +55,11 @@ const dateOrToday = (user: UserRow, date?: string) => {
 };
 
 const nutrientSchema = (description: string) => ({ type: 'number', minimum: 0, description });
+const categorySchema = {
+  type: 'string',
+  enum: [...FOOD_CATEGORIES],
+  description: 'Optional food category for the colored icon. Omit it: the app guesses it from the description.'
+};
 const itemSchema = {
   type: 'object',
   properties: {
@@ -166,7 +172,8 @@ const TOOLS: Tool[] = [
         carbs: nutrientSchema('Total carbohydrates, g'),
         fat: nutrientSchema('Total fat, g'),
         fiber: nutrientSchema('Total fibre, g'),
-        notes: { type: 'string' }
+        notes: { type: 'string' },
+        category: categorySchema
       },
       required: ['description']
     },
@@ -184,7 +191,8 @@ const TOOLS: Tool[] = [
           carbs: optionalAmount,
           fat: optionalAmount,
           fiber: optionalAmount,
-          notes: z.string().max(2000).optional()
+          notes: z.string().max(2000).optional(),
+          category: z.enum(FOOD_CATEGORIES).nullable().optional()
         })
         .parse(args ?? {});
       const date = dateOrToday(user, a.date);
@@ -208,6 +216,7 @@ const TOOLS: Tool[] = [
           fiber: pick('fiber'),
           detail: a.items ? JSON.stringify(a.items) : null,
           notes: a.notes ?? null,
+          category: a.category ?? null,
           source: 'claude_ai',
           calcStatus: 'calculated'
         })
@@ -242,7 +251,12 @@ const TOOLS: Tool[] = [
         carbs: nutrientSchema('g'),
         fat: nutrientSchema('g'),
         fiber: nutrientSchema('g'),
-        notes: { type: 'string' }
+        notes: { type: 'string' },
+        category: {
+          type: ['string', 'null'],
+          enum: [...FOOD_CATEGORIES, null],
+          description: 'Food category for the colored icon; null goes back to the one guessed from the description.'
+        }
       },
       required: ['entry_id']
     },
@@ -260,7 +274,8 @@ const TOOLS: Tool[] = [
           carbs: optionalAmount,
           fat: optionalAmount,
           fiber: optionalAmount,
-          notes: z.string().max(2000).optional()
+          notes: z.string().max(2000).optional(),
+          category: z.enum(FOOD_CATEGORIES).nullable().optional()
         })
         .parse(args ?? {});
       const where = and(eq(entries.id, a.entry_id), eq(entries.userId, user.id));
@@ -270,6 +285,7 @@ const TOOLS: Tool[] = [
       if (a.description !== undefined) changes.description = a.description;
       if (a.quantity !== undefined) changes.quantity = a.quantity;
       if (a.notes !== undefined) changes.notes = a.notes;
+      if (a.category !== undefined) changes.category = a.category;
       if (a.date !== undefined) changes.date = dateOrToday(user, a.date);
       if (a.slot_id !== undefined || a.slot_name !== undefined) changes.slotId = resolveSlot(db, user, a.slot_id, a.slot_name).id;
       for (const n of NUTRIENTS) if (a[n] !== undefined) changes[n] = round(a[n]);

@@ -387,6 +387,10 @@ const it = {
   'food.drinks': 'Bevande',
   'food.alcohol': 'Alcolici',
   'food.other': 'Altro',
+  'category.label': 'Categoria',
+  'category.auto': 'Automatica',
+  'category.chosen': 'scelta da te',
+  'category.choose': 'Scegli la categoria',
 
   'foods.tab': 'Alimenti',
   'foods.intro': 'Prodotti confezionati con i valori della confezione, condivisi tra tutti gli utenti di questa istanza.',
@@ -824,6 +828,10 @@ const en: Record<MessageKey, string> = {
   'food.drinks': 'Drinks',
   'food.alcohol': 'Alcohol',
   'food.other': 'Other',
+  'category.label': 'Category',
+  'category.auto': 'Automatic',
+  'category.chosen': 'chosen by you',
+  'category.choose': 'Choose the category',
 
   'foods.tab': 'Foods',
   'foods.intro': 'Packaged products with the values from the label, shared by all users of this instance.',

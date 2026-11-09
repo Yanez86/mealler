@@ -9,7 +9,7 @@ import { requireUser } from '../auth.ts';
 import { entries, favorites, slots } from '../db/schema.ts';
 import { badRequest, notFound } from '../http.ts';
 import { parseItems, toEntry } from '../services.ts';
-import { zAmount, zDate, zEstimateItem, zId, zOptionalText } from '../validation.ts';
+import { zAmount, zDate, zEstimateItem, zFoodCategory, zId, zOptionalText } from '../validation.ts';
 
 function toFavorite(row: typeof favorites.$inferSelect): Favorite {
   return {
@@ -24,7 +24,8 @@ function toFavorite(row: typeof favorites.$inferSelect): Favorite {
     fiber: row.fiber,
     slotId: row.slotId,
     uses: row.uses,
-    items: parseItems(row.detail)
+    items: parseItems(row.detail),
+    category: row.category
   };
 }
 
@@ -54,7 +55,8 @@ export async function favoriteRoutes(app: FastifyInstance, { db }: AppContext) {
     fat: zAmount.default(null),
     fiber: zAmount.default(null),
     items: z.array(zEstimateItem).max(50).nullable().optional(),
-    slotId: zId.nullable().optional()
+    slotId: zId.nullable().optional(),
+    category: zFoodCategory.optional()
   });
 
   app.post('/favorites', async (request) => {
@@ -77,7 +79,8 @@ export async function favoriteRoutes(app: FastifyInstance, { db }: AppContext) {
         fat: b.fat,
         fiber: b.fiber,
         detail: b.items ? JSON.stringify(b.items) : null,
-        slotId: b.slotId ?? null
+        slotId: b.slotId ?? null,
+        category: b.category ?? null
       })
       .returning()
       .get();
@@ -87,10 +90,13 @@ export async function favoriteRoutes(app: FastifyInstance, { db }: AppContext) {
   app.patch('/favorites/:id', async (request) => {
     const user = requireUser(request);
     const { id } = z.object({ id: zId }).parse(request.params);
-    const { name } = z.object({ name: z.string().trim().min(1).max(100) }).parse(request.body);
+    const b = z
+      .object({ name: z.string().trim().min(1).max(100).optional(), category: zFoodCategory.optional() })
+      .refine((v) => v.name !== undefined || v.category !== undefined)
+      .parse(request.body);
     const row = db
       .update(favorites)
-      .set({ name })
+      .set(b)
       .where(and(eq(favorites.id, id), eq(favorites.userId, user.id)))
       .returning()
       .get();
@@ -125,6 +131,7 @@ export async function favoriteRoutes(app: FastifyInstance, { db }: AppContext) {
         quantity: fav.quantity,
         ...values,
         detail: fav.detail,
+        category: fav.category,
         source: 'favorite',
         calcStatus: 'manual'
       })
@@ -163,6 +170,7 @@ export async function favoriteRoutes(app: FastifyInstance, { db }: AppContext) {
         fat: latest.fat,
         fiber: latest.fiber,
         items: parseItems(latest.detail),
+        category: latest.category,
         times
       }));
   });

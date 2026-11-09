@@ -386,6 +386,13 @@ test('claude.ai connector: OAuth 2.1 with PKCE, MCP tools, isolation, refresh an
   const added = res.json().result;
   assert.equal(added.isError, undefined, JSON.stringify(added));
   assert.equal(added.structuredContent.logged.kcal, 640);
+  res = await mcp({
+    jsonrpc: '2.0',
+    id: 31,
+    method: 'tools/call',
+    params: { name: 'update_entry', arguments: { entry_id: added.structuredContent.entry_id, category: 'pasta' } }
+  });
+  assert.equal(res.json().result.structuredContent.entry.category, 'pasta');
   assert.equal(added.structuredContent.slot, 'Pranzo');
 
   res = await mcp({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'add_entry', arguments: { description: 'x', slot_name: 'Brunch' } } });
@@ -779,4 +786,55 @@ test('account deletion: password, last admin, cascade and photos', async () => {
   assert.equal(res.statusCode, 200);
   res = await app.inject({ method: 'GET', url: '/api/status' });
   assert.equal(res.json().setupRequired, true);
+});
+
+test('food category: chosen per entry, favorite and product, carried over, reset to automatic', async () => {
+  const { app } = await setupApp();
+  let res = await app.inject({ method: 'POST', url: '/api/setup', payload: admin });
+  const headers = { cookie: cookieOf(res) };
+  const slots = (await app.inject({ method: 'GET', url: '/api/slots', headers })).json();
+
+  // Entries: automatic by default, chosen on create, changed and reset on update, validated.
+  res = await app.inject({ method: 'POST', url: '/api/entries', headers, payload: { slotId: slots[0].id, date: '2026-11-09', description: 'Yogurt greco' } });
+  assert.equal(res.json().category, null);
+  res = await app.inject({ method: 'POST', url: '/api/entries', headers, payload: { slotId: slots[0].id, date: '2026-11-09', description: 'Bowl', category: 'fruit' } });
+  assert.equal(res.statusCode, 200, res.body);
+  const entry = res.json();
+  assert.equal(entry.category, 'fruit');
+  res = await app.inject({ method: 'PATCH', url: `/api/entries/${entry.id}`, headers, payload: { category: 'sweets' } });
+  assert.equal(res.json().category, 'sweets');
+  res = await app.inject({ method: 'PATCH', url: `/api/entries/${entry.id}`, headers, payload: { kcal: 300 } });
+  assert.equal(res.json().category, 'sweets');
+  res = await app.inject({ method: 'PATCH', url: `/api/entries/${entry.id}`, headers, payload: { category: null } });
+  assert.equal(res.json().category, null);
+  res = await app.inject({ method: 'PATCH', url: `/api/entries/${entry.id}`, headers, payload: { category: 'cake' } });
+  assert.equal(res.statusCode, 400);
+
+  // Favorites keep the category and pass it to the entries they create; it can be changed later.
+  res = await app.inject({ method: 'POST', url: '/api/favorites', headers, payload: { name: 'Pranzo', description: 'Bowl del giovedì', kcal: 500, category: 'pasta' } });
+  const fav = res.json();
+  assert.equal(fav.category, 'pasta');
+  res = await app.inject({ method: 'POST', url: `/api/favorites/${fav.id}/use`, headers, payload: { slotId: slots[2].id, date: '2026-11-09' } });
+  assert.equal(res.json().category, 'pasta');
+  res = await app.inject({ method: 'PATCH', url: `/api/favorites/${fav.id}`, headers, payload: { category: 'legumes' } });
+  assert.equal(res.json().category, 'legumes');
+  assert.equal(res.json().name, 'Pranzo');
+  res = await app.inject({ method: 'PATCH', url: `/api/favorites/${fav.id}`, headers, payload: {} });
+  assert.equal(res.statusCode, 400);
+
+  // Products: chosen in the library, copied to the entries logged from them.
+  res = await app.inject({ method: 'POST', url: '/api/products', headers, payload: { name: 'Barretta', kcal: 400, protein: 20, carbs: 40, fat: 15, category: 'sweets' } });
+  const product = res.json();
+  assert.equal(product.category, 'sweets');
+  res = await app.inject({ method: 'POST', url: `/api/products/${product.id}/log`, headers, payload: { slotId: slots[1].id, date: '2026-11-09', grams: 30 } });
+  assert.equal(res.json().category, 'sweets');
+  res = await app.inject({ method: 'PATCH', url: `/api/products/${product.id}`, headers, payload: { category: null } });
+  assert.equal(res.json().category, null);
+
+  // The CSV export has the category in use: chosen, or guessed from the description.
+  res = await app.inject({ method: 'GET', url: '/api/export.csv?from=2026-11-09&to=2026-11-09', headers });
+  const lines = res.body.trim().split('\r\n');
+  assert.ok(lines[0].endsWith(',category'));
+  assert.ok(lines.some((l) => l.includes('Yogurt greco') && l.endsWith(',dairy')));
+  assert.ok(lines.some((l) => l.includes('Bowl del giovedì') && l.endsWith(',pasta')));
 });

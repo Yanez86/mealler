@@ -2,11 +2,12 @@
 <!-- Create or edit a library food: by hand, from a barcode (library / Open Food Facts) or from a label photo. -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { AiStatus, Product, ProductDraft } from '@mealler/shared';
+  import { mealCategory, type AiStatus, type FoodCategory, type Product, type ProductDraft } from '@mealler/shared';
   import { del, get, patch, post } from './api';
   import { preparePhoto } from './image';
   import { app, errorMessage, t } from './state.svelte';
   import BarcodeScanner from './BarcodeScanner.svelte';
+  import CategoryPicker from './CategoryPicker.svelte';
   import Icon from './Icon.svelte';
 
   let {
@@ -42,6 +43,8 @@
   let servingG = $state(toText(start?.servingG));
   let servingLabel = $state(start?.servingLabel ?? '');
   let source = $state<ProductDraft['source']>(start?.source ?? 'manual');
+  // Drafts (barcode, label photo) have no category: automatic until the user picks one.
+  let category = $state<FoodCategory | null>((start as Partial<Product> | null)?.category ?? null);
   let notice = $state(draft?.source === 'openfoodfacts' ? t('foods.fromOff') : draft?.source === 'label' ? t('foods.fromLabel') : '');
   let error = $state('');
   let busy = $state(false);
@@ -118,7 +121,8 @@
       fiber: toNumber(fiber),
       servingG: toNumber(servingG),
       servingLabel: servingLabel || null,
-      source
+      source,
+      category
     };
     if ([body.kcal, body.protein, body.carbs, body.fat].some((v) => v == null)) {
       error = t('error.validation');
@@ -179,6 +183,7 @@
       <label for="p-name">{t('foods.name')}</label>
       <input id="p-name" required maxlength="200" bind:value={name} />
     </div>
+    <CategoryPicker bind:value={category} auto={mealCategory([name])} />
     <div class="pair">
       <div class="field">
         <label for="p-brand">{t('foods.brand')} <span class="muted small">({t('common.optional')})</span></label>

@@ -18,6 +18,7 @@ import {
   zNutrient,
   zOptionalText,
   zEstimateItem,
+  zFoodCategory,
   zTime
 } from '../validation.ts';
 
@@ -113,6 +114,7 @@ export async function diaryRoutes(app: FastifyInstance, { db, ai }: AppContext) 
     fat: zAmount.default(null),
     fiber: zAmount.default(null),
     notes: zOptionalText(2000),
+    category: zFoodCategory.optional(),
     // Values that came from an in-app estimate: the per-food breakdown and whether the user edited them.
     items: z.array(zEstimateItem).max(50).nullable().optional(),
     estimate: z.enum(['none', 'calculated', 'corrected']).optional(),

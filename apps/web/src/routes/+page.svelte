@@ -231,7 +231,7 @@
                 {#each entries as entry (entry.id)}
                   <li>
                     <a href="/add?entry={entry.id}">
-                      <FoodIcon category={mealCategory([entry.description], entry.items)} size={36} />
+                      <FoodIcon category={entry.category ?? mealCategory([entry.description], entry.items)} size={36} />
                       <span class="desc">{entry.description}</span>
                       {#if entry.calcStatus === 'pending'}
                         <span class="claude"><Icon name="sparkle" size={12} />{t('ai.pending')}</span>

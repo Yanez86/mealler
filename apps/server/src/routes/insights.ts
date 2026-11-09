@@ -3,12 +3,21 @@
 import type { FastifyInstance } from 'fastify';
 import { and, asc, between, eq, isNull } from 'drizzle-orm';
 import { z } from 'zod';
-import { NUTRIENTS, addDays, sumValues, todayIn, type Nutrient, type TrendDay, type TrendsResponse } from '@mealler/shared';
+import {
+  NUTRIENTS,
+  addDays,
+  mealCategory,
+  sumValues,
+  todayIn,
+  type Nutrient,
+  type TrendDay,
+  type TrendsResponse
+} from '@mealler/shared';
 import type { AppContext } from '../app.ts';
 import { requireUser } from '../auth.ts';
 import { entries, favorites, slots, thresholds, weights } from '../db/schema.ts';
 import { badRequest } from '../http.ts';
-import { toEntry, toSlot, toUser } from '../services.ts';
+import { parseItems, toEntry, toSlot, toUser } from '../services.ts';
 import { zDate } from '../validation.ts';
 import { aiStatus } from '../ai.ts';
 
@@ -76,7 +85,7 @@ export async function insightRoutes(app: FastifyInstance, { db, ai }: AppContext
       .where(and(eq(entries.userId, user.id), between(entries.date, from, to)))
       .orderBy(asc(entries.date), asc(entries.createdAt))
       .all();
-    const header = ['date', 'slot', 'slot_time', 'description', 'quantity', 'kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g', 'source', 'notes'];
+    const header = ['date', 'slot', 'slot_time', 'description', 'quantity', 'kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g', 'source', 'notes', 'category'];
     const lines = rows.map((r) =>
       [
         r.date,
@@ -90,7 +99,9 @@ export async function insightRoutes(app: FastifyInstance, { db, ai }: AppContext
         r.fat,
         r.fiber,
         r.source,
-        r.notes
+        r.notes,
+        // Chosen by the user, otherwise guessed from the description.
+        r.category ?? mealCategory([r.description], parseItems(r.detail))
       ]
         .map(csvCell)
         .join(',')

@@ -96,7 +96,7 @@
   {:else if selected}
     <div class="card stack picked">
       <div class="picked-head">
-        <FoodIcon category={mealCategory([selected.name])} size={44} />
+        <FoodIcon category={selected.category ?? mealCategory([selected.name])} size={44} />
         <div class="grow">
           <p class="name">{selected.name}</p>
           {#if selected.brand}<p class="muted small">{selected.brand}</p>{/if}
@@ -129,7 +129,7 @@
         {#each results as p (p.id)}
           <li>
             <button type="button" onclick={() => choose(p)}>
-              <FoodIcon category={mealCategory([p.name])} size={32} />
+              <FoodIcon category={p.category ?? mealCategory([p.name])} size={32} />
               <span class="grow">
                 <span class="name">{p.name}</span>
                 {#if p.brand}<span class="muted small"> · {p.brand}</span>{/if}

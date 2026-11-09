@@ -113,7 +113,7 @@
       <ul class="card list">
         {#each favorites as f (f.id)}
           <li class="list-row">
-            <FoodIcon category={mealCategory([f.name, f.description], f.items)} size={44} />
+            <FoodIcon category={f.category ?? mealCategory([f.name, f.description], f.items)} size={44} />
             <div class="grow">
               <p class="name">{f.name}</p>
               {#if f.name !== f.description}<p class="muted small">{f.description}</p>{/if}
@@ -142,7 +142,7 @@
         {#each foods as p (p.id)}
           <li>
             <button class="list-row item" type="button" onclick={() => (editing = p)}>
-              <FoodIcon category={mealCategory([p.name])} size={44} />
+              <FoodIcon category={p.category ?? mealCategory([p.name])} size={44} />
               <span class="grow">
                 <span class="name">{p.name}</span>
                 {#if p.brand}<span class="muted small"> · {p.brand}</span>{/if}
