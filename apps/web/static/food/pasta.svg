@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+  <!-- Mealler food category: pasta -->
+  <g>
+    <path d="M46 6L38 30" fill="none" stroke="#14181D" stroke-width="7" stroke-linecap="round"/>
+    <path d="M46 6L38 30" fill="none" stroke="#E3E8ED" stroke-width="3" stroke-linecap="round"/>
+    <path d="M10 32C9 22 18 15 26 18C30 12 40 12 43 18C51 16 56 24 54 32Z" fill="#F6C343" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M16 28C20 23 24 30 28 25C32 20 36 28 40 23C43 20 46 24 48 27" fill="none" stroke="#C9921C" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="M23 21C24 15 34 13 38 18C42 22 36 26 30 25C25 25 22 24 23 21Z" fill="#E04F3F" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <ellipse cx="28" cy="18.5" rx="3" ry="1.6" fill="#F28B7D"/>
+    <path d="M34 17C36 12 42 11 44 13C42 17 38 18 34 17Z" fill="#5BAA4A" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M6 32H58C58 46 47 56 32 56C17 56 6 46 6 32Z" fill="#0F766E" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M8.6 38.5H55.4C54.6 41 54 42 53.4 43.5H10.6C10 42 9.4 41 8.6 38.5Z" fill="#CDE8E3"/>
+    <ellipse cx="17" cy="47" rx="3" ry="1.8" fill="#2A9D8F" transform="rotate(30 17 47)"/>
+  </g>
+</svg>

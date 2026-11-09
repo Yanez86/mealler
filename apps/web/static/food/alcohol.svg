@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+  <!-- Mealler food category: alcohol -->
+  <g transform="rotate(-10 32 34)">
+    <path d="M18 57C18 54 25 53 32 53C39 53 46 54 46 57Z" fill="#E6F3F8" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M30 36H34V54H30Z" fill="#E6F3F8" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M15 8H49C51 20 50 38 32 40C14 38 13 20 15 8Z" fill="#E6F3F8" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M16.2 20H47.8C47.6 30 44 37.6 32 38.4C20 37.6 16.4 30 16.2 20Z" fill="#A62B4D"/>
+    <path d="M16.2 20H47.8" stroke="#14181D" stroke-width="2.4"/>
+    <path d="M21 25C21 29 23 32 26 34" fill="none" stroke="#D6627F" stroke-width="3" stroke-linecap="round"/>
+    <path d="M42 11C43 13 43 15 43 16" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round"/>
+  </g>
+</svg>

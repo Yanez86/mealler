@@ -5,6 +5,7 @@
   import {
     addDays,
     isIsoDate,
+    mealCategory,
     todayIn,
     type DayResponse,
     type Nutrient,
@@ -14,6 +15,7 @@
   import { get, post } from '$lib/api';
   import type { AiStatus } from '@mealler/shared';
   import { app, errorMessage, formatDate, formatNumber, t } from '$lib/state.svelte';
+  import FoodIcon from '$lib/FoodIcon.svelte';
   import Icon from '$lib/Icon.svelte';
   import TopBar from '$lib/TopBar.svelte';
   import { net, pendingFor } from '$lib/offline.svelte';
@@ -229,6 +231,7 @@
                 {#each entries as entry (entry.id)}
                   <li>
                     <a href="/add?entry={entry.id}">
+                      <FoodIcon category={mealCategory([entry.description], entry.items)} size={36} />
                       <span class="desc">{entry.description}</span>
                       {#if entry.calcStatus === 'pending'}
                         <span class="claude"><Icon name="sparkle" size={12} />{t('ai.pending')}</span>
@@ -418,8 +421,8 @@
   li a {
     display: flex;
     align-items: center;
-    gap: 8px;
-    min-height: 44px;
+    gap: 10px;
+    min-height: 48px;
     color: var(--text);
     text-decoration: none;
   }

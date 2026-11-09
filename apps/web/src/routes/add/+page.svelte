@@ -7,6 +7,7 @@
     NUTRIENTS,
     isIsoDate,
     kcalMismatch,
+    mealCategory,
     todayIn,
     type AiStatus,
     type Entry,
@@ -21,6 +22,7 @@
   import { preparePhoto, type PreparedPhoto } from '$lib/image';
   import { enqueueEntry, net } from '$lib/offline.svelte';
   import { app, errorMessage, formatDate, formatNumber, t } from '$lib/state.svelte';
+  import FoodIcon from '$lib/FoodIcon.svelte';
   import Icon from '$lib/Icon.svelte';
   import TopBar from '$lib/TopBar.svelte';
   import LibraryPicker from '$lib/LibraryPicker.svelte';
@@ -297,7 +299,7 @@
           <div class="chips">
             {#each quick as q (q.key)}
               <button type="button" class="chip" aria-label={t('fav.use', { name: q.label })} onclick={() => useQuick(q.value)}>
-                {#if q.star}<Icon name="star" size={16} />{/if}{q.label}
+                <FoodIcon category={mealCategory([q.label, q.value.description], q.value.items)} size={24} badge={false} />{q.label}{#if q.star}<Icon name="star" size={16} />{/if}
               </button>
             {/each}
           </div>
@@ -354,7 +356,8 @@
           <ul>
             {#each items as item, i (i)}
               <li>
-                <span>{item.name}{#if item.quantity} · {item.quantity}{/if}</span>
+                <FoodIcon category={mealCategory([item.name])} size={24} badge={false} />
+                <span class="grow">{item.name}{#if item.quantity} · {item.quantity}{/if}</span>
                 <span class="muted">{formatNumber(item.kcal)} kcal</span>
               </li>
             {/each}
@@ -525,8 +528,9 @@
   }
   .estimate li {
     display: flex;
+    align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: 10px;
     font-size: 15px;
   }
   .est-head {

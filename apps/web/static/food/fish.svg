@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+  <!-- Mealler food category: fish -->
+  <g transform="rotate(-12 32 32)">
+    <path d="M44 31L58 20C56 27 56 37 58 44Z" fill="#3F7FC2" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M20 25C22 15 32 13 38 22Z" fill="#3F7FC2" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M6 32C12 19 34 14 47 31C34 48 12 45 6 32Z" fill="#4D8FD1" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M10 35C18 41 34 42 42 35C34 44 15 44 10 35Z" fill="#9CC5EE"/>
+    <path d="M22 26C24 30 24 35 22 39" fill="none" stroke="#14181D" stroke-width="2.4" stroke-linecap="round"/>
+    <circle cx="15" cy="29" r="3.6" fill="#FFFFFF" stroke="#14181D" stroke-width="2.4"/>
+    <circle cx="15.6" cy="29" r="1.6" fill="#14181D"/>
+    <ellipse cx="31" cy="25" rx="5" ry="1.8" fill="#8DBBEA" transform="rotate(-10 31 25)"/>
+  </g>
+</svg>

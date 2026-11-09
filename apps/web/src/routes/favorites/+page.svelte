@@ -4,9 +4,10 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
-  import type { Favorite, Product, ProductDraft } from '@mealler/shared';
+  import { mealCategory, type Favorite, type Product, type ProductDraft } from '@mealler/shared';
   import { del, get } from '$lib/api';
   import { errorMessage, formatNumber, t } from '$lib/state.svelte';
+  import FoodIcon from '$lib/FoodIcon.svelte';
   import Icon from '$lib/Icon.svelte';
   import ProductForm from '$lib/ProductForm.svelte';
   import TopBar from '$lib/TopBar.svelte';
@@ -112,6 +113,7 @@
       <ul class="card list">
         {#each favorites as f (f.id)}
           <li class="list-row">
+            <FoodIcon category={mealCategory([f.name, f.description], f.items)} size={44} />
             <div class="grow">
               <p class="name">{f.name}</p>
               {#if f.name !== f.description}<p class="muted small">{f.description}</p>{/if}
@@ -140,6 +142,7 @@
         {#each foods as p (p.id)}
           <li>
             <button class="list-row item" type="button" onclick={() => (editing = p)}>
+              <FoodIcon category={mealCategory([p.name])} size={44} />
               <span class="grow">
                 <span class="name">{p.name}</span>
                 {#if p.brand}<span class="muted small"> · {p.brand}</span>{/if}
