@@ -5,6 +5,9 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e i
 
 ## [Non rilasciato]
 
+### Aggiunto
+- Sito di presentazione in `site/`, con il logo, le icone degli alimenti e schermate reali dell'app in tema chiaro e scuro, pubblicato su GitHub Pages dal workflow `pages.yml`.
+
 ## [1.1.0] - 2026-11-09
 
 ### Aggiunto

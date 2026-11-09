@@ -79,6 +79,8 @@ pnpm typecheck && pnpm test && pnpm build
 
 Struttura: `apps/server` (Fastify, SQLite con Drizzle, migrazioni SQL in `apps/server/migrations`), `apps/web` (SvelteKit come SPA), `packages/shared` (tipi, calcoli, traduzioni).
 
+Il sito di presentazione è in `site/`: `node site/build.mjs` lo crea in `site/dist` con il logo e le icone dell'app, e il workflow `pages.yml` lo pubblica su GitHub Pages (vedi [site/README.md](site/README.md)).
+
 ## Licenza
 
 [GNU Affero General Public License v3.0 o successiva](LICENSE). Se offri Mealler ad altri tramite rete, devi rendere disponibile il codice sorgente, comprese le tue modifiche: l'app mostra già un link al sorgente nella pagina Profilo.

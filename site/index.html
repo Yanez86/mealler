@@ -1,0 +1,418 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<!-- Mealler presentation site. Built into site/dist by site/build.mjs, which adds the app's icons from apps/web/static. -->
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Mealler · Diario alimentare self-hosted</title>
+    <meta
+      name="description"
+      content="Mealler è un diario alimentare self-hosted e multiutente, installabile come app sul telefono, con soglie facoltative per calorie e macronutrienti e calcolo dei valori con Claude." />
+    <meta name="theme-color" content="#F3F5F7" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0E1114" media="(prefers-color-scheme: dark)" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Mealler · Diario alimentare self-hosted" />
+    <meta
+      property="og:description"
+      content="Il diario alimentare che vive sul tuo server: slot dei pasti su misura, soglie facoltative, promemoria, uso offline e calcolo con Claude." />
+    <link rel="icon" href="assets/logo.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <a class="skip" href="#main">Vai al contenuto</a>
+
+    <header class="topbar">
+      <div class="wrap topbar-inner">
+        <a class="brand" href="#top" aria-label="Mealler, inizio pagina">
+          <img src="assets/logo.svg" width="40" height="40" alt="" />
+          <span>Mealler</span>
+        </a>
+        <nav aria-label="Sezioni">
+          <a href="#funzioni">Funzioni</a>
+          <a href="#claude">Claude</a>
+          <a href="#installa">Installa</a>
+          <a class="btn btn-small" href="https://github.com/Yanez86/mealler">
+            <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 0 0-1.3-3.2 4.2 4.2 0 0 0-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3 0 0 0-6.2 0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2 0 0 0-.1 3.2A4.6 4.6 0 0 0 4 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21" /></svg>
+            GitHub
+          </a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <!-- ============ Hero ============ -->
+      <section class="hero" id="top">
+        <div class="wrap hero-grid">
+          <div class="hero-copy">
+            <p class="pill">
+              <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11h16v9H4zM2 7h20v4H2zM12 7v13M12 7c-2-4-6-4-6-1.5S10 7 12 7zM12 7c2-4 6-4 6-1.5S14 7 12 7z" /></svg>
+              Versione 1.1.0 · open source
+            </p>
+            <h1>Il diario alimentare che vive <span class="hl">a casa tua</span>.</h1>
+            <p class="lead">
+              Mealler è un diario alimentare <strong>self-hosted</strong> e <strong>multiutente</strong>, da installare come app sul
+              telefono e sul computer. Registri i pasti negli orari che decidi tu, tieni d'occhio calorie e macronutrienti rispetto alle
+              tue soglie e, se vuoi, ti fai aiutare da Claude per i calcoli.
+            </p>
+            <div class="cta">
+              <a class="btn btn-primary" href="#installa">
+                <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" /></svg>
+                Installa con Docker
+              </a>
+              <a class="btn" href="https://github.com/Yanez86/mealler">Codice su GitHub</a>
+            </div>
+            <ul class="ticks">
+              <li><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7" /></svg>Gratis, licenza AGPL</li>
+              <li><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7" /></svg>I dati restano sul tuo server</li>
+              <li><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7" /></svg>Italiano e inglese</li>
+            </ul>
+          </div>
+
+          <div class="hero-art">
+            <div class="float f1"><span class="food" style="--tint: #e04f3f"><img src="assets/food/fruit.svg" alt="" /></span></div>
+            <div class="float f2"><span class="food" style="--tint: #0f766e"><img src="assets/food/pasta.svg" alt="" /></span></div>
+            <div class="float f3"><span class="food" style="--tint: #8a5530"><img src="assets/food/coffee.svg" alt="" /></span></div>
+            <div class="float f4"><span class="food" style="--tint: #4d8fd1"><img src="assets/food/fish.svg" alt="" /></span></div>
+            <div class="float f5"><span class="food" style="--tint: #4e9e45"><img src="assets/food/vegetables.svg" alt="" /></span></div>
+            <div class="float f6"><span class="food" style="--tint: #f27ba5"><img src="assets/food/sweets.svg" alt="" /></span></div>
+            <figure class="phone">
+              <picture>
+                <source srcset="screenshots/today-dark.webp" media="(prefers-color-scheme: dark)" />
+                <img
+                  src="screenshots/today-light.webp"
+                  width="390"
+                  height="844"
+                  alt="La schermata Oggi di Mealler: 1520 kcal su una fascia di 1800–2200, proteine, carboidrati, grassi e fibre con le soglie, e i pasti della giornata con le icone degli alimenti." />
+              </picture>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ The day, in slots ============ -->
+      <section class="section" aria-labelledby="giornata-title">
+        <div class="wrap">
+          <div class="section-head">
+            <p class="eyebrow">La tua giornata</p>
+            <h2 id="giornata-title">Pasti negli slot che decidi tu</h2>
+            <p class="sub">
+              Colazione alle 7 o alle 9, uno spuntino solo nei giorni di palestra: orari, giorni della settimana e ordine sono tuoi. Quando
+              uno slot è passato ed è ancora vuoto, Mealler te lo ricorda con una notifica.
+            </p>
+          </div>
+          <ol class="day">
+            <li class="slot">
+              <span class="slot-time">08:00</span>
+              <span class="slot-name">Colazione</span>
+              <span class="slot-food"><span class="food sm" style="--tint: #8a5530"><img src="assets/food/coffee.svg" alt="" /></span>Cappuccino e cornetto</span>
+              <span class="slot-kcal">340 kcal</span>
+            </li>
+            <li class="slot">
+              <span class="slot-time">10:30</span>
+              <span class="slot-name">Spuntino</span>
+              <span class="slot-food"><span class="food sm" style="--tint: #e04f3f"><img src="assets/food/fruit.svg" alt="" /></span>Mela</span>
+              <span class="slot-kcal">80 kcal</span>
+            </li>
+            <li class="slot">
+              <span class="slot-time">13:00</span>
+              <span class="slot-name">Pranzo</span>
+              <span class="slot-food"><span class="food sm" style="--tint: #0f766e"><img src="assets/food/pasta.svg" alt="" /></span>Spaghetti al pomodoro</span>
+              <span class="slot-kcal">510 kcal</span>
+            </li>
+            <li class="slot">
+              <span class="slot-time">16:30</span>
+              <span class="slot-name">Merenda</span>
+              <span class="slot-food"><span class="food sm" style="--tint: #f6c343"><img src="assets/food/dairy.svg" alt="" /></span>Yogurt greco</span>
+              <span class="slot-kcal">290 kcal</span>
+            </li>
+            <li class="slot due">
+              <span class="slot-time">20:00</span>
+              <span class="slot-name">Cena</span>
+              <span class="slot-add">
+                <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                Aggiungi
+              </span>
+              <span class="slot-kcal">
+                <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg>
+                promemoria
+              </span>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <!-- ============ Features ============ -->
+      <section class="section alt" id="funzioni" aria-labelledby="funzioni-title">
+        <div class="wrap">
+          <div class="section-head">
+            <p class="eyebrow">Funzioni</p>
+            <h2 id="funzioni-title">Tutto quello che serve, niente di più</h2>
+          </div>
+          <ul class="features">
+            <li class="feature">
+              <span class="ficon"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20h18M7 16v-5M12 16V7M17 16v-8" /></svg></span>
+              <h3>Soglie facoltative</h3>
+              <p>Minimo, massimo o entrambi per calorie, proteine, carboidrati, grassi e fibre. C'è anche un pulsante con i valori consigliati LARN.</p>
+            </li>
+            <li class="feature">
+              <span class="ficon"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" /></svg></span>
+              <h3>Calcolo con Claude</h3>
+              <p>Descrivi il pasto o scatta una foto: arriva la stima per ogni alimento, che puoi correggere prima di salvare.</p>
+            </li>
+            <li class="feature">
+              <span class="ficon"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5v14M7 5v14M10 5v14M14 5v14M17 5v14M20 5v14M2 4h2M2 20h2M20 4h2M20 20h2" /></svg></span>
+              <h3>Libreria alimenti</h3>
+              <p>Prodotti confezionati condivisi tra gli utenti: codice a barre, ricerca su Open Food Facts o foto dell'etichetta.</p>
+            </li>
+            <li class="feature">
+              <span class="ficon"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg></span>
+              <h3>Promemoria push</h3>
+              <p>Notifiche per gli slot rimasti vuoti e per la pesata, con fascia di silenzio e pausa quando vai in vacanza.</p>
+            </li>
+            <li class="feature">
+              <span class="ficon"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 2l20 20M8.5 16.5a5 5 0 0 1 7 0M2 8.8a15 15 0 0 1 4.2-2.6M10.7 5.1A15 15 0 0 1 22 8.8M5 12.9a10 10 0 0 1 5.2-2.8M19 12.9a10 10 0 0 0-1.3-1M12 20h.01" /></svg></span>
+              <h3>Funziona offline</h3>
+              <p>Consulti il diario anche senza rete; i pasti inseriti restano in coda e partono appena torni online.</p>
+            </li>
+            <li class="feature">
+              <span class="ficon"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM8 2v4M16 2v4M3 10h18" /></svg></span>
+              <h3>Andamento e peso</h3>
+              <p>Grafici su 7, 30 o 90 giorni con le soglie disegnate, giorni nella fascia e un calendario delle pesate.</p>
+            </li>
+            <li class="feature">
+              <span class="ficon"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z" /></svg></span>
+              <h3>Preferiti</h3>
+              <p>Salva i pasti che ripeti spesso e reinseriscili con un tocco, senza rifare i calcoli.</p>
+            </li>
+            <li class="feature">
+              <span class="ficon"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0" /></svg></span>
+              <h3>Per tutta la famiglia</h3>
+              <p>Più utenti sulla stessa istanza, con inviti o registrazione libera. Ognuno vede solo il proprio diario.</p>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ============ Food icons ============ -->
+      <section class="section" aria-labelledby="icone-title">
+        <div class="wrap">
+          <div class="section-head">
+            <p class="eyebrow">Novità della 1.1</p>
+            <h2 id="icone-title">Un'icona per ogni piatto</h2>
+            <p class="sub">
+              Sedici categorie disegnate nello stile del logo. Mealler le riconosce dal nome del cibo, in italiano e in inglese; se non ti
+              convince, la scegli a mano.
+            </p>
+          </div>
+          <ul class="foods">
+            <li><span class="food" style="--tint: #e04f3f"><img src="assets/food/fruit.svg" alt="" /></span>Frutta</li>
+            <li><span class="food" style="--tint: #4e9e45"><img src="assets/food/vegetables.svg" alt="" /></span>Verdura</li>
+            <li><span class="food" style="--tint: #7cc36e"><img src="assets/food/legumes.svg" alt="" /></span>Legumi</li>
+            <li><span class="food" style="--tint: #d18b47"><img src="assets/food/bread.svg" alt="" /></span>Pane e cereali</li>
+            <li><span class="food" style="--tint: #0f766e"><img src="assets/food/pasta.svg" alt="" /></span>Pasta e riso</li>
+            <li><span class="food" style="--tint: #f6c343"><img src="assets/food/pizza.svg" alt="" /></span>Pizza</li>
+            <li><span class="food" style="--tint: #e07a2e"><img src="assets/food/meat.svg" alt="" /></span>Carne e salumi</li>
+            <li><span class="food" style="--tint: #4d8fd1"><img src="assets/food/fish.svg" alt="" /></span>Pesce</li>
+            <li><span class="food" style="--tint: #f5b82e"><img src="assets/food/eggs.svg" alt="" /></span>Uova</li>
+            <li><span class="food" style="--tint: #f6c343"><img src="assets/food/dairy.svg" alt="" /></span>Latte e formaggi</li>
+            <li><span class="food" style="--tint: #b97a47"><img src="assets/food/nuts.svg" alt="" /></span>Frutta secca</li>
+            <li><span class="food" style="--tint: #c9b83a"><img src="assets/food/fats.svg" alt="" /></span>Grassi e condimenti</li>
+            <li><span class="food" style="--tint: #f27ba5"><img src="assets/food/sweets.svg" alt="" /></span>Dolci</li>
+            <li><span class="food" style="--tint: #8a5530"><img src="assets/food/coffee.svg" alt="" /></span>Caffè e tè</li>
+            <li><span class="food" style="--tint: #f7a440"><img src="assets/food/drinks.svg" alt="" /></span>Bevande</li>
+            <li><span class="food" style="--tint: #a62b4d"><img src="assets/food/alcohol.svg" alt="" /></span>Alcolici</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ============ Screens ============ -->
+      <section class="section alt" aria-labelledby="schermate-title">
+        <div class="wrap">
+          <div class="section-head">
+            <p class="eyebrow">Schermate</p>
+            <h2 id="schermate-title">Pensata per il telefono</h2>
+            <p class="sub">Si installa dalla pagina web come una normale app, con tema chiaro e scuro e pulsanti grandi da usare con una mano.</p>
+          </div>
+        </div>
+        <div class="screens" tabindex="0" aria-label="Schermate dell'app, scorrevoli">
+          <figure>
+            <div class="phone">
+              <picture>
+                <source srcset="screenshots/today-dark.webp" media="(prefers-color-scheme: dark)" />
+                <img src="screenshots/today-light.webp" width="390" height="844" loading="lazy" alt="Schermata Oggi con il riepilogo di calorie e macronutrienti e i pasti negli slot." />
+              </picture>
+            </div>
+            <figcaption><strong>Oggi</strong> Riepilogo e pasti, con lo stato di ogni soglia.</figcaption>
+          </figure>
+          <figure>
+            <div class="phone">
+              <picture>
+                <source srcset="screenshots/entry-dark.webp" media="(prefers-color-scheme: dark)" />
+                <img src="screenshots/entry-light.webp" width="390" height="844" loading="lazy" alt="Schermata di un pasto con la stima AI divisa per alimento: spaghetti, salsa di pomodoro, olio e parmigiano." />
+              </picture>
+            </div>
+            <figcaption><strong>Stima AI</strong> Il dettaglio per alimento, da correggere se serve.</figcaption>
+          </figure>
+          <figure>
+            <div class="phone">
+              <picture>
+                <source srcset="screenshots/trends-dark.webp" media="(prefers-color-scheme: dark)" />
+                <img src="screenshots/trends-light.webp" width="390" height="844" loading="lazy" alt="Schermata Andamento con il grafico a barre delle calorie degli ultimi 7 giorni e la fascia delle soglie." />
+              </picture>
+            </div>
+            <figcaption><strong>Andamento</strong> Media, giorni nella fascia e grafici.</figcaption>
+          </figure>
+          <figure>
+            <div class="phone">
+              <picture>
+                <source srcset="screenshots/weight-dark.webp" media="(prefers-color-scheme: dark)" />
+                <img src="screenshots/weight-light.webp" width="390" height="844" loading="lazy" alt="Schermata Peso con l'ultima pesata, la variazione e il calendario del mese." />
+              </picture>
+            </div>
+            <figcaption><strong>Peso</strong> Ultima pesata, variazione e calendario.</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <!-- ============ Claude ============ -->
+      <section class="section" id="claude" aria-labelledby="claude-title">
+        <div class="wrap">
+          <div class="section-head">
+            <p class="eyebrow">Claude</p>
+            <h2 id="claude-title">Contare le calorie? Lo fa Claude</h2>
+            <p class="sub">Puoi sempre scrivere i valori a mano. Se preferisci, Claude ti aiuta in due modi, entrambi facoltativi.</p>
+          </div>
+          <div class="claude-grid">
+            <article class="card">
+              <span class="ficon"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1zM12 17a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z" /></svg></span>
+              <h3>Dentro l'app</h3>
+              <p>
+                Con una chiave API Anthropic, il pulsante <em>Calcola con Claude</em> stima kcal e macro dalla descrizione o da una foto
+                del piatto. L'amministratore fissa i limiti: richieste al giorno per utente e budget mensile dell'istanza.
+              </p>
+            </article>
+            <article class="card">
+              <span class="ficon"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" /></svg></span>
+              <h3>Da claude.ai</h3>
+              <p>
+                Aggiungi Mealler come connettore (MCP con OAuth 2.1, senza servizi esterni) e racconta a Claude cosa hai mangiato: lo
+                registra lui nel diario, usando i valori esatti dei prodotti in libreria.
+              </p>
+              <div class="chat" aria-label="Esempio di conversazione">
+                <p class="bubble me">A pranzo spaghetti al pomodoro e un'insalata di ceci e feta</p>
+                <p class="bubble claude">
+                  <img src="assets/logo.svg" width="22" height="22" alt="" />
+                  <span>Fatto: due voci nel <strong>Pranzo</strong> di oggi, circa 810 kcal. Sono stime: dimmi se vuoi correggerle.</span>
+                </p>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ Privacy ============ -->
+      <section class="section alt" aria-labelledby="dati-title">
+        <div class="wrap privacy">
+          <div>
+            <p class="eyebrow">I tuoi dati</p>
+            <h2 id="dati-title">Sul tuo server, non nel cloud di qualcun altro</h2>
+            <p class="sub">
+              Mealler gira in un container Docker su un NAS, un mini PC o un server. Il database SQLite sta in un volume che controlli tu,
+              e il codice è sotto licenza AGPL: puoi leggerlo, modificarlo e verificarlo.
+            </p>
+          </div>
+          <ul class="checks">
+            <li><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7" /></svg>Nessun tracciamento e nessun account esterno</li>
+            <li><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7" /></svg>Chiavi e segreti cifrati nel database</li>
+            <li><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7" /></svg>Content-Security-Policy restrittiva e HSTS</li>
+            <li><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7" /></svg>Export completo in CSV e JSON</li>
+            <li><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7" /></svg>Eliminazione dell'account con tutti i dati</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ============ Install ============ -->
+      <section class="section" id="installa" aria-labelledby="installa-title">
+        <div class="wrap install">
+          <div class="section-head">
+            <p class="eyebrow">Installazione</p>
+            <h2 id="installa-title">Pronto in cinque righe</h2>
+            <p class="sub">Serve un computer o un NAS sempre acceso con Docker (amd64 o arm64).</p>
+          </div>
+          <div class="terminal">
+            <div class="terminal-bar">
+              <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+              <button class="copy" type="button" data-copy="install-cmd">
+                <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9h10v10H9zM5 15V5h10" /></svg>
+                <span>Copia</span>
+              </button>
+            </div>
+            <pre id="install-cmd"><code>git clone https://github.com/Yanez86/mealler.git
+cd mealler
+cp .env.example .env
+docker compose pull
+docker compose up -d</code></pre>
+          </div>
+          <ol class="steps">
+            <li>
+              <span class="num">1</span>
+              <p>Apri l'indirizzo del server sulla porta 3000: la prima pagina crea l'account amministratore.</p>
+            </li>
+            <li>
+              <span class="num">2</span>
+              <p>Per installare l'app sul telefono e ricevere le notifiche serve HTTPS: Cloudflare Tunnel, Caddy o Traefik.</p>
+            </li>
+            <li>
+              <span class="num">3</span>
+              <p>Per aggiornare bastano di nuovo <code>pull</code> e <code>up -d</code>: le migrazioni del database partono da sole.</p>
+            </li>
+          </ol>
+          <p class="center">
+            <a class="btn btn-primary" href="https://github.com/Yanez86/mealler/blob/main/docs/INSTALL.md">Leggi la guida completa</a>
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="wrap footer-grid">
+        <div class="footer-brand">
+          <img src="assets/logo.svg" width="56" height="56" alt="" />
+          <div>
+            <p class="footer-name">Mealler</p>
+            <p class="muted">Versione 1.1.0 · <a href="https://github.com/Yanez86/mealler/blob/main/LICENSE">AGPL-3.0-or-later</a></p>
+          </div>
+        </div>
+        <nav class="footer-links" aria-label="Collegamenti">
+          <a href="https://github.com/Yanez86/mealler">Codice sorgente</a>
+          <a href="https://github.com/Yanez86/mealler/blob/main/docs/INSTALL.md">Guida d'installazione</a>
+          <a href="https://github.com/Yanez86/mealler/blob/main/CHANGELOG.md">Novità</a>
+          <a href="https://github.com/Yanez86/mealler/blob/main/SECURITY.md">Sicurezza</a>
+        </nav>
+        <p class="english" lang="en">
+          <strong>In English:</strong> Mealler is a self-hosted, multi-user food diary you install as a PWA. Log meals into slots you
+          define, track calories and macros against optional thresholds, get push reminders, work offline, and let Claude estimate
+          nutritional values in the app or through a claude.ai connector. Install it with Docker; licensed under AGPL-3.0-or-later.
+        </p>
+      </div>
+    </footer>
+
+    <script>
+      // Copy the install commands to the clipboard.
+      for (const button of document.querySelectorAll('[data-copy]')) {
+        button.addEventListener('click', async () => {
+          const label = button.querySelector('span');
+          try {
+            await navigator.clipboard.writeText(document.getElementById(button.dataset.copy).innerText.trim());
+            label.textContent = 'Copiato';
+          } catch {
+            label.textContent = 'Seleziona e copia';
+          }
+          setTimeout(() => (label.textContent = 'Copia'), 2000);
+        });
+      }
+    </script>
+  </body>
+</html>
