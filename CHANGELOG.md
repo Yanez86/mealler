@@ -5,120 +5,126 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e i
 
 ## [Non rilasciato]
 
+## [1.1.1] - 2026-11-09
+
+### Aggiunto
+- Una X per chiudere l'avviso delle novità senza aprirle.
+
+### Corretto
+- Aggiustata l'intestazione su iPhone, che finiva sotto la sfocatura della barra di stato.
+
 ## [1.1.0] - 2026-11-09
 
 ### Aggiunto
-- Icone colorate per 16 categorie di alimenti, disegnate nello stile del logo: frutta, verdura, legumi, pane e cereali, pasta e riso, pizza, carne e salumi, pesce, uova, latte e formaggi, frutta secca, grassi e condimenti, dolci, caffè e tè, bevande, alcolici.
-- La categoria è riconosciuta in automatico dal nome del cibo, in italiano e in inglese (se il nome non basta, conta l'alimento più calorico della stima AI); l'icona compare nel diario, nei preferiti, nella libreria alimenti e nella schermata Aggiungi pasto.
-- Scelta della categoria a mano, nella schermata del pasto e nella scheda di un alimento in libreria; "Automatica" torna al riconoscimento dal nome. I pasti inseriti da un preferito o dalla libreria ereditano la categoria scelta.
-- Il connettore claude.ai accetta la categoria (facoltativa) in add_entry e update_entry; l'export CSV ha la colonna category.
+- Icone colorate per 16 categorie di alimenti, nello stile del logo.
+- La categoria si riconosce dal nome del cibo e l'icona compare nel diario, nei preferiti, nella libreria e in Aggiungi pasto.
+- Categoria scelta a mano nel pasto o nella scheda di un alimento; i pasti da preferiti e libreria la ereditano.
+- Aggiornati il connettore claude.ai e l'export con la categoria.
 
 ## [1.0.0] - 2026-11-09
 
 Prima versione stabile.
 
 ### Aggiunto
-- Eliminazione del proprio account dal Profilo, con conferma della password: cancella diario, foto, pesi, preferiti, soglie, notifiche e accessi del connettore. L'ultimo amministratore non può eliminarsi finché ci sono altri utenti.
-- Guida d'installazione completa in `docs/INSTALL.md`: Cloudflare Tunnel, Caddy, Traefik, backup, ripristino, aggiornamenti e problemi frequenti.
-- Policy di sicurezza in `SECURITY.md` con il canale per le segnalazioni private.
-- Immagini Docker con tag di versione (`1.0.0`, `1.0`, `1`) oltre a `latest`.
+- Eliminazione del proprio account dal Profilo, con conferma della password.
+- Inserita una guida d'installazione completa.
+- Inserite le istruzioni per segnalare problemi di sicurezza.
+- Sistemata la pubblicazione delle versioni.
 
 ### Sicurezza
-- Content-Security-Policy restrittiva sulle pagine dell'app: solo script dell'app (gli script inline sono ammessi per hash), niente plugin, niente incorporamento in altri siti.
-- Permissions-Policy: fotocamera solo per l'app (codice a barre e foto), microfono e posizione disattivati.
-- HSTS e Cross-Origin-Opener-Policy quando Mealler è servito in HTTPS.
+- Rafforzata la protezione delle pagine dell'app.
+- La fotocamera è usata solo per codici a barre e foto; microfono e posizione sono disattivati.
 
 ## [0.6.0] - 2026-11-09
 
 ### Aggiunto
-- Libreria alimenti condivisa tra gli utenti dell'istanza: prodotti confezionati con valori per 100 g e porzione tipica, nella scheda Preferiti → Alimenti.
-- Quattro modi per aggiungere un prodotto: inserimento manuale, scansione del codice a barre (con ricerca su Open Food Facts se non è già in libreria), foto della tabella nutrizionale letta dall'AI.
-- Nella schermata Aggiungi pasto: ricerca o scansione di un prodotto della libreria, quantità in grammi o porzioni, valori calcolati dalla confezione senza consumare calcoli AI.
-- Strumenti del connettore claude.ai search_foods e log_food: Claude usa i valori esatti dei prodotti in libreria.
-- Pulsante "Usa i valori consigliati (LARN)" nelle soglie: carboidrati 45–60% e grassi 20–35% delle calorie, proteine 0,9 g/kg, fibre almeno 25 g.
+- Libreria alimenti condivisa con gli altri utenti, in Preferiti → Alimenti.
+- Prodotti aggiunti a mano, con il codice a barre o dalla foto della tabella nutrizionale.
+- In Aggiungi pasto i prodotti della libreria si inseriscono in grammi o porzioni, senza consumare calcoli AI.
+- Aggiornato il connettore claude.ai per usare i valori della libreria.
+- Pulsante per usare le soglie consigliate (LARN).
 - Interruttore in Amministrazione per la ricerca su Open Food Facts.
 
 ## [0.5.2] - 2026-11-09
 
 ### Modificato
-- Vista del giorno: nomi dei nutrienti e soglie restano su una riga e vengono troncati invece di andare a capo.
+- Nella vista del giorno nutrienti e soglie restano su una riga.
 - Le voci stimate sono etichettate "Stima AI".
-- Se le calorie hanno sia un minimo sia un massimo, il riepilogo mostra l'intervallo.
+- Il riepilogo mostra l'intervallo delle calorie quando ci sono minimo e massimo.
 
 ## [0.5.1] - 2026-11-09
 
 ### Modificato
-- Nella schermata del pasto i valori nutrizionali sono in una sezione a tendina, chiusa di default, con il riepilogo dei totali sempre visibile.
-- La data in alto è in formato breve (es. "lun 9 nov") e resta sempre su una riga.
+- I valori nutrizionali del pasto sono in una sezione a tendina, con i totali sempre visibili.
+- La data in alto è in formato breve.
 
 ## [0.5.0] - 2026-11-09
 
 ### Aggiunto
-- Preferiti: salva un pasto con i suoi valori e reinseriscilo con un tocco; nella schermata Aggiungi pasto compaiono i preferiti e i pasti mangiati più spesso.
-- Andamento: grafici a barre di calorie e macronutrienti su 7, 30 o 90 giorni con le soglie disegnate come fascia, media giornaliera, giorni nella fascia e ripartizione delle calorie tra proteine, carboidrati e grassi.
-- Peso: ultima pesata con variazione, calendario mensile delle pesate, grafico nel tempo e promemoria ogni N settimane nel giorno e all'ora scelti.
-- Strumenti del connettore claude.ai per il peso: log_weight e get_weights.
-- Export dei dati: CSV dei pasti per periodo e JSON completo dell'account.
-- Pagina Novità con questo changelog e avviso dopo ogni aggiornamento.
-- Pulsante per calcolare con Claude, in un colpo, tutte le voci di una giornata ancora senza valori.
-- Barra di navigazione con quattro sezioni: Oggi, Andamento, Preferiti, Profilo.
+- Preferiti: un pasto salvato si reinserisce con un tocco; in Aggiungi pasto compaiono anche i più frequenti.
+- Andamento: grafici di calorie e macronutrienti su 7, 30 o 90 giorni, con soglie e medie.
+- Peso: ultima pesata, calendario, grafico e promemoria periodico.
+- Aggiornato il connettore claude.ai con il peso.
+- Export dei pasti e dell'intero account.
+- Pagina Novità e avviso dopo ogni aggiornamento.
+- Calcolo con Claude di tutte le voci di una giornata in un colpo.
+- Barra di navigazione con Oggi, Andamento, Preferiti e Profilo.
 
 ### Corretto
-- Su iPhone il campo Data usciva dal bordo dello schermo e faceva scorrere la pagina in orizzontale.
-- Quando il calcolo con Claude è spento, il messaggio ora lo dice chiaramente invece di parlare di versioni future.
+- Aggiustato il campo Data su iPhone.
+- Messaggio più chiaro quando il calcolo con Claude è spento.
 
 ## [0.4.1] - 2026-11-09
 
 ### Aggiunto
-- Limiti al calcolo con Claude, configurabili in Amministrazione: richieste al giorno per utente (40 di default), richieste al minuto per utente (6 di default), token al giorno per utente e budget mensile complessivo dell'istanza.
-- Ogni tentativo viene conteggiato prima della chiamata all'API, così gli errori ripetuti non aggirano i limiti.
-- Nella schermata Aggiungi pasto il contatore dei calcoli usati oggi e un avviso chiaro quando un limite è raggiunto.
+- Limiti al calcolo con Claude, configurabili in Amministrazione.
+- Contatore dei calcoli usati oggi e avviso quando un limite è raggiunto.
+- Migliorato il conteggio delle richieste.
 
 ## [0.4.0] - 2026-11-09
 
 ### Aggiunto
-- Calcolo con Claude dentro l'app (API Anthropic): pulsante "Calcola con Claude" e stima da foto, con dettaglio per alimento, livello di affidabilità e valori modificabili prima di salvare.
-- Foto ridotte sul telefono prima dell'invio (massimo 1280 px); l'amministratore sceglie se conservarle.
-- Salvataggio senza attese: una voce senza valori viene registrata subito e calcolata in background; il diario si aggiorna da solo.
-- Pannello in Amministrazione: chiave API (cifrata sul server con AES-256-GCM), modelli per testo e foto, tetto di spesa mensile per utente, verifica della chiave, consumi del mese per utente.
-- Contatore di token e costo stimato per utente e per modello.
+- Calcolo con Claude dentro l'app, da testo o da foto, con valori modificabili prima di salvare.
+- Le voci si salvano subito e vengono calcolate in background.
+- Ottimizzato l'invio delle foto; l'amministratore sceglie se conservarle.
+- Pannello in Amministrazione per chiave API, modelli, spesa e consumi.
+- Protetta la chiave API sul server.
 
 ## [0.3.0] - 2026-11-09
 
 ### Aggiunto
-- Connettore per claude.ai: endpoint MCP `/mcp` con gli strumenti `list_slots`, `get_day`, `add_entry`, `update_entry`, `delete_entry`, `get_thresholds` e `get_summary`. Claude stima porzioni e valori e li registra nel diario con il dettaglio per alimento.
-- Server di autorizzazione OAuth 2.1 integrato: discovery, registrazione dinamica dei client, PKCE S256 obbligatorio, token che si rinnovano e revoca.
-- Schermata di consenso, pagina Connettore claude.ai con le istruzioni e l'elenco delle app collegate, revocabili.
-- Interruttore in Amministrazione per attivare il connettore (disattivato di default).
-- Le voci registrate da Claude sono segnate come "Stima Claude" nel diario.
-- Splash all'avvio con logo e versione; se l'app sul dispositivo è più vecchia del server si aggiorna da sola.
-- Avviso agli amministratori quando su GitHub c'è una versione più recente (disattivabile con `MEALLER_UPDATE_CHECK=false`).
+- Connettore per claude.ai: Claude stima porzioni e valori e li registra nel diario.
+- Inserito l'accesso sicuro per le app collegate, con consenso e revoca.
+- Interruttore in Amministrazione per il connettore, spento di default.
+- Le voci registrate da Claude sono segnate "Stima Claude".
+- Schermata d'avvio; l'app si aggiorna da sola quando serve.
+- Avviso agli amministratori quando esce una nuova versione.
 
 ### Modificato
-- Dopo il login si torna alla pagina richiesta (per esempio la schermata di consenso).
+- Dopo il login si torna alla pagina richiesta.
 
 ## [0.2.0] - 2026-11-09
 
 ### Aggiunto
-- Promemoria push per gli slot ancora vuoti, con ritardo configurabile per slot (da subito a 2 ore dopo l'orario).
-- Pagina Notifiche: attivazione per dispositivo, notifica di prova, fascia di silenzio, pausa di 7 giorni.
-- Avvisi dedicati quando le notifiche non sono disponibili: connessione senza HTTPS, iPhone senza app installata, permesso negato.
-- Consultazione offline del diario e degli slot dall'ultima versione salvata.
-- Inserimenti fatti offline salvati sul dispositivo e inviati automaticamente al ritorno della rete.
-- Chiavi VAPID generate al primo avvio.
+- Promemoria per i pasti non ancora segnati.
+- Pagina Notifiche: attivazione per dispositivo, prova, fascia di silenzio e pausa.
+- Avvisi chiari quando le notifiche non sono disponibili.
+- Diario consultabile offline; gli inserimenti fatti offline partono al ritorno della rete.
+- Configurate in automatico le notifiche al primo avvio.
 
 ### Modificato
-- All'uscita dall'account il dispositivo smette di ricevere i promemoria e la cache locale viene svuotata.
+- Uscendo dall'account il dispositivo smette di ricevere promemoria e i dati locali vengono cancellati.
 
 ## [0.1.0] - 2026-11-09
 
 ### Aggiunto
-- Primo avvio guidato: chi installa l'istanza crea l'account amministratore.
-- Accesso con email e password (argon2id), sessioni tramite cookie HttpOnly, limite ai tentativi.
-- Gestione utenti per l'amministratore: creazione, ruoli, disattivazione, inviti con scadenza, registrazione libera opzionale.
-- Slot dei pasti per utente, con orario, giorni della settimana e ordine; cinque slot di partenza nella lingua dell'utente.
-- Diario giornaliero con inserimento manuale di calorie, proteine, carboidrati, grassi e fibre, e controllo di coerenza tra calorie e macronutrienti.
-- Soglie minime e massime facoltative per ogni nutriente, versionate per data.
-- Interfaccia mobile-first in italiano e inglese, tema chiaro e scuro, logo sempre in alto a sinistra come link a Oggi.
-- PWA installabile con cache dell'interfaccia.
-- Immagine Docker e `docker-compose.yml`, con migrazioni automatiche del database SQLite.
+- Primo avvio guidato con la creazione dell'amministratore.
+- Accesso con email e password.
+- Protetti password e sessioni.
+- Gestione utenti per l'amministratore, con inviti e registrazione libera opzionale.
+- Slot dei pasti personali, con orario e giorni.
+- Diario giornaliero con calorie, proteine, carboidrati, grassi e fibre.
+- Soglie minime e massime facoltative per ogni nutriente.
+- Interfaccia in italiano e inglese, tema chiaro e scuro.
+- App installabile sul telefono.
+- Inserita l'installazione con Docker.

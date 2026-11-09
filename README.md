@@ -9,7 +9,7 @@ Registri cosa mangi negli slot che decidi tu, tieni d'occhio calorie e macronutr
 
 ## Stato
 
-Versione **1.1.0**: diario con promemoria push, uso offline, libreria alimenti condivisa, icone colorate per le categorie di alimenti, connettore per claude.ai e calcolo AI dentro l'app, anche da foto.
+Versione **1.1.1**: diario con promemoria push, uso offline, libreria alimenti condivisa, icone colorate per le categorie di alimenti, connettore per claude.ai e calcolo AI dentro l'app, anche da foto.
 
 | Funzione | Stato |
 | --- | --- |
@@ -87,4 +87,4 @@ Struttura: `apps/server` (Fastify, SQLite con Drizzle, migrazioni SQL in `apps/s
 
 ## English
 
-Mealler is a self-hosted, multi-user food diary PWA. Log meals into slots you define, track calories and macros against optional min/max thresholds (with LARN reference values), get push reminders, work offline, keep a shared library of packaged foods (barcode, Open Food Facts, label photo), and let Claude estimate nutritional values through a claude.ai connector (MCP + OAuth 2.1) or the Anthropic API, with per-user spending limits. Colored icons show each food's category, guessed from its name or chosen by hand. Version 1.1.0. Install with Docker: see [docs/INSTALL.md](docs/INSTALL.md); security policy in [SECURITY.md](SECURITY.md). Licensed under AGPL-3.0-or-later.
+Mealler is a self-hosted, multi-user food diary PWA. Log meals into slots you define, track calories and macros against optional min/max thresholds (with LARN reference values), get push reminders, work offline, keep a shared library of packaged foods (barcode, Open Food Facts, label photo), and let Claude estimate nutritional values through a claude.ai connector (MCP + OAuth 2.1) or the Anthropic API, with per-user spending limits. Colored icons show each food's category, guessed from its name or chosen by hand. Version 1.1.1. Install with Docker: see [docs/INSTALL.md](docs/INSTALL.md); security policy in [SECURITY.md](SECURITY.md). Licensed under AGPL-3.0-or-later.
