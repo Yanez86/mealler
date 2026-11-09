@@ -86,9 +86,10 @@
     return parts;
   });
 
-  const title = $derived(date === today ? t('day.today') : formatDate(date, { weekday: 'long', day: 'numeric', month: 'long' }));
+  const short: Intl.DateTimeFormatOptions = { weekday: 'short', day: 'numeric', month: 'short' };
+  const title = $derived(date === today ? t('day.today') : formatDate(date, short));
   const subtitle = $derived(
-    date === today ? formatDate(date, { weekday: 'long', day: 'numeric', month: 'long' }) : formatDate(date, { year: 'numeric' })
+    date === today ? formatDate(date, short) : formatDate(date, { year: 'numeric' })
   );
 
   const macros: Nutrient[] = ['protein', 'carbs', 'fat', 'fiber'];

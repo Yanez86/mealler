@@ -48,6 +48,12 @@
     line-height: 32px;
     font-weight: 700;
   }
+  h1,
+  p {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   p {
     font-size: 15px;
     line-height: 20px;

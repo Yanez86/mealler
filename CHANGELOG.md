@@ -5,6 +5,12 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e i
 
 ## [Non rilasciato]
 
+## [0.5.1] - 2026-11-09
+
+### Modificato
+- Nella schermata del pasto i valori nutrizionali sono in una sezione a tendina, chiusa di default, con il riepilogo dei totali sempre visibile.
+- La data in alto è in formato breve (es. "lun 9 nov") e resta sempre su una riga.
+
 ## [0.5.0] - 2026-11-09
 
 ### Aggiunto

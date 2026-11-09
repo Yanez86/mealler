@@ -82,6 +82,20 @@
   const noValues = $derived(NUTRIENTS.every((n) => parsed[n] == null));
   const aiUsable = $derived(!!ai?.enabled && !ai.capReached && !ai.limitReached);
   const edited = $derived(!!estimatedValues && NUTRIENTS.some((n) => values[n] !== estimatedValues![n]));
+  // The values section is a collapsible panel; its summary line shows the totals when closed.
+  let valuesOpen = $state(false);
+  const valuesSummary = $derived(
+    noValues
+      ? t('entry.valuesEmpty')
+      : [
+          parsed.kcal != null ? `${formatNumber(parsed.kcal)} kcal` : null,
+          parsed.protein != null ? `${t('entry.shortProtein')} ${formatNumber(parsed.protein, 1)} g` : null,
+          parsed.carbs != null ? `${t('entry.shortCarbs')} ${formatNumber(parsed.carbs, 1)} g` : null,
+          parsed.fat != null ? `${t('entry.shortFat')} ${formatNumber(parsed.fat, 1)} g` : null
+        ]
+          .filter(Boolean)
+          .join(' · ')
+  );
   const back = $derived(date === today ? '/' : `/?d=${date}`);
 
   onMount(async () => {
@@ -252,7 +266,7 @@
 <main class="page">
   <TopBar
     title={entryId ? t('entry.titleEdit') : t('entry.titleNew')}
-    subtitle={formatDate(date, { weekday: 'long', day: 'numeric', month: 'long' })}>
+    subtitle={formatDate(date, { weekday: 'short', day: 'numeric', month: 'short' })}>
     {#snippet actions()}
       <a class="icon-btn" href={back} aria-label={t('common.close')}><Icon name="close" /></a>
     {/snippet}
@@ -354,8 +368,15 @@
         <input id="quantity" maxlength="200" bind:value={quantity} />
       </div>
 
-      <section class="card stack" aria-labelledby="values-title">
-        <h2 id="values-title" class="label">{t('entry.values')}</h2>
+      <details class="card values" bind:open={valuesOpen}>
+        <summary>
+          <span class="grow">
+            <span class="label">{t('entry.values')}</span>
+            <span class="muted small summary-line">{valuesSummary}</span>
+          </span>
+          <Icon name="chevron" size={20} />
+        </summary>
+        <div class="stack values-body">
         {#if ai && !ai.enabled}
           <p class="help">{t('ai.disabled')}</p>
         {:else if !aiUsable}
@@ -371,10 +392,11 @@
             </div>
           {/each}
         </div>
-        {#if mismatch}
-          <p class="warn" role="status"><Icon name="alert" size={18} />{t('entry.mismatch')}</p>
-        {/if}
-      </section>
+        </div>
+      </details>
+      {#if mismatch}
+        <p class="warn" role="status"><Icon name="alert" size={18} />{t('entry.mismatch')}</p>
+      {/if}
 
       <div class="field">
         <label for="date">{t('entry.date')}</label>
@@ -408,6 +430,44 @@
 </main>
 
 <style>
+  .values {
+    padding: 0;
+  }
+  .values summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 56px;
+    padding: 12px 16px 12px 20px;
+    cursor: pointer;
+    list-style: none;
+  }
+  .values summary::-webkit-details-marker {
+    display: none;
+  }
+  .values summary .grow {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  .summary-line {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .values summary :global(svg) {
+    flex: none;
+    color: var(--text-2);
+    transform: rotate(90deg);
+    transition: transform 150ms;
+  }
+  .values[open] summary :global(svg) {
+    transform: rotate(-90deg);
+  }
+  .values-body {
+    padding: 0 20px 16px;
+  }
   .grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));

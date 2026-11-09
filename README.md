@@ -9,7 +9,7 @@ Registri cosa mangi negli slot che decidi tu, tieni d'occhio calorie e macronutr
 
 ## Stato
 
-Versione **0.5.0**: diario con promemoria push, uso offline, connettore per claude.ai e calcolo con Claude dentro l'app, anche da foto.
+Versione **0.5.1**: diario con promemoria push, uso offline, connettore per claude.ai e calcolo con Claude dentro l'app, anche da foto.
 
 | Funzione | Stato |
 | --- | --- |
