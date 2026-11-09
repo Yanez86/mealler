@@ -348,7 +348,7 @@ const TOOLS: Tool[] = [
         days
       };
     }
-  }
+  },
   {
     name: 'log_weight',
     title: 'Log body weight',
