@@ -5,7 +5,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import type { Status, User } from '@mealler/shared';
-  import { get } from '$lib/api';
+  import { get, patch } from '$lib/api';
   import { app, setUser, t } from '$lib/state.svelte';
   import Icon from '$lib/Icon.svelte';
   import { flushQueue, net } from '$lib/offline.svelte';
@@ -90,6 +90,14 @@
       !isPublic
   );
 
+  // Closing the banner counts as having seen the news: hide it at once, then tell the server.
+  function dismissNews() {
+    const version = app.status?.version;
+    if (!app.user || !version) return;
+    app.user.lastSeenVersion = version;
+    void patch<User>('/me', { lastSeenVersion: version }).catch(() => {});
+  }
+
   // Render a page only once the user is allowed on it, so pages never fire requests before a redirect.
   const allowed = $derived(
     app.status?.setupRequired ? path === '/setup' : app.user ? !isPublic : isPublic && path !== '/setup'
@@ -110,7 +118,10 @@
 
 {#if ready && allowed}
   {#if showNews}
-    <a class="news" href="/news"><Icon name="gift" size={20} /><span>{t('news.banner', { v: app.status?.version ?? '' })} <strong>{t('news.see')}</strong></span></a>
+    <div class="news">
+      <a href="/news"><Icon name="gift" size={20} /><span>{t('news.banner', { v: app.status?.version ?? '' })} <strong>{t('news.see')}</strong></span></a>
+      <button type="button" aria-label={t('common.close')} onclick={dismissNews}><Icon name="close" size={20} /></button>
+    </div>
   {/if}
   {@render children()}
 
@@ -132,16 +143,42 @@
   .news {
     display: flex;
     align-items: center;
-    gap: 10px;
     width: calc(100% - 32px);
     max-width: 528px;
-    margin: 8px auto 0;
-    padding: 10px 16px;
+    /* The banner is the first thing on screen: keep it clear of the status bar like the header. */
+    margin: max(8px, calc(env(safe-area-inset-top) + 10px)) auto 0;
     border-radius: 14px;
     background: var(--accent-soft);
     color: var(--accent-ink);
-    text-decoration: none;
     font-size: 15px;
+  }
+  .news a {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0 10px 16px;
+    color: inherit;
+    text-decoration: none;
+  }
+  .news button {
+    flex: none;
+    width: 48px;
+    height: 48px;
+    padding: 0;
+    border: none;
+    border-radius: 14px;
+    background: transparent;
+    color: inherit;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  /* The banner already sits below the status bar, so the header under it needs no extra room. */
+  .news + :global(main) > :global(.topbar) {
+    padding-top: 16px;
   }
   .tabbar {
     position: fixed;
