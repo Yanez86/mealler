@@ -26,9 +26,8 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    /* A few pixels below the status bar: on iPhone the blur under the clock spills a little past
-       the safe area and would soften the logo and title. Elsewhere the inset is 0 and 16px wins. */
-    padding: max(16px, calc(env(safe-area-inset-top) + 10px)) 0 12px;
+    /* Clear of the iPhone status bar blur (see --status-clear); elsewhere 16px. */
+    padding: max(16px, var(--status-clear)) 0 12px;
   }
   .home {
     flex: none;

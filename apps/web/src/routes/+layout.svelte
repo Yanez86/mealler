@@ -146,7 +146,7 @@
     width: calc(100% - 32px);
     max-width: 528px;
     /* The banner is the first thing on screen: keep it clear of the status bar like the header. */
-    margin: max(8px, calc(env(safe-area-inset-top) + 10px)) auto 0;
+    margin: max(8px, var(--status-clear)) auto 0;
     border-radius: 14px;
     background: var(--accent-soft);
     color: var(--accent-ink);
