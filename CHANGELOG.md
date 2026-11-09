@@ -11,6 +11,21 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e i
 - Scelta della categoria a mano, nella schermata del pasto e nella scheda di un alimento in libreria; "Automatica" torna al riconoscimento dal nome. I pasti inseriti da un preferito o dalla libreria ereditano la categoria scelta.
 - Il connettore claude.ai accetta la categoria (facoltativa) in add_entry e update_entry; l'export CSV ha la colonna category.
 
+## [1.0.0] - 2026-11-09
+
+Prima versione stabile.
+
+### Aggiunto
+- Eliminazione del proprio account dal Profilo, con conferma della password: cancella diario, foto, pesi, preferiti, soglie, notifiche e accessi del connettore. L'ultimo amministratore non può eliminarsi finché ci sono altri utenti.
+- Guida d'installazione completa in `docs/INSTALL.md`: Cloudflare Tunnel, Caddy, Traefik, backup, ripristino, aggiornamenti e problemi frequenti.
+- Policy di sicurezza in `SECURITY.md` con il canale per le segnalazioni private.
+- Immagini Docker con tag di versione (`1.0.0`, `1.0`, `1`) oltre a `latest`.
+
+### Sicurezza
+- Content-Security-Policy restrittiva sulle pagine dell'app: solo script dell'app (gli script inline sono ammessi per hash), niente plugin, niente incorporamento in altri siti.
+- Permissions-Policy: fotocamera solo per l'app (codice a barre e foto), microfono e posizione disattivati.
+- HSTS e Cross-Origin-Opener-Policy quando Mealler è servito in HTTPS.
+
 ## [0.6.0] - 2026-11-09
 
 ### Aggiunto
