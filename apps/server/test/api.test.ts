@@ -8,6 +8,14 @@ import { migrate, openDatabase } from '../src/db/index.ts';
 import type { PushSender } from '../src/push.ts';
 import { runReminderTick } from '../src/reminders.ts';
 import type { PushPayload } from '@mealler/shared';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { randomBytes } from 'node:crypto';
+import { processPendingEntries, type AnthropicCall, type AnthropicResponse } from '../src/ai.ts';
+import { createSecretBox } from '../src/secrets.ts';
+import { users } from '../src/db/schema.ts';
+import { eq } from 'drizzle-orm';
 
 async function setupApp() {
   const config = {
@@ -26,8 +34,46 @@ async function setupApp() {
       return target.endpoint.includes('gone') ? 'gone' : 'ok';
     }
   };
-  const app = await buildApp({ db, config, push }, { logger: false });
-  return { app, db, push, sent };
+  const calls: Record<string, unknown>[] = [];
+  let nextResponse: AnthropicResponse | null = null;
+  const call: AnthropicCall = async (_key, body) => {
+    calls.push(body);
+    if (nextResponse) {
+      const r = nextResponse;
+      nextResponse = null;
+      return r;
+    }
+    return {
+      status: 200,
+      body: {
+        content: [
+          {
+            type: 'tool_use',
+            name: 'record_estimate',
+            input: {
+              description: 'Yogurt bianco e biscotti',
+              items: [
+                { name: 'Yogurt bianco', quantity: '125 g', kcal: 80, protein: 4.5, carbs: 6, fat: 4.5, fiber: 0 },
+                { name: 'Biscotti secchi', quantity: '2', kcal: 70, protein: 1.2, carbs: 12, fat: 1.8, fiber: 0.5 }
+              ],
+              confidence: 'medium',
+              notes: 'Porzioni tipiche'
+            }
+          }
+        ],
+        usage: { input_tokens: 1000, output_tokens: 300 }
+      }
+    };
+  };
+  const ai = {
+    db,
+    secrets: createSecretBox(randomBytes(32)),
+    call,
+    dataDir: mkdtempSync(join(tmpdir(), 'mealler-test-')),
+    kick: () => {}
+  };
+  const app = await buildApp({ db, config, push, ai }, { logger: false });
+  return { app, db, sqlite, push, sent, ai, calls, respondNext: (r: AnthropicResponse) => (nextResponse = r) };
 }
 
 function cookieOf(res: { headers: Record<string, unknown> }): string {
@@ -363,6 +409,98 @@ test('claude.ai connector: OAuth 2.1 with PKCE, MCP tools, isolation, refresh an
   await app.inject({ method: 'DELETE', url: `/api/oauth/connections/${clientId}`, headers: asAdmin });
   res = await mcp({ jsonrpc: '2.0', id: 9, method: 'ping' }, rotated.access_token);
   assert.equal(res.statusCode, 401);
+
+  await app.close();
+});
+
+test('in-app estimates: settings, encryption, photos, background calculation and spending cap', async () => {
+  const { app, db, sqlite, ai, calls, respondNext } = await setupApp();
+  let res = await app.inject({ method: 'POST', url: '/api/setup', payload: admin });
+  const asAdmin = { cookie: cookieOf(res) };
+  const slots = (await app.inject({ method: 'GET', url: '/api/slots', headers: asAdmin })).json();
+
+  // Disabled by default.
+  res = await app.inject({ method: 'POST', url: '/api/ai/estimate', headers: asAdmin, payload: { description: 'yogurt' } });
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.json().error, 'aiDisabled');
+
+  res = await app.inject({
+    method: 'PATCH',
+    url: '/api/admin/ai',
+    headers: asAdmin,
+    payload: { enabled: true, apiKey: 'sk-ant-test-key-1234', keepPhotos: true }
+  });
+  assert.equal(res.statusCode, 200, res.body);
+  assert.equal(res.json().hasKey, true);
+  assert.equal(res.json().keyHint, '…1234');
+  assert.equal(res.json().apiKey, undefined);
+  const stored = sqlite.prepare("SELECT value FROM settings WHERE key = 'ai_api_key'").get() as { value: string };
+  assert.ok(!stored.value.includes('sk-ant'), 'API key must be encrypted at rest');
+
+  // Text estimate.
+  res = await app.inject({ method: 'POST', url: '/api/ai/estimate', headers: asAdmin, payload: { description: 'yogurt e 2 biscotti' } });
+  assert.equal(res.statusCode, 200, res.body);
+  const { estimate } = res.json();
+  assert.equal(estimate.totals.kcal, 150);
+  assert.equal(estimate.model, 'claude-haiku-5-5');
+  assert.equal((calls.at(-1) as { tool_choice: { name: string } }).tool_choice.name, 'record_estimate');
+
+  // Photo estimate uses the photo model and keeps the photo for its owner only.
+  const photo = { mime: 'image/jpeg', data: Buffer.alloc(300, 1).toString('base64') };
+  res = await app.inject({ method: 'POST', url: '/api/ai/estimate', headers: asAdmin, payload: { description: '', photo } });
+  assert.equal(res.statusCode, 200, res.body);
+  assert.equal(res.json().estimate.model, 'claude-sonnet-5-5');
+  const photoId = res.json().photoId;
+  assert.ok(photoId);
+  res = await app.inject({ method: 'GET', url: `/api/photos/${photoId}`, headers: asAdmin });
+  assert.equal(res.statusCode, 200);
+
+  // Save an entry with the estimate attached.
+  res = await app.inject({
+    method: 'POST',
+    url: '/api/entries',
+    headers: asAdmin,
+    payload: { slotId: slots[3].id, date: '2026-11-09', description: 'Merenda', ...estimate.totals, items: estimate.items, estimate: 'calculated', photoId }
+  });
+  assert.equal(res.statusCode, 200, res.body);
+  assert.equal(res.json().source, 'in_app');
+  assert.equal(res.json().items.length, 2);
+
+  // Save now, calculate in the background.
+  res = await app.inject({
+    method: 'POST',
+    url: '/api/entries',
+    headers: asAdmin,
+    payload: { slotId: slots[0].id, date: '2026-11-09', description: 'yogurt e biscotti', calculate: true }
+  });
+  const pendingId = res.json().id;
+  assert.equal(res.json().calcStatus, 'pending');
+  const getUser = (id: number) => db.select().from(users).where(eq(users.id, id)).get();
+  assert.equal(await processPendingEntries(ai, getUser), 1);
+  res = await app.inject({ method: 'GET', url: `/api/entries/${pendingId}`, headers: asAdmin });
+  assert.equal(res.json().calcStatus, 'calculated');
+  assert.equal(res.json().kcal, 150);
+
+  // An invalid key is reported clearly.
+  respondNext({ status: 401, body: { error: { type: 'authentication_error' } } });
+  res = await app.inject({ method: 'POST', url: '/api/ai/estimate', headers: asAdmin, payload: { description: 'pane' } });
+  assert.equal(res.json().error, 'aiKeyInvalid');
+
+  // Usage is tracked and the monthly cap stops further calls.
+  res = await app.inject({ method: 'GET', url: '/api/ai/status', headers: asAdmin });
+  assert.ok(res.json().spentUsd > 0);
+  res = await app.inject({ method: 'GET', url: '/api/admin/ai/usage', headers: asAdmin });
+  assert.ok(res.json().rows.length >= 2);
+  await app.inject({ method: 'PATCH', url: '/api/admin/ai', headers: asAdmin, payload: { monthlyCapUsd: 0 } });
+  res = await app.inject({ method: 'POST', url: '/api/ai/estimate', headers: asAdmin, payload: { description: 'mela' } });
+  assert.equal(res.statusCode, 429);
+  assert.equal(res.json().error, 'aiCapReached');
+
+  // Another user cannot read the photo.
+  res = await app.inject({ method: 'POST', url: '/api/admin/invites', headers: asAdmin, payload: {} });
+  res = await app.inject({ method: 'POST', url: '/api/register', payload: { token: res.json().token, name: 'Bob', email: 'bob@example.com', password: 'another long password' } });
+  res = await app.inject({ method: 'GET', url: `/api/photos/${photoId}`, headers: { cookie: cookieOf(res) } });
+  assert.equal(res.statusCode, 404);
 
   await app.close();
 });

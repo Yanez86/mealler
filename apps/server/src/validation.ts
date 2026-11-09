@@ -40,3 +40,14 @@ export const zOptionalText = (max: number) =>
     .nullable()
     .optional()
     .transform((v) => (v ? v : null));
+
+const zNum = z.number().min(0).max(100000);
+export const zEstimateItem = z.object({
+  name: z.string().min(1).max(200),
+  quantity: z.string().max(100).optional(),
+  kcal: zNum,
+  protein: zNum,
+  carbs: zNum,
+  fat: zNum,
+  fiber: zNum.nullable().optional()
+});

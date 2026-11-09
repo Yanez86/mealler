@@ -77,6 +77,16 @@ export function errorMessage(error: unknown): string {
         return t('register.closed');
       case 'thresholdRange':
         return t('thresholds.invalid');
+      case 'aiDisabled':
+        return t('error.aiDisabled');
+      case 'aiKeyInvalid':
+        return t('error.aiKeyInvalid');
+      case 'aiBusy':
+        return t('error.aiBusy');
+      case 'aiFailed':
+        return t('error.aiFailed');
+      case 'aiCapReached':
+        return t('ai.capReached');
       case 'connectorDisabled':
         return t('connector.disabled');
       case 'invalidOAuthRequest':

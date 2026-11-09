@@ -38,6 +38,22 @@
       .catch((e) => (error = errorMessage(e)));
   });
 
+  // While Claude is estimating entries in the background, refresh the day every few seconds.
+  const hasPending = $derived(!!day?.slots.some((s) => s.entries.some((e) => e.calcStatus === 'pending')));
+  $effect(() => {
+    if (!hasPending) return;
+    const d = date;
+    const timer = setInterval(async () => {
+      try {
+        const res = await get<DayResponse>(`/day/${d}`);
+        if (d === date) day = res;
+      } catch {
+        // offline: try again on the next tick
+      }
+    }, 4000);
+    return () => clearInterval(timer);
+  });
+
   function go(d: string) {
     goto(d === today ? '/' : `/?d=${d}`, { keepFocus: true, noScroll: true });
   }
@@ -181,7 +197,11 @@
                   <li>
                     <a href="/add?entry={entry.id}">
                       <span class="desc">{entry.description}</span>
-                      {#if entry.source === 'claude_ai' || entry.source === 'in_app'}
+                      {#if entry.calcStatus === 'pending'}
+                        <span class="claude"><Icon name="sparkle" size={12} />{t('ai.pending')}</span>
+                      {:else if entry.calcError}
+                        <span class="flag"><Icon name="alert" size={14} />{t('ai.failed')}</span>
+                      {:else if entry.source === 'claude_ai' || entry.source === 'in_app'}
                         <span class="claude"><Icon name="sparkle" size={12} />{t('day.estimate')}</span>
                       {/if}
                       {#if entry.kcalMismatch}

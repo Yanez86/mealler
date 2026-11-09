@@ -5,7 +5,8 @@ import { z } from 'zod';
 import { ALL_DAYS, NUTRIENTS, todayIn, type DayResponse, type Threshold } from '@mealler/shared';
 import type { AppContext } from '../app.ts';
 import { requireUser } from '../auth.ts';
-import { entries, slots, thresholds } from '../db/schema.ts';
+import { entries, photos, slots, thresholds } from '../db/schema.ts';
+import { aiStatus, deletePhoto } from '../ai.ts';
 import { badRequest, notFound } from '../http.ts';
 import { buildDay, thresholdsOn, toEntry, toSlot, userSlots } from '../services.ts';
 import {
@@ -16,10 +17,11 @@ import {
   zName,
   zNutrient,
   zOptionalText,
+  zEstimateItem,
   zTime
 } from '../validation.ts';
 
-export async function diaryRoutes(app: FastifyInstance, { db }: AppContext) {
+export async function diaryRoutes(app: FastifyInstance, { db, ai }: AppContext) {
   app.addHook('preHandler', async (request) => {
     requireUser(request);
   });
@@ -110,8 +112,30 @@ export async function diaryRoutes(app: FastifyInstance, { db }: AppContext) {
     carbs: zAmount.default(null),
     fat: zAmount.default(null),
     fiber: zAmount.default(null),
-    notes: zOptionalText(2000)
+    notes: zOptionalText(2000),
+    // Values that came from an in-app estimate: the per-food breakdown and whether the user edited them.
+    items: z.array(zEstimateItem).max(50).nullable().optional(),
+    estimate: z.enum(['none', 'calculated', 'corrected']).optional(),
+    photoId: z.string().uuid().nullable().optional(),
+    // Save now, estimate in the background (in-app AI must be enabled).
+    calculate: z.boolean().optional()
   });
+
+  const ownPhoto = (userId: number, photoId: string | null | undefined) =>
+    !photoId || !!db.select().from(photos).where(and(eq(photos.id, photoId), eq(photos.userId, userId))).get();
+
+  function storedFields(body: Partial<z.infer<typeof entryBody>>) {
+    const { items, estimate, calculate, ...rest } = body;
+    void calculate;
+    const out: Partial<typeof entries.$inferInsert> = { ...rest };
+    if (items !== undefined) out.detail = items ? JSON.stringify(items) : null;
+    if (estimate === 'calculated' || estimate === 'corrected') {
+      out.source = 'in_app';
+      out.calcStatus = estimate;
+      out.calcError = null;
+    }
+    return out;
+  }
 
   const ownSlot = (userId: number, slotId: number) =>
     db.select().from(slots).where(and(eq(slots.id, slotId), eq(slots.userId, userId))).get();
@@ -132,11 +156,22 @@ export async function diaryRoutes(app: FastifyInstance, { db }: AppContext) {
     const user = requireUser(request);
     const body = entryBody.parse(request.body);
     if (!ownSlot(user.id, body.slotId)) throw badRequest('slot');
+    if (!ownPhoto(user.id, body.photoId)) throw badRequest('photo');
+    const background = body.calculate === true && aiStatus(db, ai.secrets, user).enabled && !aiStatus(db, ai.secrets, user).capReached;
     const row = db
       .insert(entries)
-      .values({ ...body, userId: user.id, source: 'manual', calcStatus: 'manual' })
+      .values({
+        source: 'manual',
+        calcStatus: background ? 'pending' : 'manual',
+        ...storedFields(body),
+        slotId: body.slotId,
+        date: body.date,
+        description: body.description,
+        userId: user.id
+      })
       .returning()
       .get();
+    if (background) ai.kick();
     return toEntry(row);
   });
 
@@ -151,12 +186,13 @@ export async function diaryRoutes(app: FastifyInstance, { db }: AppContext) {
       .get();
     if (!current) throw notFound();
     if (body.slotId && !ownSlot(user.id, body.slotId)) throw badRequest('slot');
+    if (!ownPhoto(user.id, body.photoId)) throw badRequest('photo');
     const touchesValues = NUTRIENTS.some((n) => body[n] !== undefined && body[n] !== current[n]);
     const calcStatus =
       touchesValues && current.calcStatus === 'calculated' ? 'corrected' : current.calcStatus;
     const row = db
       .update(entries)
-      .set({ ...body, calcStatus, updatedAt: new Date().toISOString() })
+      .set({ calcStatus, ...storedFields(body), updatedAt: new Date().toISOString() })
       .where(and(eq(entries.id, id), eq(entries.userId, user.id)))
       .returning()
       .get();
@@ -166,9 +202,12 @@ export async function diaryRoutes(app: FastifyInstance, { db }: AppContext) {
   app.delete('/entries/:id', async (request) => {
     const user = requireUser(request);
     const { id } = z.object({ id: zId }).parse(request.params);
-    db.delete(entries)
+    const row = db
+      .delete(entries)
       .where(and(eq(entries.id, id), eq(entries.userId, user.id)))
-      .run();
+      .returning()
+      .get();
+    if (row?.photoId) deletePhoto(db, user.id, row.photoId);
     return { ok: true };
   });
 

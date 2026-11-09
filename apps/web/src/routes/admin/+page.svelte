@@ -7,6 +7,7 @@
   import { app, errorMessage, formatDate, t } from '$lib/state.svelte';
   import Icon from '$lib/Icon.svelte';
   import TopBar from '$lib/TopBar.svelte';
+  import AiAdmin from '$lib/AiAdmin.svelte';
 
   let users = $state<User[]>([]);
   let invites = $state<Invite[]>([]);
@@ -106,6 +107,8 @@
       <span>{t('admin.mcp')}<br /><span class="muted small">{t('admin.mcpHelp')}</span></span>
     </label>
   </section>
+
+  <AiAdmin />
 
   <section class="card" aria-labelledby="users-title">
     <h2 id="users-title" class="section-title">{t('admin.users')}</h2>

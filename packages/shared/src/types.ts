@@ -58,6 +58,47 @@ export interface Entry extends NutrientValues {
   calcStatus: CalcStatus;
   notes: string | null;
   kcalMismatch: boolean;
+  photoId: string | null;
+  calcError: string | null;
+  items: EstimateItem[] | null;
+}
+
+export interface EstimateItem {
+  name: string;
+  quantity?: string;
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber?: number | null;
+}
+
+export interface Estimate {
+  description: string;
+  items: EstimateItem[];
+  totals: NutrientValues;
+  confidence: 'low' | 'medium' | 'high';
+  notes: string | null;
+  model: string;
+  costUsd: number;
+}
+
+export interface AiStatus {
+  enabled: boolean;
+  capUsd: number | null;
+  spentUsd: number;
+  capReached: boolean;
+}
+
+export interface AiSettings {
+  enabled: boolean;
+  hasKey: boolean;
+  keyHint: string | null;
+  modelText: string;
+  modelPhoto: string;
+  monthlyCapUsd: number | null;
+  keepPhotos: boolean;
+  models: string[];
 }
 
 export interface Threshold {

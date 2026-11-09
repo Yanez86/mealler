@@ -1,0 +1,185 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<!-- Administration of in-app estimates: API key, models, spending cap, photos, monthly usage. -->
+<script lang="ts">
+  import { onMount } from 'svelte';
+  import type { AiSettings } from '@mealler/shared';
+  import { get, patch, post } from './api';
+  import { app, errorMessage, t } from './state.svelte';
+
+  interface UsageRow {
+    userId: number;
+    name: string;
+    model: string;
+    requests: number;
+    inputTokens: number;
+    outputTokens: number;
+    costUsd: number;
+  }
+
+  let settings = $state<AiSettings | null>(null);
+  let apiKey = $state('');
+  let cap = $state('');
+  let usage = $state<UsageRow[]>([]);
+  let message = $state('');
+  let error = $state('');
+  let busy = $state(false);
+
+  const usd = (v: number) =>
+    new Intl.NumberFormat(app.locale, { style: 'currency', currency: 'USD', maximumFractionDigits: v < 1 ? 4 : 2 }).format(v);
+  const total = $derived(usage.reduce((s, r) => s + r.costUsd, 0));
+
+  onMount(load);
+
+  async function load() {
+    try {
+      settings = await get<AiSettings>('/admin/ai');
+      cap = settings.monthlyCapUsd == null ? '' : String(settings.monthlyCapUsd);
+      usage = (await get<{ rows: UsageRow[] }>('/admin/ai/usage')).rows;
+    } catch (e) {
+      error = errorMessage(e);
+    }
+  }
+
+  async function save(body: Record<string, unknown>) {
+    busy = true;
+    message = error = '';
+    try {
+      settings = await patch<AiSettings>('/admin/ai', body);
+      message = t('common.saved');
+    } catch (e) {
+      error = errorMessage(e);
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function saveForm(event: SubmitEvent) {
+    event.preventDefault();
+    if (!settings) return;
+    const capValue = cap.trim() ? Number(cap.replace(',', '.')) : null;
+    const body: Record<string, unknown> = {
+      modelText: settings.modelText,
+      modelPhoto: settings.modelPhoto,
+      monthlyCapUsd: capValue != null && Number.isFinite(capValue) ? capValue : null
+    };
+    if (apiKey.trim()) body.apiKey = apiKey.trim();
+    await save(body);
+    apiKey = '';
+  }
+
+  async function test() {
+    busy = true;
+    message = error = '';
+    try {
+      const { result } = await post<{ result: 'ok' | 'invalid' | 'unreachable' }>('/admin/ai/test');
+      message = t(`admin.aiTest.${result}`);
+    } catch (e) {
+      error = errorMessage(e);
+    } finally {
+      busy = false;
+    }
+  }
+</script>
+
+{#if settings}
+  <section class="card stack" aria-labelledby="ai-title">
+    <h2 id="ai-title" class="section-title">{t('admin.ai')}</h2>
+    <p class="help">{t('admin.aiHelp')}</p>
+
+    <label class="check">
+      <input type="checkbox" checked={settings.enabled} disabled={busy} onchange={(e) => save({ enabled: e.currentTarget.checked })} />
+      <span>{t('admin.aiEnabled')}</span>
+    </label>
+
+    <form class="stack" onsubmit={saveForm}>
+      <div class="field">
+        <label for="ai-key">{t('admin.aiKey')}</label>
+        <input id="ai-key" type="password" autocomplete="off" placeholder="sk-ant-…" bind:value={apiKey} aria-describedby="ai-key-help" />
+        <p id="ai-key-help" class="help">
+          {settings.hasKey ? t('admin.aiKeySet', { hint: settings.keyHint ?? '' }) : ''}
+          {t('admin.aiKeyHelp')}
+        </p>
+      </div>
+      <div class="field">
+        <label for="ai-mt">{t('admin.aiModelText')}</label>
+        <select id="ai-mt" bind:value={settings.modelText}>
+          {#each settings.models as m (m)}<option value={m}>{m}</option>{/each}
+        </select>
+      </div>
+      <div class="field">
+        <label for="ai-mp">{t('admin.aiModelPhoto')}</label>
+        <select id="ai-mp" bind:value={settings.modelPhoto}>
+          {#each settings.models as m (m)}<option value={m}>{m}</option>{/each}
+        </select>
+      </div>
+      <div class="field">
+        <label for="ai-cap">{t('admin.aiCap')}</label>
+        <input id="ai-cap" inputmode="decimal" autocomplete="off" bind:value={cap} aria-describedby="ai-cap-help" />
+        <p id="ai-cap-help" class="help">{t('admin.aiCapHelp')}</p>
+      </div>
+      <div class="row">
+        <button class="btn btn-primary" type="submit" disabled={busy}>{t('common.save')}</button>
+        {#if settings.hasKey}
+          <button class="btn" type="button" disabled={busy} onclick={test}>{t('admin.aiTest')}</button>
+          <button class="btn btn-ghost" type="button" disabled={busy} onclick={() => save({ apiKey: null })}>{t('admin.aiKeyRemove')}</button>
+        {/if}
+      </div>
+    </form>
+
+    <label class="check">
+      <input type="checkbox" checked={settings.keepPhotos} disabled={busy} onchange={(e) => save({ keepPhotos: e.currentTarget.checked })} />
+      <span>{t('admin.aiKeepPhotos')}<br /><span class="muted small">{t('admin.aiKeepPhotosHelp')}</span></span>
+    </label>
+
+    {#if error}<p class="error" role="alert">{error}</p>{/if}
+    {#if message}<p class="notice" role="status">{message}</p>{/if}
+
+    <h3 class="label">{t('admin.aiUsage')}</h3>
+    {#if usage.length}
+      <ul class="plain">
+        {#each usage as r (`${r.userId}-${r.model}`)}
+          <li class="list-row">
+            <div class="grow">
+              <p>{r.name}</p>
+              <p class="muted small">{r.model} · {t('admin.aiRequests', { n: r.requests })}</p>
+            </div>
+            <span>{usd(r.costUsd)}</span>
+          </li>
+        {/each}
+      </ul>
+      <p class="small"><strong>{t('admin.aiTotal', { usd: usd(total) })}</strong></p>
+    {:else}
+      <p class="muted">{t('admin.aiUsageNone')}</p>
+    {/if}
+  </section>
+{/if}
+
+<style>
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .plain {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .grow {
+    flex: 1;
+    min-width: 0;
+  }
+  .check {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    min-height: 44px;
+  }
+  .check input {
+    width: 22px;
+    height: 22px;
+    margin-top: 2px;
+    flex: none;
+    accent-color: var(--accent);
+  }
+</style>

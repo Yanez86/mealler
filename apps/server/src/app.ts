@@ -15,12 +15,15 @@ import { diaryRoutes } from './routes/diary.ts';
 import { pushRoutes } from './routes/push.ts';
 import { oauthApiRoutes, oauthRoutes } from './oauth.ts';
 import { mcpRoutes } from './mcp.ts';
+import { aiRoutes } from './routes/ai.ts';
+import type { AiContext } from './ai.ts';
 import type { PushSender } from './push.ts';
 
 export interface AppContext {
   db: Db;
   config: Config;
   push: PushSender;
+  ai: AiContext & { kick(): void };
 }
 
 export async function buildApp(ctx: AppContext, opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
@@ -58,6 +61,7 @@ export async function buildApp(ctx: AppContext, opts: { logger?: boolean } = {})
       await api.register(async (scope) => adminRoutes(scope, ctx), { prefix: '/admin' });
       await api.register(async (scope) => pushRoutes(scope, ctx), { prefix: '/push' });
       await api.register(async (scope) => oauthApiRoutes(scope, ctx));
+      await api.register(async (scope) => aiRoutes(scope, ctx));
     },
     { prefix: '/api' }
   );

@@ -12,6 +12,7 @@ import {
   todayIn,
   type DayResponse,
   type Entry,
+  type EstimateItem,
   type Locale,
   type Nutrient,
   type NutrientSummary,
@@ -64,8 +65,21 @@ export function toEntry(row: typeof entries.$inferSelect): Entry {
     source: row.source,
     calcStatus: row.calcStatus,
     notes: row.notes,
-    kcalMismatch: kcalMismatch(values)
+    kcalMismatch: kcalMismatch(values),
+    photoId: row.photoId,
+    calcError: row.calcError,
+    items: parseItems(row.detail)
   };
+}
+
+function parseItems(detail: string | null): EstimateItem[] | null {
+  if (!detail) return null;
+  try {
+    const value = JSON.parse(detail);
+    return Array.isArray(value) ? (value as EstimateItem[]) : null;
+  } catch {
+    return null;
+  }
 }
 
 export function countUsers(db: Db): number {

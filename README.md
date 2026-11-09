@@ -9,7 +9,7 @@ Registri cosa mangi negli slot che decidi tu, tieni d'occhio calorie e macronutr
 
 ## Stato
 
-Versione **0.3.0**: diario con promemoria push, uso offline e connettore per claude.ai.
+Versione **0.4.0**: diario con promemoria push, uso offline, connettore per claude.ai e calcolo con Claude dentro l'app, anche da foto.
 
 | Funzione | Stato |
 | --- | --- |
@@ -22,7 +22,7 @@ Versione **0.3.0**: diario con promemoria push, uso offline e connettore per cla
 | Promemoria push per gli slot, fascia di silenzio, pausa | ✅ |
 | Consultazione offline e inserimenti in coda | ✅ |
 | Connettore per claude.ai (MCP + OAuth 2.1) | ✅ |
-| Calcolo con l'API Anthropic, anche da foto | 🔜 milestone 4 |
+| Calcolo con l'API Anthropic, anche da foto | ✅ |
 | Preferiti, grafici, peso, export | 🔜 milestone 5 |
 
 ## Installazione con Docker
@@ -50,6 +50,7 @@ Poi apri `http://IP-DEL-SERVER:3000`: la prima pagina ti fa creare l'account amm
 | `MEALLER_BASE_URL` | — | Indirizzo pubblico, usato per i link d'invito |
 | `MEALLER_SOURCE_URL` | questo repo | Link al codice sorgente mostrato nell'app (AGPL) |
 | `LOG_LEVEL` | `info` | Livello di log |
+| `MEALLER_SECRET_KEY` | file `secret.key` in `/data` | Chiave per cifrare i segreti salvati nel database (es. la chiave API Anthropic) |
 | `MEALLER_UPDATE_CHECK` | `true` | Controlla su GitHub se c'è una versione più recente (solo avviso agli admin) |
 
 ## Connettore claude.ai

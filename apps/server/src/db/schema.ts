@@ -88,8 +88,29 @@ export const entries = sqliteTable('entries', {
     .notNull()
     .default('manual'),
   notes: text('notes'),
+  photoId: text('photo_id'),
+  calcError: text('calc_error'),
   createdAt: text('created_at').notNull().$defaultFn(now),
   updatedAt: text('updated_at').notNull().$defaultFn(now)
+});
+
+export const photos = sqliteTable('photos', {
+  id: text('id').primaryKey(),
+  userId: integer('user_id').notNull(),
+  path: text('path').notNull(),
+  mime: text('mime').notNull(),
+  size: integer('size').notNull(),
+  createdAt: text('created_at').notNull().$defaultFn(now)
+});
+
+export const aiUsage = sqliteTable('ai_usage', {
+  userId: integer('user_id').notNull(),
+  month: text('month').notNull(),
+  model: text('model').notNull(),
+  requests: integer('requests').notNull().default(0),
+  inputTokens: integer('input_tokens').notNull().default(0),
+  outputTokens: integer('output_tokens').notNull().default(0),
+  costUsd: real('cost_usd').notNull().default(0)
 });
 
 export const thresholds = sqliteTable('thresholds', {

@@ -5,6 +5,15 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e i
 
 ## [Non rilasciato]
 
+## [0.4.0] - 2026-11-09
+
+### Aggiunto
+- Calcolo con Claude dentro l'app (API Anthropic): pulsante "Calcola con Claude" e stima da foto, con dettaglio per alimento, livello di affidabilità e valori modificabili prima di salvare.
+- Foto ridotte sul telefono prima dell'invio (massimo 1280 px); l'amministratore sceglie se conservarle.
+- Salvataggio senza attese: una voce senza valori viene registrata subito e calcolata in background; il diario si aggiorna da solo.
+- Pannello in Amministrazione: chiave API (cifrata sul server con AES-256-GCM), modelli per testo e foto, tetto di spesa mensile per utente, verifica della chiave, consumi del mese per utente.
+- Contatore di token e costo stimato per utente e per modello.
+
 ## [0.3.0] - 2026-11-09
 
 ### Aggiunto
