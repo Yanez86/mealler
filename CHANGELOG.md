@@ -3,6 +3,11 @@
 Tutte le modifiche rilevanti di Mealler sono annotate qui.
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il [versionamento semantico](https://semver.org/lang/it/).
 
+## [Non rilasciato]
+
+### Aggiunto
+- Lo script `aggiorna.sh` per il NAS: mostra i commit nuovi e le novità, chiede conferma, ricompila, fa un backup dei dati e riavvia Mealler.
+
 ## [1.1.4] - 2026-11-09
 
 ### Corretto

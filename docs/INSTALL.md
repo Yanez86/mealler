@@ -157,6 +157,26 @@ Se ripristini solo il database (`backup.db`), copialo come `/data/mealler.db`, r
 
 ## 6. Aggiornamenti
 
+Il modo più semplice è lo script `aggiorna.sh`, nella cartella di Mealler:
+
+```bash
+cd ~/mealler
+./aggiorna.sh            # oppure: sudo ./aggiorna.sh, se Docker lo richiede
+```
+
+Lo script:
+
+1. cerca aggiornamenti su GitHub e mostra i commit nuovi, il cambio di versione e le voci del CHANGELOG;
+2. chiede conferma (`-y` per non chiederla);
+3. scarica il codice, mettendo da parte e riapplicando le tue modifiche locali (per esempio a `docker-compose.yml`);
+4. ricompila l'immagine sul NAS mentre Mealler resta acceso (`--immagine` per scaricare quella pronta da GitHub, disponibile circa 5 minuti dopo ogni pubblicazione);
+5. ferma Mealler e salva un backup della cartella dati in `backups/` (restano gli ultimi 5; `--senza-backup` per saltarlo);
+6. riavvia Mealler, aspetta che risponda e libera lo spazio delle immagini vecchie.
+
+Se non ci sono novità si ferma subito; `--forza` ricompila e riavvia comunque. Per ripristinare uno di questi backup usa la procedura del punto 5 con il file di `backups/`, per esempio `tar xzf /backup/backups/mealler-20261109-183000.tgz`.
+
+A mano, senza script:
+
 ```bash
 cd ~/mealler
 git pull

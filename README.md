@@ -42,7 +42,7 @@ Poi apri `http://IP-DEL-SERVER:3000`: la prima pagina ti fa creare l'account amm
 
 - I dati (database SQLite) stanno nel volume `mealler-data`, montato su `/data`.
 - Per installare la PWA sul telefono e ricevere in futuro le notifiche serve **HTTPS**: metti Mealler dietro un reverse proxy (Caddy, Traefik, nginx o quello integrato nel tuo NAS) e imposta `MEALLER_BASE_URL`.
-- Aggiornamento: `git pull && docker compose pull && docker compose up -d`. Le migrazioni del database partono da sole.
+- Aggiornamento: `./aggiorna.sh` mostra i commit nuovi, chiede conferma, ricompila, fa un backup dei dati e riavvia (oppure a mano: `git pull && docker compose pull && docker compose up -d`). Le migrazioni del database partono da sole.
 - Backup: copia il volume `/data` (database, `secret.key`, foto).
 
 Guida completa (Cloudflare Tunnel, Caddy, Traefik, backup, ripristino, aggiornamenti): **[docs/INSTALL.md](docs/INSTALL.md)**. Sicurezza e segnalazioni: **[SECURITY.md](SECURITY.md)**.
