@@ -259,8 +259,8 @@
     try {
       photo = await preparePhoto(file);
       await (labelMode ? estimateLabel() : estimatePhoto());
-    } catch {
-      error = t('common.error');
+    } catch (e) {
+      error = errorMessage(e);
     } finally {
       if (fileInput) fileInput.value = '';
     }

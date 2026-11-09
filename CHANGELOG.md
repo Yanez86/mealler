@@ -14,6 +14,9 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e i
 - La foto della tabella nella scheda alimento legge anche gli screenshot e le liste ingredienti con i grammi; se l'AI non può leggerla, ora lo dice.
 - I messaggi d'errore in fondo ai moduli scorrono in vista, invece di restare fuori dallo schermo.
 
+### Corretto
+- Su iPhone le foto scelte per «Tabella valori» e «Foto del piatto» non arrivavano all'AI («Qualcosa è andato storto»): ora vengono aperte in un modo che Safari accetta.
+
 ## [1.3.0] - 2026-11-09
 
 ### Aggiunto

@@ -11,17 +11,25 @@ export interface PreparedPhoto {
 }
 
 export async function preparePhoto(file: Blob): Promise<PreparedPhoto> {
-  const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' } as ImageBitmapOptions);
-  const scale = Math.min(1, MAX_SIDE / Math.max(bitmap.width, bitmap.height));
-  const width = Math.round(bitmap.width * scale);
-  const height = Math.round(bitmap.height * scale);
+  // An <img> rather than createImageBitmap: Safari on iPhone rejects createImageBitmap's
+  // imageOrientation option. Browsers apply the EXIF rotation when drawing an <img>.
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  try {
+    img.src = url;
+    await img.decode();
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+  const scale = Math.min(1, MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+  const width = Math.round(img.naturalWidth * scale);
+  const height = Math.round(img.naturalHeight * scale);
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('canvas');
-  ctx.drawImage(bitmap, 0, 0, width, height);
-  bitmap.close();
+  ctx.drawImage(img, 0, 0, width, height);
   const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
   return { mime: 'image/jpeg', data: dataUrl.slice(dataUrl.indexOf(',') + 1), previewUrl: dataUrl };
 }

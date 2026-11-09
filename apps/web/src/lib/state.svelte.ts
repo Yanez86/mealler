@@ -103,7 +103,9 @@ export function errorMessage(error: unknown): string {
         return t('consent.invalid');
     }
   }
-  return t('common.error');
+  // Unexpected errors carry their detail, so a report says what actually broke.
+  if (error instanceof ApiError) return `${t('common.error')} (${error.status} ${error.code})`;
+  return error instanceof Error ? `${t('common.error')} (${error.message})` : t('common.error');
 }
 
 export function formatNumber(value: number, digits = 0): string {
