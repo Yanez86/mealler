@@ -5,6 +5,9 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e i
 
 ## [Non rilasciato]
 
+### Corretto
+- Aggiustata l'intestazione nell'app installata su iPhone, che restava sotto la sfocatura in alto.
+
 ## [1.1.2] - 2026-11-09
 
 ### Corretto
