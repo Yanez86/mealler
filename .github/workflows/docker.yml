@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Builds the multi-architecture image (amd64 + arm64) and publishes it to GitHub Container Registry.
+# A push to main whose package.json version has no tag yet is a release: this workflow tags it
+# (v<version>) and publishes the version images, so nobody has to push the tag by hand.
 name: Docker image
 
 on:
@@ -9,7 +11,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write # create the release tag
   packages: write
 
 jobs:
@@ -17,6 +19,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Tags pushed with GITHUB_TOKEN do not start this workflow again, so this same run publishes
+      # the version images. A re-run on the tagged commit publishes them again; an older commit
+      # with an already tagged version only updates latest.
+      - name: Tag a new release
+        id: release
+        if: github.ref == 'refs/heads/main'
+        run: |
+          version=$(jq -r .version package.json)
+          tagged=$(git ls-remote --tags origin "refs/tags/v$version" | cut -f1)
+          if [ -z "$tagged" ]; then
+            git tag "v$version"
+            git push origin "v$version"
+            echo "Tagged v$version"
+            echo "version=$version" >> "$GITHUB_OUTPUT"
+          elif [ "$tagged" = "$GITHUB_SHA" ]; then
+            echo "v$version already points here: publishing it again"
+            echo "version=$version" >> "$GITHUB_OUTPUT"
+          else
+            echo "v$version is already released: only latest is updated"
+          fi
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
@@ -28,11 +50,15 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository_owner }}/mealler
+          # Version tags come from the git tag on tag pushes, or from the step above on main.
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
+            type=semver,pattern={{version}},value=${{ steps.release.outputs.version }},enable=${{ steps.release.outputs.version != '' }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.release.outputs.version }},enable=${{ steps.release.outputs.version != '' }}
+            type=semver,pattern={{major}},value=${{ steps.release.outputs.version }},enable=${{ steps.release.outputs.version != '' }}
             type=sha,prefix=sha-
       - uses: docker/build-push-action@v6
         with:
