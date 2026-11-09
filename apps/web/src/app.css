@@ -26,6 +26,10 @@
   --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   /* Strength of the tinted circle behind food icons. */
   --food-tint: 16%;
+  /* Where content may start below the status bar. On iPhone the system blur reaches about
+     35px past the safe area, so the first line keeps 30px of extra room; without a status
+     bar (inset 0) min() adds nothing and the screen keeps its own margin. */
+  --status-clear: calc(env(safe-area-inset-top) + min(30px, env(safe-area-inset-top)));
 }
 
 @media (prefers-color-scheme: dark) {
