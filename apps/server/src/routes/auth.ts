@@ -30,7 +30,7 @@ import { zDate, zEmail, zLocale, zName, zPassword, zTheme, zTime, zTimezone } fr
 
 const strict = { rateLimit: { max: 10, timeWindow: '5 minutes' } };
 
-export async function authRoutes(app: FastifyInstance, { db, config }: AppContext) {
+export async function authRoutes(app: FastifyInstance, { db, config, ai }: AppContext) {
   app.get('/status', async (): Promise<Status> => ({
     setupRequired: countUsers(db) === 0,
     registrationOpen: isRegistrationOpen(db),
@@ -139,7 +139,7 @@ export async function authRoutes(app: FastifyInstance, { db, config }: AppContex
     const { password } = z.object({ password: z.string().max(200) }).parse(request.body ?? {});
     if (!(await verifyPassword(user.passwordHash, password))) throw new HttpError(400, 'wrongPassword');
     if (user.role === 'admin' && countActiveAdmins(db) <= 1 && countUsers(db) > 1) throw new HttpError(400, 'lastAdmin');
-    rmSync(join(config.dataDir, 'photos', String(user.id)), { recursive: true, force: true });
+    rmSync(join(ai.dataDir, 'photos', String(user.id)), { recursive: true, force: true });
     db.delete(users).where(eq(users.id, user.id)).run();
     destroySession(db, request, reply);
     return { ok: true };
