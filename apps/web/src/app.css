@@ -435,3 +435,95 @@ input[type='time']::-webkit-date-and-time-value {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+/* ---------- Page transitions (View Transitions API, started in +layout.svelte) ---------- */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 280ms;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+::view-transition-group(tab-pill) {
+  animation-duration: 280ms;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* Into a deeper page (a meal, a setting): it comes in from the right over the page below. */
+:root[data-nav='forward']::view-transition-old(root) {
+  animation-name: page-back-out;
+}
+:root[data-nav='forward']::view-transition-new(root) {
+  animation-name: page-in-right;
+}
+/* Back: the page leaves to the right and uncovers the one below. */
+:root[data-nav='back']::view-transition-old(root) {
+  z-index: 1;
+  animation-name: page-out-right;
+}
+:root[data-nav='back']::view-transition-new(root) {
+  animation-name: page-back-in;
+}
+/* Between tabs: a short slide towards the side of the new tab. */
+:root[data-nav='next']::view-transition-old(root) {
+  animation-name: tab-out-left;
+}
+:root[data-nav='next']::view-transition-new(root) {
+  animation-name: tab-in-right;
+}
+:root[data-nav='prev']::view-transition-old(root) {
+  animation-name: tab-out-right;
+}
+:root[data-nav='prev']::view-transition-new(root) {
+  animation-name: tab-in-left;
+}
+@keyframes page-in-right {
+  from {
+    transform: translateX(100%);
+  }
+}
+@keyframes page-out-right {
+  to {
+    transform: translateX(100%);
+  }
+}
+@keyframes page-back-out {
+  to {
+    transform: translateX(-25%);
+    opacity: 0.6;
+  }
+}
+@keyframes page-back-in {
+  from {
+    transform: translateX(-25%);
+    opacity: 0.6;
+  }
+}
+@keyframes tab-in-right {
+  from {
+    transform: translateX(40px);
+    opacity: 0;
+  }
+}
+@keyframes tab-out-left {
+  to {
+    transform: translateX(-40px);
+    opacity: 0;
+  }
+}
+@keyframes tab-in-left {
+  from {
+    transform: translateX(-40px);
+    opacity: 0;
+  }
+}
+@keyframes tab-out-right {
+  to {
+    transform: translateX(40px);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}

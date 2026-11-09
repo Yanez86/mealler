@@ -36,6 +36,7 @@
     type FoodRow
   } from '$lib/foodRow';
   import FoodIcon from '$lib/FoodIcon.svelte';
+  import Estimating from '$lib/Estimating.svelte';
   import FoodRowEditor from '$lib/FoodRowEditor.svelte';
   import Icon from '$lib/Icon.svelte';
   import TopBar from '$lib/TopBar.svelte';
@@ -80,8 +81,9 @@
 
   onMount(async () => {
     try {
+      // With the date, the slots added to that day only are offered too.
       const [all, status] = await Promise.all([
-        get<Slot[]>('/slots'),
+        get<Slot[]>(`/slots?date=${date}`),
         get<AiStatus>('/ai/status').catch(() => null)
       ]);
       ai = status;
@@ -99,7 +101,7 @@
         row.category = entry.category;
         // An entry may belong to an archived slot: keep it selectable.
         if (!all.some((s) => s.id === entry.slotId)) {
-          const archived = await get<Slot[]>('/slots?archived=1');
+          const archived = await get<Slot[]>(`/slots?archived=1&date=${entry.date}`);
           const own = archived.find((s) => s.id === entry.slotId);
           if (own) all.push(own);
         }
@@ -447,7 +449,7 @@
       {/if}
 
       {#if photoEstimating}
-        <p class="notice working" role="status"><Icon name="sparkle" size={18} />{t('ai.working')}</p>
+        <p class="notice" role="status"><Estimating /></p>
       {/if}
 
       {#if photo || existingPhotoId}
@@ -518,11 +520,6 @@
     display: grid;
     grid-template-columns: 1fr 2fr;
     gap: 12px;
-  }
-  .working {
-    display: flex;
-    align-items: center;
-    gap: 8px;
   }
   .photo {
     margin: 0;

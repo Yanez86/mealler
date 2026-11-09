@@ -74,6 +74,16 @@ export const slots = sqliteTable('slots', {
   reminderEnabled: integer('reminder_enabled', { mode: 'boolean' }).notNull().default(true),
   reminderDelayMin: integer('reminder_delay_min').notNull().default(15),
   archived: integer('archived', { mode: 'boolean' }).notNull().default(false),
+  /** Set for a slot added to a single day; null for regular slots. */
+  date: text('date'),
+  createdAt: text('created_at').notNull().$defaultFn(now)
+});
+
+/** Meals the user marked as skipped: they count as filled and get no reminder. */
+export const slotSkips = sqliteTable('slot_skips', {
+  userId: integer('user_id').notNull(),
+  slotId: integer('slot_id').notNull(),
+  date: text('date').notNull(),
   createdAt: text('created_at').notNull().$defaultFn(now)
 });
 

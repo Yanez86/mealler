@@ -3,10 +3,22 @@
 Tutte le modifiche rilevanti di Mealler sono annotate qui.
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il [versionamento semantico](https://semver.org/lang/it/).
 
-## [Non rilasciato]
+## [1.2.0] - 2026-11-09
 
 ### Aggiunto
+- Toccando la data in alto si apre il calendario del mese: oggi cerchiato, in verde i giorni completi, con un puntino quelli iniziati. Un tocco porta a quel giorno.
+- Il pulsante «Salta» negli slot da compilare segna un pasto come saltato: conta come compilato e non manda il promemoria. Si annulla toccando «Saltato».
+- «Aggiungi slot» in fondo ai pasti aggiunge uno slot solo per quel giorno, per esempio un aperitivo.
+- Le novità dopo un aggiornamento compaiono in un popup, che si chiude con la X o scorrendolo verso sinistra.
+- Animazioni tra le pagine e al cambio di giorno.
 - Lo script `aggiorna.sh` per il NAS: mostra i commit nuovi e le novità, chiede conferma, ricompila, fa un backup dei dati e riavvia Mealler.
+
+### Modificato
+- Scorrendo uno slot o una voce compare solo il cestino rosso, con un po' di spazio.
+- Durante una stima compare «Sto stimando…» con una coscia di pollo che gira.
+
+### Corretto
+- La barra in basso resta sempre sopra i pasti quando si scorre la pagina.
 
 ## [1.1.4] - 2026-11-09
 

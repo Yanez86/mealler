@@ -925,3 +925,97 @@ test('unit system, meals split into entries, slot cleared at once', async () => 
 
   await app.close();
 });
+
+test('skipped meals, slots for a single day and the month calendar', async () => {
+  const { app, db, push, sent } = await setupApp();
+  let res = await app.inject({ method: 'POST', url: '/api/setup', payload: admin });
+  const headers = { cookie: cookieOf(res) };
+  const slots = (await app.inject({ method: 'GET', url: '/api/slots', headers })).json();
+  const [breakfast, snack, lunch, afternoon, dinner] = slots.map((s: { id: number }) => s.id);
+  const day = '2026-11-09';
+
+  // Skipping: the slot reads as skipped and counts as filled.
+  res = await app.inject({ method: 'PUT', url: `/api/day/${day}/skip/${snack}`, headers });
+  assert.equal(res.statusCode, 200, res.body);
+  await app.inject({ method: 'PUT', url: `/api/day/${day}/skip/${snack}`, headers });
+  res = await app.inject({ method: 'GET', url: `/api/day/${day}`, headers });
+  assert.equal(res.json().slots[1].skipped, true);
+  assert.equal(res.json().slots[0].skipped, false);
+  res = await app.inject({ method: 'PUT', url: `/api/day/${day}/skip/99999`, headers });
+  assert.equal(res.statusCode, 404);
+
+  // Logging a meal in a skipped slot undoes the skip, whatever path logs it.
+  await app.inject({ method: 'PUT', url: `/api/day/${day}/skip/${afternoon}`, headers });
+  await app.inject({ method: 'POST', url: '/api/entries', headers, payload: { slotId: afternoon, date: day, description: 'Mela', kcal: 80 } });
+  res = await app.inject({ method: 'GET', url: `/api/day/${day}`, headers });
+  assert.equal(res.json().slots[3].skipped, false);
+  await app.inject({ method: 'POST', url: '/api/entries/delete', headers, payload: { ids: res.json().slots[3].entries.map((e: { id: number }) => e.id) } });
+  res = await app.inject({ method: 'GET', url: `/api/day/${day}`, headers });
+  assert.equal(res.json().slots[3].skipped, false);
+
+  // A skipped meal gets no reminder (10:47 in Rome, the 10:30 snack is due at 10:45).
+  res = await app.inject({
+    method: 'POST',
+    url: '/api/push/subscribe',
+    headers,
+    payload: { endpoint: 'https://push.example.com/skip', keys: { p256dh: 'p256dh-key-0123456789', auth: 'auth-key-0123' } }
+  });
+  assert.equal(res.statusCode, 200, res.body);
+  const snackTag = `slot-${snack}-${day}`;
+  await runReminderTick(db, push, new Date('2026-11-09T09:47:00Z'));
+  assert.equal(sent.filter((s) => s.payload.tag === snackTag).length, 0);
+
+  // Undo the skip: the reminder comes again.
+  res = await app.inject({ method: 'DELETE', url: `/api/day/${day}/skip/${snack}`, headers });
+  res = await app.inject({ method: 'GET', url: `/api/day/${day}`, headers });
+  assert.equal(res.json().slots[1].skipped, false);
+  await runReminderTick(db, push, new Date('2026-11-09T09:48:00Z'));
+  assert.equal(sent.filter((s) => s.payload.tag === snackTag).length, 1);
+
+  // A slot for one day only: placed by time, listed with ?date, never among the regular slots.
+  res = await app.inject({ method: 'POST', url: '/api/slots', headers, payload: { name: 'Spuntino notturno', time: '23:00', date: day } });
+  assert.equal(res.statusCode, 200, res.body);
+  const extra = res.json();
+  assert.equal(extra.date, day);
+  assert.equal(extra.reminderEnabled, false);
+  res = await app.inject({ method: 'POST', url: '/api/slots', headers, payload: { name: 'Aperitivo', time: '18:30', date: day } });
+  const aperitivo = res.json();
+  res = await app.inject({ method: 'GET', url: `/api/day/${day}`, headers });
+  assert.deepEqual(
+    res.json().slots.map((s: { slot: { name: string } }) => s.slot.name),
+    ['Colazione', 'Spuntino', 'Pranzo', 'Merenda', 'Aperitivo', 'Cena', 'Spuntino notturno']
+  );
+  res = await app.inject({ method: 'GET', url: '/api/day/2026-11-10', headers });
+  assert.equal(res.json().slots.length, 5);
+  res = await app.inject({ method: 'GET', url: '/api/slots', headers });
+  assert.equal(res.json().length, 5);
+  res = await app.inject({ method: 'GET', url: `/api/slots?date=${day}`, headers });
+  assert.equal(res.json().length, 7);
+  // Removed when empty: it disappears from the day.
+  await app.inject({ method: 'DELETE', url: `/api/slots/${aperitivo.id}`, headers });
+  res = await app.inject({ method: 'GET', url: `/api/day/${day}`, headers });
+  assert.equal(res.json().slots.length, 6);
+
+  // Calendar: complete when every slot of the day has a meal or is skipped.
+  for (const slotId of [breakfast, lunch, dinner, extra.id]) {
+    await app.inject({ method: 'POST', url: '/api/entries', headers, payload: { slotId, date: day, description: 'Pasto', kcal: 300 } });
+  }
+  await app.inject({ method: 'PUT', url: `/api/day/${day}/skip/${snack}`, headers });
+  await app.inject({ method: 'POST', url: '/api/entries', headers, payload: { slotId: lunch, date: '2026-11-08', description: 'Pasta', kcal: 500 } });
+  res = await app.inject({ method: 'GET', url: '/api/calendar?from=2026-11-01&to=2026-11-30', headers });
+  assert.equal(res.statusCode, 200, res.body);
+  let cal = res.json();
+  // Starts at sign-up, or earlier when older days hold meals.
+  assert.equal(cal.since, '2026-11-08');
+  assert.equal(cal.days.length, 30);
+  const on = (d: string) => cal.days.find((x: { date: string }) => x.date === d);
+  assert.deepEqual(on(day), { date: day, filled: 5, total: 6 }); // the afternoon snack is still empty
+  assert.deepEqual(on('2026-11-08'), { date: '2026-11-08', filled: 1, total: 5 });
+  await app.inject({ method: 'PUT', url: `/api/day/${day}/skip/${afternoon}`, headers });
+  cal = (await app.inject({ method: 'GET', url: '/api/calendar?from=2026-11-09&to=2026-11-09', headers })).json();
+  assert.deepEqual(cal.days[0], { date: day, filled: 6, total: 6 });
+  res = await app.inject({ method: 'GET', url: '/api/calendar?from=2026-11-01&to=2027-02-01', headers });
+  assert.equal(res.statusCode, 400);
+
+  await app.close();
+});

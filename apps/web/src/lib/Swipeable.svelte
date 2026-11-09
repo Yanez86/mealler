@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
-<!-- Swipe left to reveal a delete button behind the content. Keyboard and screen reader users reach
+<!-- Swipe left to reveal a red trash icon beside the content. Keyboard and screen reader users reach
      the same button with Tab: focusing it slides the content open. -->
 <script lang="ts" module>
   // Only one row stays open at a time.
@@ -15,22 +15,20 @@
     ondelete,
     disabled = false,
     radius = '0px',
-    clip = radius,
     background = 'transparent',
     children
   }: {
     label: string;
     ondelete: () => void;
     disabled?: boolean;
-    /** Corners of the delete button. */
+    /** Corners of the swiping area, as the card inside it. */
     radius?: string;
-    /** Corners of the swiping area, when they differ from the button's (rows inside a card: none). */
-    clip?: string;
     background?: string;
     children: Snippet;
   } = $props();
 
-  const ACTION = 80;
+  // How far the content slides: the trash icon sits in this space with some room around it.
+  const ACTION = 72;
   let offset = $state(0);
   let dragging = $state(false);
   let mode: 'idle' | 'maybe' | 'x' | 'y' = 'idle';
@@ -117,7 +115,7 @@
   }
 </script>
 
-<div class="swipe" class:active={offset !== 0} style:--swipe-radius={radius} style:--swipe-clip={clip}>
+<div class="swipe" style:--swipe-radius={radius}>
   <!-- The swipe is a touch shortcut: the delete button below is the keyboard and screen reader way. -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
@@ -134,17 +132,26 @@
     {@render children()}
   </div>
   {#if !disabled}
-    <button class="action" type="button" aria-label={label} onclick={remove} onfocus={open} onblur={close}>
-      <Icon name="trash" />
+    <button
+      class="action"
+      type="button"
+      aria-label={label}
+      style:opacity={Math.min(1, -offset / ACTION)}
+      onclick={remove}
+      onfocus={open}
+      onblur={close}>
+      <Icon name="trash" size={26} stroke={2.2} />
     </button>
   {/if}
 </div>
 
 <style>
+  /* isolation keeps the layers below inside the row, so the tab bar always stays on top. */
   .swipe {
     position: relative;
     overflow: hidden;
-    border-radius: var(--swipe-clip);
+    isolation: isolate;
+    border-radius: var(--swipe-radius);
   }
   .content {
     position: relative;
@@ -160,20 +167,19 @@
     top: 0;
     right: 0;
     bottom: 0;
-    width: 80px;
+    width: 72px;
+    padding: 0;
     border: none;
-    border-radius: var(--swipe-radius);
-    background: var(--danger);
-    color: var(--on-danger);
+    background: transparent;
+    color: var(--danger);
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    opacity: 0;
   }
-  .swipe.active .action,
   .action:focus-visible {
-    opacity: 1;
+    outline-offset: -6px;
+    border-radius: 16px;
   }
   @media (prefers-reduced-motion: reduce) {
     .content {

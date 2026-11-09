@@ -2,13 +2,13 @@
 import type { FastifyInstance } from 'fastify';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { ALL_DAYS, NUTRIENTS, todayIn, type DayResponse, type Threshold } from '@mealler/shared';
+import { ALL_DAYS, NUTRIENTS, addDays, todayIn, type CalendarResponse, type DayResponse, type Threshold } from '@mealler/shared';
 import type { AppContext } from '../app.ts';
 import { requireUser } from '../auth.ts';
-import { entries, photos, slots, thresholds } from '../db/schema.ts';
+import { entries, photos, slotSkips, slots, thresholds } from '../db/schema.ts';
 import { aiStatus, deletePhoto } from '../ai.ts';
 import { badRequest, notFound } from '../http.ts';
-import { buildDay, thresholdsOn, toEntry, toSlot, userSlots } from '../services.ts';
+import { buildDay, calendarDays, thresholdsOn, toEntry, toSlot, userSlots } from '../services.ts';
 import {
   zAmount,
   zDate,
@@ -31,8 +31,20 @@ export async function diaryRoutes(app: FastifyInstance, { db, ai }: AppContext) 
 
   app.get('/slots', async (request) => {
     const user = requireUser(request);
-    const { archived } = z.object({ archived: z.enum(['0', '1']).optional() }).parse(request.query);
-    return userSlots(db, user.id, archived === '1').map(toSlot);
+    const { archived, date } = z
+      .object({ archived: z.enum(['0', '1']).optional(), date: zDate.optional() })
+      .parse(request.query);
+    const list = userSlots(db, user.id, archived === '1');
+    // With a date: also the slots added to that day only.
+    if (date) {
+      const extra = db
+        .select()
+        .from(slots)
+        .where(and(eq(slots.userId, user.id), eq(slots.date, date), eq(slots.archived, false)))
+        .all();
+      list.push(...extra);
+    }
+    return list.map(toSlot);
   });
 
   const slotBody = z.object({
@@ -45,7 +57,9 @@ export async function diaryRoutes(app: FastifyInstance, { db, ai }: AppContext) 
 
   app.post('/slots', async (request) => {
     const user = requireUser(request);
-    const body = slotBody.parse(request.body);
+    // With a date, the slot exists on that day only (an extra meal) and sends no reminder.
+    const { date, ...body } = slotBody.extend({ date: zDate.optional() }).parse(request.body);
+    if (date) body.reminderEnabled = false;
     const max = db
       .select({ p: sql<number>`coalesce(max(${slots.position}), -1)` })
       .from(slots)
@@ -53,7 +67,7 @@ export async function diaryRoutes(app: FastifyInstance, { db, ai }: AppContext) 
       .get();
     const row = db
       .insert(slots)
-      .values({ ...body, userId: user.id, position: Number(max?.p ?? -1) + 1 })
+      .values({ ...body, date: date ?? null, userId: user.id, position: Number(max?.p ?? -1) + 1 })
       .returning()
       .get();
     return toSlot(row);
@@ -259,6 +273,40 @@ export async function diaryRoutes(app: FastifyInstance, { db, ai }: AppContext) 
     const user = requireUser(request);
     const { date } = z.object({ date: zDate }).parse(request.params);
     return buildDay(db, user, date);
+  });
+
+  // A skipped meal counts as filled and gets no reminder; logging something in the slot undoes it.
+  app.put('/day/:date/skip/:slotId', async (request) => {
+    const user = requireUser(request);
+    const { date, slotId } = z.object({ date: zDate, slotId: zId }).parse(request.params);
+    if (!ownSlot(user.id, slotId)) throw notFound();
+    db.insert(slotSkips).values({ userId: user.id, slotId, date }).onConflictDoNothing().run();
+    return { ok: true };
+  });
+
+  app.delete('/day/:date/skip/:slotId', async (request) => {
+    const user = requireUser(request);
+    const { date, slotId } = z.object({ date: zDate, slotId: zId }).parse(request.params);
+    db.delete(slotSkips)
+      .where(and(eq(slotSkips.userId, user.id), eq(slotSkips.slotId, slotId), eq(slotSkips.date, date)))
+      .run();
+    return { ok: true };
+  });
+
+  // Month view: for each day, slots with a meal or skipped out of the slots of that day.
+  app.get('/calendar', async (request): Promise<CalendarResponse> => {
+    const user = requireUser(request);
+    const { from, to } = z.object({ from: zDate, to: zDate }).parse(request.query);
+    if (from > to || addDays(from, 62) < to) throw badRequest('range');
+    // From the sign-up day, or from the first meal if older days were logged afterwards.
+    const signup = todayIn(user.timezone, new Date(user.createdAt));
+    const first = db
+      .select({ date: sql<string | null>`min(${entries.date})` })
+      .from(entries)
+      .where(eq(entries.userId, user.id))
+      .get()?.date;
+    const since = first && first < signup ? first : signup;
+    return { since, days: calendarDays(db, user.id, from, to) };
   });
 
   // ---------- Thresholds ----------

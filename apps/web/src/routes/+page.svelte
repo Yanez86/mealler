@@ -3,6 +3,8 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { onDestroy } from 'svelte';
+  import { cubicOut } from 'svelte/easing';
+  import { fly } from 'svelte/transition';
   import {
     NUTRIENTS,
     addDays,
@@ -19,10 +21,12 @@
     type NutrientSummary,
     type ThresholdStatus
   } from '@mealler/shared';
-  import { beacon, get, post } from '$lib/api';
+  import { beacon, del, get, post, put } from '$lib/api';
   import type { AiStatus } from '@mealler/shared';
   import { app, errorMessage, formatDate, formatNumber, t } from '$lib/state.svelte';
   import { fill } from '$lib/fill';
+  import CalendarPopup from '$lib/CalendarPopup.svelte';
+  import Estimating from '$lib/Estimating.svelte';
   import FoodIcon from '$lib/FoodIcon.svelte';
   import Icon from '$lib/Icon.svelte';
   import Swipeable from '$lib/Swipeable.svelte';
@@ -174,8 +178,73 @@
     }
   }
 
+  // Another day slides in from the side it comes from (next day from the right).
+  let dayDir = $state(0);
+  const motion = typeof matchMedia === 'undefined' || !matchMedia('(prefers-reduced-motion: reduce)').matches;
+
   function go(d: string) {
+    dayDir = d > date ? 1 : d < date ? -1 : 0;
     goto(d === today ? '/' : `/?d=${d}`, { keepFocus: true, noScroll: true });
+  }
+
+  let showCalendar = $state(false);
+  function pickDay(d: string) {
+    showCalendar = false;
+    if (d !== date) go(d);
+  }
+
+  // ---------- Skipped meals and slots for this day only ----------
+
+  async function reload() {
+    loadedDay = await get<DayResponse>(`/day/${date}`).catch(() => loadedDay);
+  }
+
+  async function setSkip(slotId: number, skip: boolean) {
+    error = '';
+    // Shown at once; the server confirms.
+    if (loadedDay) {
+      loadedDay = { ...loadedDay, slots: loadedDay.slots.map((s) => (s.slot.id === slotId ? { ...s, skipped: skip } : s)) };
+    }
+    try {
+      if (skip) await put(`/day/${date}/skip/${slotId}`, {});
+      else await del(`/day/${date}/skip/${slotId}`);
+    } catch (e) {
+      error = errorMessage(e);
+    }
+    await reload();
+  }
+
+  let addingSlot = $state(false);
+  let extraName = $state('');
+  let extraTime = $state('');
+
+  function openAddSlot() {
+    extraName = '';
+    extraTime = nowTime;
+    addingSlot = true;
+    requestAnimationFrame(() => document.getElementById('extra-name')?.focus());
+  }
+
+  async function addExtraSlot(event: SubmitEvent) {
+    event.preventDefault();
+    error = '';
+    try {
+      await post('/slots', { name: extraName.trim(), time: extraTime, date });
+      addingSlot = false;
+      await reload();
+    } catch (e) {
+      error = errorMessage(e);
+    }
+  }
+
+  async function removeExtraSlot(slotId: number) {
+    error = '';
+    try {
+      await del(`/slots/${slotId}`);
+    } catch (e) {
+      error = errorMessage(e);
+    }
+    await reload();
   }
 
   const nowTime = $derived.by(() => {
@@ -214,7 +283,8 @@
     none: 'minus'
   };
 
-  const filled = $derived(day ? day.slots.filter((s) => s.entries.length > 0).length : 0);
+  // Skipped meals count as filled.
+  const filled = $derived(day ? day.slots.filter((s) => s.entries.length > 0 || s.skipped).length : 0);
 
   function isDue(slotTime: string): boolean {
     return date < today || (date === today && slotTime <= nowTime);
@@ -224,7 +294,7 @@
 <svelte:head><title>{title} · Mealler</title></svelte:head>
 
 <main class="page">
-  <TopBar {title} {subtitle}>
+  <TopBar {title} {subtitle} ontitle={() => (showCalendar = true)} titleLabel={t('calendar.open')}>
     {#snippet actions()}
       <button class="icon-btn" type="button" aria-label={t('day.prev')} onclick={() => go(addDays(date, -1))}>
         <Icon name="left" />
@@ -254,6 +324,8 @@
 
   {#if day}
     {@const kcal = day.summary.kcal}
+    {#key day.date}
+    <div class="day-body" in:fly={{ x: dayDir * 48, duration: motion ? 260 : 0, easing: cubicOut, opacity: 0 }}>
     <section class="card summary" aria-label={t('day.summary')}>
       <div class="kcal">
         <p><span class="big">{formatNumber(kcal.value)}</span> <span class="muted unit">kcal</span></p>
@@ -312,18 +384,36 @@
         <p class="notice">{t('day.noSlots')}</p>
       {/if}
 
-      {#each day.slots as { slot, entries, totals } (slot.id)}
+      {#each day.slots as { slot, entries, totals, skipped } (slot.id)}
         {@const empty = entries.length === 0}
-        {@const due = empty && isDue(slot.time)}
-        <Swipeable label={t('swipe.clearSlot', { slot: slot.name })} disabled={empty} radius="16px" ondelete={() => clearSlot(slot.name, entries)}>
-        <div class="slot card" class:due>
+        {@const due = empty && !skipped && isDue(slot.time)}
+        {@const extra = slot.date != null}
+        <Swipeable
+          label={!empty
+            ? t('swipe.clearSlot', { slot: slot.name })
+            : skipped
+              ? t('swipe.unskip', { slot: slot.name })
+              : t('swipe.removeSlot', { slot: slot.name })}
+          disabled={empty && !skipped && !extra}
+          radius="16px"
+          ondelete={() => (!empty ? clearSlot(slot.name, entries) : skipped ? setSkip(slot.id, false) : removeExtraSlot(slot.id))}>
+        <div class="slot card" class:due class:skipped>
           <div class="slot-main">
             <div class="slot-head">
-              <span class="slot-name">{slot.time} · {slot.name}</span>
+              <span class="slot-name">{slot.time} · {slot.name}{#if extra}<span class="extra">{t('day.extra')}</span>{/if}</span>
               {#if !empty}<span class="slot-kcal">{formatNumber(totals.kcal)} kcal</span>{/if}
             </div>
-            {#if empty}
-              <span class="muted">{t('day.empty')}</span>
+            {#if skipped}
+              <button class="skipped-pill" type="button" aria-label={t('day.unskipLabel', { slot: slot.name })} onclick={() => setSkip(slot.id, false)}>
+                <Icon name="skip" size={16} stroke={2.2} />{t('day.skipped')}
+              </button>
+            {:else if empty}
+              <span class="empty-line">
+                <span class="muted">{t('day.empty')}</span>
+                {#if due}
+                  <button class="skip" type="button" aria-label={t('day.skipLabel', { slot: slot.name })} onclick={() => setSkip(slot.id, true)}>{t('day.skip')}</button>
+                {/if}
+              </span>
             {:else}
               <ul>
                 {#each entries as entry (entry.id)}
@@ -332,8 +422,6 @@
                     <Swipeable
                       label={t('swipe.deleteEntry', { name: entry.description })}
                       background="var(--surface)"
-                      radius="12px"
-                      clip="0px"
                       ondelete={() => removeEntries([entry.id], t('swipe.entryDeleted', { name: entry.description }))}>
                     <a href="/add?entry={entry.id}">
                       <FoodIcon category={entry.category ?? mealCategory([entry.description], entry.items)} size={36} />
@@ -342,7 +430,7 @@
                         {#if meta}<span class="meta">{meta}</span>{/if}
                       </span>
                       {#if entry.calcStatus === 'pending'}
-                        <span class="claude"><Icon name="sparkle" size={12} />{t('ai.pending')}</span>
+                        <span class="claude"><Estimating size={14} /></span>
                       {:else if entry.calcError}
                         <span class="flag"><Icon name="alert" size={14} />{t('ai.failed')}</span>
                       {:else if entry.source === 'claude_ai' || entry.source === 'in_app'}
@@ -368,7 +456,31 @@
         </div>
         </Swipeable>
       {/each}
+
+      {#if addingSlot}
+        <form class="card stack add-slot" onsubmit={addExtraSlot}>
+          <p class="help">{t('day.addSlotHelp')}</p>
+          <div class="pair">
+            <div class="field">
+              <label for="extra-name">{t('slots.name')}</label>
+              <input id="extra-name" required maxlength="100" bind:value={extraName} />
+            </div>
+            <div class="field">
+              <label for="extra-time">{t('slots.time')}</label>
+              <input id="extra-time" type="time" required bind:value={extraTime} />
+            </div>
+          </div>
+          <div class="row">
+            <button class="btn btn-primary" type="submit" disabled={!extraName.trim() || !extraTime}>{t('common.add')}</button>
+            <button class="btn btn-ghost" type="button" onclick={() => (addingSlot = false)}>{t('common.cancel')}</button>
+          </div>
+        </form>
+      {:else}
+        <button class="btn btn-ghost add-slot-btn" type="button" onclick={openAddSlot}><Icon name="plus" size={20} stroke={2.5} />{t('day.addSlot')}</button>
+      {/if}
     </section>
+    </div>
+    {/key}
 
     {#if pendingDelete}
       <div class="snackbar" role="status">
@@ -378,6 +490,10 @@
     {/if}
   {:else if !error}
     <p class="muted" role="status">{t('common.loading')}</p>
+  {/if}
+
+  {#if showCalendar}
+    <CalendarPopup selected={date} {today} onpick={pickDay} onclose={() => (showCalendar = false)} />
   {/if}
 </main>
 
@@ -487,6 +603,69 @@
   .slot.due .slot-name {
     color: var(--accent-ink);
   }
+  .slot.skipped {
+    background: var(--surface-2);
+    border-color: transparent;
+  }
+  .extra {
+    margin-left: 8px;
+    padding: 1px 8px;
+    border-radius: 10px;
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .empty-line {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  .skip {
+    min-height: 32px;
+    padding: 0 10px;
+    border: none;
+    border-radius: 16px;
+    background: transparent;
+    color: var(--accent-ink);
+    font: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+  .skipped-pill {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 36px;
+    margin-top: 2px;
+    padding: 0 12px;
+    border: 1px solid var(--field);
+    border-radius: 18px;
+    background: var(--surface);
+    color: var(--text-2);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .add-slot-btn {
+    align-self: flex-start;
+    padding: 0 12px;
+  }
+  .add-slot .pair {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: 12px;
+  }
+  .add-slot .row {
+    display: flex;
+    gap: 8px;
+  }
   .slot-main {
     flex: 1;
     min-width: 0;
@@ -554,7 +733,7 @@
     font-size: 15px;
     box-shadow: 0 6px 24px rgb(0 0 0 / 0.2);
     animation: rise 200ms ease-out;
-    z-index: 10;
+    z-index: 25;
   }
   .snackbar span {
     flex: 1;

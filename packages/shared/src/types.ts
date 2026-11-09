@@ -94,6 +94,8 @@ export interface Slot {
   reminderEnabled: boolean;
   reminderDelayMin: number;
   archived: boolean;
+  /** Set for a slot added to a single day; null for regular slots. */
+  date: string | null;
 }
 
 export interface Entry extends NutrientValues {
@@ -171,6 +173,21 @@ export interface DaySlot {
   slot: Slot;
   entries: Entry[];
   totals: Record<Nutrient, number>;
+  /** Marked as skipped (and still without entries): counts as filled. */
+  skipped: boolean;
+}
+
+/** How full a day of the diary is: slots with a meal or skipped, out of the slots of that day. */
+export interface CalendarDay {
+  date: string;
+  filled: number;
+  total: number;
+}
+
+export interface CalendarResponse {
+  /** The day the user signed up: the calendar starts there. */
+  since: string;
+  days: CalendarDay[];
 }
 
 export interface NutrientSummary {

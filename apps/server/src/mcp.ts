@@ -19,7 +19,7 @@ import {
 import type { AppContext } from './app.ts';
 import type { UserRow } from './auth.ts';
 import type { Db } from './db/index.ts';
-import { entries } from './db/schema.ts';
+import { entries, slots } from './db/schema.ts';
 import { isMcpEnabled, publicBase, userFromBearer } from './oauth.ts';
 import { buildDay, thresholdsOn, toEntry, userSlots } from './services.ts';
 import { lastWeight, listWeights, saveWeight } from './routes/weight.ts';
@@ -88,7 +88,8 @@ interface Tool {
 function resolveSlot(db: Db, user: UserRow, slotId?: number, slotName?: string) {
   const active = userSlots(db, user.id, false);
   if (slotId != null) {
-    const found = userSlots(db, user.id, true).find((s) => s.id === slotId);
+    // Any of the user's slots, also one added to a single day (get_day lists them).
+    const found = db.select().from(slots).where(and(eq(slots.id, slotId), eq(slots.userId, user.id))).get();
     if (found) return found;
   }
   if (slotName) {
@@ -109,11 +110,13 @@ function dayForClaude(db: Db, user: UserRow, date: string) {
     totals: Object.fromEntries(
       NUTRIENTS.map((n) => [n, { value: day.summary[n].value, min: day.summary[n].min, max: day.summary[n].max, status: day.summary[n].status }])
     ),
-    slots: day.slots.map(({ slot, entries: list, totals }) => ({
+    slots: day.slots.map(({ slot, entries: list, totals, skipped }) => ({
       slot_id: slot.id,
       name: slot.name,
       time: slot.time,
       kcal: totals.kcal,
+      // The user marked this meal as skipped.
+      skipped,
       entries: list.map((e) => ({
         entry_id: e.id,
         description: e.description,

@@ -2,12 +2,14 @@
 <script lang="ts">
   import '../app.css';
   import { onMount, type Snippet } from 'svelte';
-  import { goto } from '$app/navigation';
+  import { goto, onNavigate } from '$app/navigation';
   import { page } from '$app/state';
   import type { Status, User } from '@mealler/shared';
   import { get, patch } from '$lib/api';
   import { app, setUser, t } from '$lib/state.svelte';
+  import { releasesSince } from '$lib/changelog';
   import Icon from '$lib/Icon.svelte';
+  import NewsPopup from '$lib/NewsPopup.svelte';
   import { flushQueue, net } from '$lib/offline.svelte';
   import Splash from '$lib/Splash.svelte';
 
@@ -80,7 +82,32 @@
     { href: '/profile', key: 'nav.profile', icon: 'user' }
   ] as const;
 
-  // After an update, invite the user to read what changed (once per version).
+  // ---------- Page transitions ----------
+  // A short slide between pages (View Transitions API, where the browser has it): deeper pages come in
+  // from the right and leave to the right; between tabs the page slides towards the tab's side.
+  // The tab bar stays still and its highlight moves to the new tab (see app.css).
+  const TAB_ORDER = ['/', '/trends', '/favorites', '/profile'];
+  onNavigate((navigation) => {
+    const from = navigation.from?.url.pathname;
+    const to = navigation.to?.url.pathname;
+    // Same page (another day of the diary): the page animates its own content.
+    if (!from || !to || from === to || !document.startViewTransition) return;
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const a = TAB_ORDER.indexOf(from);
+    const b = TAB_ORDER.indexOf(to);
+    const kind = a >= 0 && b >= 0 ? (b > a ? 'next' : 'prev') : a < 0 && b >= 0 ? 'back' : 'forward';
+    const root = document.documentElement;
+    root.dataset.nav = kind;
+    return new Promise((resolve) => {
+      const transition = document.startViewTransition(async () => {
+        resolve();
+        await navigation.complete;
+      });
+      transition.finished.finally(() => delete root.dataset.nav);
+    });
+  });
+
+  // After an update, show what changed in a popup (once per version).
   const showNews = $derived(
     !!app.user &&
       !!app.status &&
@@ -90,7 +117,7 @@
       !isPublic
   );
 
-  // Closing the banner counts as having seen the news: hide it at once, then tell the server.
+  // Closing the popup counts as having seen the news: hide it at once, then tell the server.
   function dismissNews() {
     const version = app.status?.version;
     if (!app.user || !version) return;
@@ -117,12 +144,6 @@
 <svelte:window ononline={onNetworkChange} onoffline={onNetworkChange} />
 
 {#if ready && allowed}
-  {#if showNews}
-    <div class="news">
-      <a href="/news"><Icon name="gift" size={20} /><span>{t('news.banner', { v: app.status?.version ?? '' })} <strong>{t('news.see')}</strong></span></a>
-      <button type="button" aria-label={t('common.close')} onclick={dismissNews}><Icon name="close" size={20} /></button>
-    </div>
-  {/if}
   {@render children()}
 
   {#if app.user && !isPublic}
@@ -135,52 +156,19 @@
       {/each}
     </nav>
   {/if}
+  {#if showNews && app.status}
+    <NewsPopup version={app.status.version} releases={releasesSince(app.user?.lastSeenVersion, app.status.version)} onclose={dismissNews} />
+  {/if}
 {:else}
   <Splash message={splashMessage} version={app.status?.version ?? __APP_VERSION__} />
 {/if}
 
 <style>
-  .news {
-    display: flex;
-    align-items: center;
-    width: calc(100% - 32px);
-    max-width: 528px;
-    /* The banner is the first thing on screen: keep it clear of the status bar like the header. */
-    margin: max(8px, var(--status-clear)) auto 0;
-    border-radius: 14px;
-    background: var(--accent-soft);
-    color: var(--accent-ink);
-    font-size: 15px;
-  }
-  .news a {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 0 10px 16px;
-    color: inherit;
-    text-decoration: none;
-  }
-  .news button {
-    flex: none;
-    width: 48px;
-    height: 48px;
-    padding: 0;
-    border: none;
-    border-radius: 14px;
-    background: transparent;
-    color: inherit;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-  }
-  /* The banner already sits below the status bar, so the header under it needs no extra room. */
-  .news + :global(main) > :global(.topbar) {
-    padding-top: 16px;
-  }
+  /* Always above the page, whatever the page stacks inside it. */
   .tabbar {
+    z-index: 20;
+    /* Kept out of the page transition: it stays still while the page slides. */
+    view-transition-name: tabbar;
     position: fixed;
     left: 0;
     right: 0;
@@ -220,5 +208,7 @@
   }
   .tabbar a[aria-current='page'] .pill {
     background: var(--accent-soft);
+    /* The highlight glides from the old tab to the new one. */
+    view-transition-name: tab-pill;
   }
 </style>

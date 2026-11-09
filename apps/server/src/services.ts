@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { and, asc, desc, eq, lte, sql } from 'drizzle-orm';
+import { and, asc, between, desc, eq, isNull, lte, or, sql } from 'drizzle-orm';
 import {
   ALL_DAYS,
   DEFAULT_SLOTS,
   NUTRIENTS,
+  addDays,
   isLocale,
   isUnitSystem,
   kcalMismatch,
@@ -11,6 +12,7 @@ import {
   sumValues,
   thresholdStatus,
   todayIn,
+  type CalendarDay,
   type DayResponse,
   type Entry,
   type EstimateItem,
@@ -21,7 +23,7 @@ import {
   type User
 } from '@mealler/shared';
 import type { Db } from './db/index.ts';
-import { entries, settings, slots, thresholds, users } from './db/schema.ts';
+import { entries, settings, slotSkips, slots, thresholds, users } from './db/schema.ts';
 import type { UserRow } from './auth.ts';
 
 export function toUser(row: UserRow): User {
@@ -56,7 +58,8 @@ export function toSlot(row: typeof slots.$inferSelect): Slot {
     position: row.position,
     reminderEnabled: row.reminderEnabled,
     reminderDelayMin: row.reminderDelayMin,
-    archived: row.archived
+    archived: row.archived,
+    date: row.date
   };
 }
 
@@ -177,11 +180,48 @@ export function thresholdsOn(db: Db, userId: number, date: string): Record<Nutri
   return out;
 }
 
+type SlotRow = typeof slots.$inferSelect;
+const slotOrder = [asc(slots.position), asc(slots.time), asc(slots.id)];
+
+/** The user's regular slots (not the ones added to a single day). */
 export function userSlots(db: Db, userId: number, includeArchived: boolean) {
   const where = includeArchived
-    ? eq(slots.userId, userId)
-    : and(eq(slots.userId, userId), eq(slots.archived, false));
-  return db.select().from(slots).where(where).orderBy(asc(slots.position), asc(slots.time), asc(slots.id)).all();
+    ? and(eq(slots.userId, userId), isNull(slots.date))
+    : and(eq(slots.userId, userId), eq(slots.archived, false), isNull(slots.date));
+  return db.select().from(slots).where(where).orderBy(...slotOrder).all();
+}
+
+/** Regular slots plus the ones added to a day between `from` and `to`, archived ones included. */
+function slotsForDays(db: Db, userId: number, from: string, to: string): SlotRow[] {
+  return db
+    .select()
+    .from(slots)
+    .where(and(eq(slots.userId, userId), or(isNull(slots.date), between(slots.date, from, to))))
+    .orderBy(...slotOrder)
+    .all();
+}
+
+/**
+ * The slots of a day, in order: the regular ones active that day, the ones added to that day only
+ * (placed by time), and any other slot that holds an entry.
+ */
+function slotsOfDay(all: SlotRow[], date: string, used: Set<number>): SlotRow[] {
+  const regular = all.filter((s) => s.date == null && (used.has(s.id) || (!s.archived && slotActiveOn(s.days, date))));
+  const extra = all.filter((s) => s.date === date && (used.has(s.id) || !s.archived));
+  const out = [...regular];
+  for (const slot of extra.sort((a, b) => a.time.localeCompare(b.time))) {
+    const at = out.findIndex((s) => s.time > slot.time);
+    out.splice(at < 0 ? out.length : at, 0, slot);
+  }
+  return out;
+}
+
+function skippedOn(db: Db, userId: number, from: string, to: string) {
+  return db
+    .select()
+    .from(slotSkips)
+    .where(and(eq(slotSkips.userId, userId), between(slotSkips.date, from, to)))
+    .all();
 }
 
 /** Everything the day view needs: slots active that day (plus any with entries), entries, totals vs thresholds. */
@@ -194,12 +234,12 @@ export function buildDay(db: Db, user: UserRow, date: string): DayResponse {
     .all()
     .map(toEntry);
   const used = new Set(dayEntries.map((e) => e.slotId));
-  const daySlots = userSlots(db, user.id, true)
-    .filter((s) => used.has(s.id) || (!s.archived && slotActiveOn(s.days, date)))
+  const skipped = new Set(skippedOn(db, user.id, date, date).map((s) => s.slotId));
+  const daySlots = slotsOfDay(slotsForDays(db, user.id, date, date), date, used)
     .map(toSlot)
     .map((slot) => {
       const list = dayEntries.filter((e) => e.slotId === slot.id);
-      return { slot, entries: list, totals: sumValues(list) };
+      return { slot, entries: list, totals: sumValues(list), skipped: list.length === 0 && skipped.has(slot.id) };
     });
   const totals = sumValues(dayEntries);
   const limits = thresholdsOn(db, user.id, date);
@@ -209,4 +249,36 @@ export function buildDay(db: Db, user: UserRow, date: string): DayResponse {
     summary[n] = { value: totals[n], min, max, status: thresholdStatus(totals[n], min, max) };
   }
   return { date, today: todayIn(user.timezone), slots: daySlots, summary };
+}
+
+/** For each day from `from` to `to`: how many of its slots have a meal or were skipped. */
+export function calendarDays(db: Db, userId: number, from: string, to: string): CalendarDay[] {
+  const all = slotsForDays(db, userId, from, to);
+  const byDate = (rows: { date: string; slotId: number }[]) => {
+    const map = new Map<string, Set<number>>();
+    for (const r of rows) {
+      if (!map.has(r.date)) map.set(r.date, new Set());
+      map.get(r.date)!.add(r.slotId);
+    }
+    return map;
+  };
+  const used = byDate(
+    db
+      .selectDistinct({ date: entries.date, slotId: entries.slotId })
+      .from(entries)
+      .where(and(eq(entries.userId, userId), between(entries.date, from, to)))
+      .all()
+  );
+  const skipped = byDate(skippedOn(db, userId, from, to));
+  const none = new Set<number>();
+  const out: CalendarDay[] = [];
+  for (let date = from; date <= to; date = addDays(date, 1)) {
+    const withMeals = used.get(date) ?? none;
+    const skippedSlots = skipped.get(date) ?? none;
+    // The same slots as the day view, so "complete" here matches "5 of 5 filled" there.
+    const list = slotsOfDay(all, date, withMeals);
+    const filled = list.filter((s) => withMeals.has(s.id) || skippedSlots.has(s.id)).length;
+    out.push({ date, filled, total: list.length });
+  }
+  return out;
 }

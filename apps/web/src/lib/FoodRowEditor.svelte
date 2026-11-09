@@ -5,6 +5,7 @@
   import { app, formatNumber, t } from './state.svelte';
   import { hasValues, rowValues, type FoodRow } from './foodRow';
   import CategoryPicker from './CategoryPicker.svelte';
+  import Estimating from './Estimating.svelte';
   import FoodIcon from './FoodIcon.svelte';
   import Icon from './Icon.svelte';
   import QuantityInput from './QuantityInput.svelte';
@@ -154,7 +155,7 @@
   </div>
 
   {#if row.estimating}
-    <p class="notice working" role="status"><Icon name="sparkle" size={18} />{t('ai.working')}</p>
+    <p class="notice" role="status"><Estimating /></p>
   {:else if row.estimatedValues}
     <p class="help"><Icon name="alert" size={16} /> {t('ai.editHint')}</p>
   {/if}
@@ -258,11 +259,6 @@
   .grow {
     flex: 1;
     min-width: 0;
-  }
-  .working {
-    display: flex;
-    align-items: center;
-    gap: 8px;
   }
   .warn {
     display: flex;
