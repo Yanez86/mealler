@@ -21,6 +21,7 @@ import { weightRoutes } from './routes/weight.ts';
 import { insightRoutes } from './routes/insights.ts';
 import { productRoutes } from './routes/products.ts';
 import type { BarcodeLookup } from './foods.ts';
+import { PERMISSIONS_POLICY, contentSecurityPolicy } from './security.ts';
 import type { AiContext } from './ai.ts';
 import type { PushSender } from './push.ts';
 
@@ -49,10 +50,16 @@ export async function buildApp(ctx: AppContext, opts: { logger?: boolean } = {})
   });
 
   app.decorateRequest('user', null);
-  app.addHook('onSend', async (_request, reply, payload) => {
+  const csp = contentSecurityPolicy(ctx.config.publicDir);
+  app.addHook('onSend', async (request, reply, payload) => {
     reply.header('X-Content-Type-Options', 'nosniff');
     reply.header('Referrer-Policy', 'same-origin');
     reply.header('X-Frame-Options', 'DENY');
+    reply.header('Permissions-Policy', PERMISSIONS_POLICY);
+    reply.header('Cross-Origin-Opener-Policy', 'same-origin');
+    if (request.protocol === 'https') reply.header('Strict-Transport-Security', 'max-age=31536000');
+    const type = String(reply.getHeader('content-type') ?? '');
+    if (type.startsWith('text/html')) reply.header('Content-Security-Policy', csp);
     return payload;
   });
 

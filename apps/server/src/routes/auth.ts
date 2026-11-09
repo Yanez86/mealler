@@ -16,7 +16,10 @@ import {
 import { invites, sessions, users } from '../db/schema.ts';
 import { latestVersion } from '../updates.ts';
 import { HttpError, conflict, forbidden } from '../http.ts';
+import { rmSync } from 'node:fs';
+import { join } from 'node:path';
 import {
+  countActiveAdmins,
   countUsers,
   createUserWithDefaults,
   findUserByEmail,
@@ -128,6 +131,18 @@ export async function authRoutes(app: FastifyInstance, { db, config }: AppContex
       .parse(request.body);
     const updated = db.update(users).set(body).where(eq(users.id, user.id)).returning().get();
     return toUser(updated);
+  });
+
+  // GDPR: users can delete their own account and every piece of their data.
+  app.delete('/me', { config: strict }, async (request, reply) => {
+    const user = requireUser(request);
+    const { password } = z.object({ password: z.string().max(200) }).parse(request.body ?? {});
+    if (!(await verifyPassword(user.passwordHash, password))) throw new HttpError(400, 'wrongPassword');
+    if (user.role === 'admin' && countActiveAdmins(db) <= 1 && countUsers(db) > 1) throw new HttpError(400, 'lastAdmin');
+    rmSync(join(config.dataDir, 'photos', String(user.id)), { recursive: true, force: true });
+    db.delete(users).where(eq(users.id, user.id)).run();
+    destroySession(db, request, reply);
+    return { ok: true };
   });
 
   app.post('/me/password', { config: strict }, async (request) => {

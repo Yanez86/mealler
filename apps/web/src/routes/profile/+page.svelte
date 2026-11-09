@@ -2,7 +2,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { LOCALES, addDays, todayIn, type Locale, type Theme, type User } from '@mealler/shared';
-  import { patch, post } from '$lib/api';
+  import { api, patch, post } from '$lib/api';
   import { app, errorMessage, setUser, t } from '$lib/state.svelte';
   import Icon from '$lib/Icon.svelte';
   import TopBar from '$lib/TopBar.svelte';
@@ -54,6 +54,25 @@
       pwMsg = t('profile.passwordChanged');
     } catch (e) {
       pwError = errorMessage(e);
+    }
+  }
+
+  let deleteOpen = $state(false);
+  let deletePassword = $state('');
+  let deleteError = $state('');
+
+  async function deleteAccount(event: SubmitEvent) {
+    event.preventDefault();
+    deleteError = '';
+    if (!confirm(t('profile.deleteConfirm'))) return;
+    try {
+      await unsubscribe().catch(() => {});
+      await api('DELETE', '/me', { password: deletePassword });
+      await clearApiCache();
+      setUser(null);
+      await goto('/login', { replaceState: true });
+    } catch (e) {
+      deleteError = errorMessage(e);
     }
   }
 
@@ -149,6 +168,24 @@
   </section>
 
   <button class="btn btn-danger" type="button" onclick={logout}>{t('profile.logout')}</button>
+
+  <section class="card stack" aria-labelledby="delete-title">
+    <h2 id="delete-title" class="section-title">{t('profile.delete')}</h2>
+    <p class="help">{t('profile.deleteHelp')}</p>
+    {#if deleteOpen}
+      <form class="stack" onsubmit={deleteAccount}>
+        <div class="field">
+          <label for="delete-pw">{t('profile.deletePassword')}</label>
+          <input id="delete-pw" type="password" autocomplete="current-password" required bind:value={deletePassword} />
+        </div>
+        {#if deleteError}<p class="error" role="alert">{deleteError}</p>{/if}
+        <button class="btn btn-danger" type="submit">{t('profile.deleteNow')}</button>
+        <button class="btn btn-ghost" type="button" onclick={() => (deleteOpen = false)}>{t('common.cancel')}</button>
+      </form>
+    {:else}
+      <button class="btn btn-ghost" type="button" onclick={() => (deleteOpen = true)}>{t('profile.delete')}</button>
+    {/if}
+  </section>
 
   <section class="about muted small" aria-label={t('profile.about')}>
     <p>{t('common.license')}</p>

@@ -8,7 +8,8 @@ import { migrate, openDatabase } from '../src/db/index.ts';
 import type { PushSender } from '../src/push.ts';
 import { runReminderTick } from '../src/reminders.ts';
 import type { PushPayload } from '@mealler/shared';
-import { mkdtempSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
@@ -17,10 +18,10 @@ import { createSecretBox } from '../src/secrets.ts';
 import { users } from '../src/db/schema.ts';
 import { eq } from 'drizzle-orm';
 
-async function setupApp() {
+async function setupApp(publicDir = '/nonexistent') {
   const config = {
     ...loadConfig({}),
-    publicDir: '/nonexistent',
+    publicDir,
     updateCheck: false,
     migrationsDir: fileURLToPath(new URL('../migrations', import.meta.url))
   };
@@ -706,4 +707,76 @@ test('shared food library: barcode lookup, label reading, logging by grams and s
   assert.equal(res.json().draft, null);
 
   await app.close();
+});
+
+test('security headers: CSP with inline script hashes, permissions policy, HSTS behind HTTPS', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'mealler-web-'));
+  const boot = 'console.log("boot")';
+  writeFileSync(join(dir, 'index.html'), `<!doctype html><html><head><script>${boot}</script><script type="module" src="/x.js"></script></head><body></body></html>`);
+  const { app } = await setupApp(dir);
+  const hash = createHash('sha256').update(boot).digest('base64');
+
+  let res = await app.inject({ method: 'GET', url: '/' });
+  assert.equal(res.statusCode, 200);
+  const csp = String(res.headers['content-security-policy']);
+  assert.ok(csp.includes(`script-src 'self' 'sha256-${hash}'`), csp);
+  assert.match(csp, /frame-ancestors 'none'/);
+  assert.match(csp, /object-src 'none'/);
+  assert.match(String(res.headers['permissions-policy']), /camera=\(self\)/);
+  assert.equal(res.headers['x-frame-options'], 'DENY');
+  assert.equal(res.headers['strict-transport-security'], undefined);
+
+  // SPA fallback is HTML too.
+  res = await app.inject({ method: 'GET', url: '/profile/thresholds' });
+  assert.ok(res.headers['content-security-policy']);
+
+  // JSON does not carry the CSP; HSTS only when the proxy says HTTPS.
+  res = await app.inject({ method: 'GET', url: '/api/status', headers: { 'x-forwarded-proto': 'https' } });
+  assert.equal(res.headers['content-security-policy'], undefined);
+  assert.match(String(res.headers['strict-transport-security']), /max-age=/);
+});
+
+test('account deletion: password, last admin, cascade and photos', async () => {
+  const { app, db, ai } = await setupApp();
+  let res = await app.inject({ method: 'POST', url: '/api/setup', payload: admin });
+  const adminCookie = cookieOf(res);
+  res = await app.inject({ method: 'PATCH', url: '/api/admin/settings', headers: { cookie: adminCookie }, payload: { registrationOpen: true } });
+  assert.equal(res.statusCode, 200, res.body);
+  const bob = { name: 'Bob', email: 'bob@example.com', password: 'another long password', locale: 'it', timezone: 'Europe/Rome' };
+  res = await app.inject({ method: 'POST', url: '/api/register', payload: bob });
+  assert.equal(res.statusCode, 200, res.body);
+  const bobCookie = cookieOf(res);
+  const bobId = res.json().id as number;
+
+  res = await app.inject({ method: 'GET', url: '/api/slots', headers: { cookie: bobCookie } });
+  const slotId = res.json()[0].id;
+  res = await app.inject({ method: 'POST', url: '/api/entries', headers: { cookie: bobCookie }, payload: { date: '2026-11-09', slotId, description: 'Mela' } });
+  assert.equal(res.statusCode, 200, res.body);
+  const photoDir = join(ai.dataDir, 'photos', String(bobId));
+  mkdirSync(photoDir, { recursive: true });
+  writeFileSync(join(photoDir, 'x.jpg'), 'x');
+
+  // The only admin cannot delete themselves while other users exist.
+  res = await app.inject({ method: 'DELETE', url: '/api/me', headers: { cookie: adminCookie }, payload: { password: admin.password } });
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.json().error, 'lastAdmin');
+
+  // Wrong password.
+  res = await app.inject({ method: 'DELETE', url: '/api/me', headers: { cookie: bobCookie }, payload: { password: 'wrong' } });
+  assert.equal(res.statusCode, 400);
+
+  res = await app.inject({ method: 'DELETE', url: '/api/me', headers: { cookie: bobCookie }, payload: { password: bob.password } });
+  assert.equal(res.statusCode, 200, res.body);
+  assert.equal(db.select().from(users).where(eq(users.id, bobId)).get(), undefined);
+  assert.equal(existsSync(photoDir), false);
+  res = await app.inject({ method: 'GET', url: '/api/me', headers: { cookie: bobCookie } });
+  assert.equal(res.statusCode, 401);
+  res = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { email: bob.email, password: bob.password } });
+  assert.equal(res.statusCode, 401);
+
+  // Now the admin is alone and may delete the instance owner account.
+  res = await app.inject({ method: 'DELETE', url: '/api/me', headers: { cookie: adminCookie }, payload: { password: admin.password } });
+  assert.equal(res.statusCode, 200);
+  res = await app.inject({ method: 'GET', url: '/api/status' });
+  assert.equal(res.json().setupRequired, true);
 });

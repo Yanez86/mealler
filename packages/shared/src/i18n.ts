@@ -116,6 +116,11 @@ const it = {
   'profile.thresholds': 'Soglie',
   'profile.admin': 'Amministrazione',
   'profile.logout': 'Esci',
+  'profile.delete': 'Elimina account',
+  'profile.deleteHelp': 'Cancella per sempre il tuo account e tutti i tuoi dati: diario, foto, pesi, preferiti, soglie, notifiche e accessi del connettore. Gli alimenti che hai aggiunto alla libreria condivisa restano disponibili agli altri. Scarica prima un export se vuoi conservarli.',
+  'profile.deletePassword': 'Conferma con la password',
+  'profile.deleteNow': 'Elimina definitivamente',
+  'profile.deleteConfirm': 'Eliminare l’account e tutti i dati? Non si può annullare.',
   'profile.about': 'Informazioni',
 
   'theme.system': 'Come il dispositivo',
@@ -530,6 +535,11 @@ const en: Record<MessageKey, string> = {
   'profile.thresholds': 'Thresholds',
   'profile.admin': 'Administration',
   'profile.logout': 'Sign out',
+  'profile.delete': 'Delete account',
+  'profile.deleteHelp': 'Permanently deletes your account and all your data: diary, photos, weights, favourites, thresholds, notifications and connector access. Foods you added to the shared library stay available to others. Download an export first if you want to keep your data.',
+  'profile.deletePassword': 'Confirm with your password',
+  'profile.deleteNow': 'Delete permanently',
+  'profile.deleteConfirm': 'Delete your account and all data? This cannot be undone.',
   'profile.about': 'About',
 
   'theme.system': 'Same as device',
