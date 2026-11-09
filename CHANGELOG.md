@@ -5,6 +5,22 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e i
 
 ## [Non rilasciato]
 
+## [0.5.0] - 2026-11-09
+
+### Aggiunto
+- Preferiti: salva un pasto con i suoi valori e reinseriscilo con un tocco; nella schermata Aggiungi pasto compaiono i preferiti e i pasti mangiati più spesso.
+- Andamento: grafici a barre di calorie e macronutrienti su 7, 30 o 90 giorni con le soglie disegnate come fascia, media giornaliera, giorni nella fascia e ripartizione delle calorie tra proteine, carboidrati e grassi.
+- Peso: ultima pesata con variazione, calendario mensile delle pesate, grafico nel tempo e promemoria ogni N settimane nel giorno e all'ora scelti.
+- Strumenti del connettore claude.ai per il peso: log_weight e get_weights.
+- Export dei dati: CSV dei pasti per periodo e JSON completo dell'account.
+- Pagina Novità con questo changelog e avviso dopo ogni aggiornamento.
+- Pulsante per calcolare con Claude, in un colpo, tutte le voci di una giornata ancora senza valori.
+- Barra di navigazione con quattro sezioni: Oggi, Andamento, Preferiti, Profilo.
+
+### Corretto
+- Su iPhone il campo Data usciva dal bordo dello schermo e faceva scorrere la pagina in orizzontale.
+- Quando il calcolo con Claude è spento, il messaggio ora lo dice chiaramente invece di parlare di versioni future.
+
 ## [0.4.1] - 2026-11-09
 
 ### Aggiunto

@@ -36,7 +36,12 @@ export function toUser(row: UserRow): User {
     remindersEnabled: row.remindersEnabled,
     quietStart: row.quietStart,
     quietEnd: row.quietEnd,
-    remindersPausedUntil: row.remindersPausedUntil
+    remindersPausedUntil: row.remindersPausedUntil,
+    lastSeenVersion: row.lastSeenVersion,
+    weightReminderEnabled: row.weightReminderEnabled,
+    weightReminderWeeks: row.weightReminderWeeks,
+    weightReminderWeekday: row.weightReminderWeekday,
+    weightReminderTime: row.weightReminderTime
   };
 }
 
@@ -72,7 +77,7 @@ export function toEntry(row: typeof entries.$inferSelect): Entry {
   };
 }
 
-function parseItems(detail: string | null): EstimateItem[] | null {
+export function parseItems(detail: string | null): EstimateItem[] | null {
   if (!detail) return null;
   try {
     const value = JSON.parse(detail);

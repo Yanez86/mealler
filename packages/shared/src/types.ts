@@ -20,6 +20,47 @@ export interface User {
   quietStart: string | null;
   quietEnd: string | null;
   remindersPausedUntil: string | null;
+  lastSeenVersion: string | null;
+  weightReminderEnabled: boolean;
+  weightReminderWeeks: number;
+  weightReminderWeekday: number;
+  weightReminderTime: string;
+}
+
+export interface Favorite extends NutrientValues {
+  id: number;
+  name: string;
+  description: string;
+  quantity: string | null;
+  slotId: number | null;
+  uses: number;
+  items: EstimateItem[] | null;
+}
+
+/** A frequent meal, derived from the diary (not saved as favorite). */
+export interface Suggestion extends NutrientValues {
+  description: string;
+  quantity: string | null;
+  times: number;
+  items: EstimateItem[] | null;
+}
+
+export interface WeightEntry {
+  date: string;
+  kg: number;
+  note: string | null;
+}
+
+export interface TrendDay extends Record<Nutrient, number> {
+  date: string;
+  entries: number;
+  limits: Record<Nutrient, { min: number | null; max: number | null }>;
+}
+
+export interface TrendsResponse {
+  from: string;
+  to: string;
+  days: TrendDay[];
 }
 
 export interface PushPayload {

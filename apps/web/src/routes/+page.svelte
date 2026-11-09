@@ -11,7 +11,8 @@
     type NutrientSummary,
     type ThresholdStatus
   } from '@mealler/shared';
-  import { get } from '$lib/api';
+  import { get, post } from '$lib/api';
+  import type { AiStatus } from '@mealler/shared';
   import { app, errorMessage, formatDate, formatNumber, t } from '$lib/state.svelte';
   import Icon from '$lib/Icon.svelte';
   import TopBar from '$lib/TopBar.svelte';
@@ -53,6 +54,28 @@
     }, 4000);
     return () => clearInterval(timer);
   });
+
+  let ai = $state<AiStatus | null>(null);
+  let queuedMessage = $state('');
+  $effect(() => {
+    get<AiStatus>('/ai/status').then((s) => (ai = s)).catch(() => {});
+  });
+  const withoutValues = $derived(
+    day
+      ? day.slots.flatMap((s) => s.entries).filter(
+          (e) => e.calcStatus !== 'pending' && [e.kcal, e.protein, e.carbs, e.fat, e.fiber].every((v) => v == null)
+        ).length
+      : 0
+  );
+  async function calculateAll() {
+    try {
+      const { queued } = await post<{ queued: number }>(`/day/${date}/calculate`);
+      queuedMessage = t('day.calculating', { n: queued });
+      day = await get<DayResponse>(`/day/${date}`);
+    } catch (e) {
+      error = errorMessage(e);
+    }
+  }
 
   function go(d: string) {
     goto(d === today ? '/' : `/?d=${d}`, { keepFocus: true, noScroll: true });
@@ -167,6 +190,13 @@
         {/each}
       </div>
     </section>
+
+    {#if withoutValues > 0 && ai?.enabled && !ai.capReached && !ai.limitReached}
+      <button class="btn btn-block calc-all" type="button" onclick={calculateAll}>
+        <Icon name="sparkle" size={20} />{t('day.calculateAll', { n: withoutValues })}
+      </button>
+    {/if}
+    {#if queuedMessage}<p class="notice" role="status">{queuedMessage}</p>{/if}
 
     <section class="meals" aria-labelledby="meals-title">
       <div class="meals-head">
@@ -310,6 +340,9 @@
   .status.status-none {
     color: var(--text-2);
     font-weight: 500;
+  }
+  .calc-all {
+    margin-top: 16px;
   }
   .meals {
     margin-top: 20px;

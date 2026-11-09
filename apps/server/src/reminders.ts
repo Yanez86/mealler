@@ -4,6 +4,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import {
   inTimeRange,
   isLocale,
+  isoWeekday,
   nowIn,
   slotActiveOn,
   timeToMinutes,
@@ -12,6 +13,9 @@ import {
 import type { Db } from './db/index.ts';
 import { entries, pushSubscriptions, reminderLog, slots, users } from './db/schema.ts';
 import { pushToUser, type PushSender } from './push.ts';
+import { lastWeight } from './routes/weight.ts';
+
+const daysBetween = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
 
 /** A reminder that could not be sent within this many minutes after it was due is skipped. */
 export const REMINDER_WINDOW_MIN = 180;
@@ -32,6 +36,27 @@ export async function runReminderTick(db: Db, sender: PushSender, now: Date = ne
     if (inTimeRange(time, user.quietStart, user.quietEnd)) continue;
     const minutes = timeToMinutes(time);
     const locale = isLocale(user.locale) ? user.locale : 'it';
+
+    // Weigh-in reminder: on the chosen weekday, if the last weigh-in is about N weeks old (or missing).
+    if (user.weightReminderEnabled && isoWeekday(date) === user.weightReminderWeekday && user.weightReminderLastSent !== date) {
+      const due = timeToMinutes(user.weightReminderTime);
+      if (minutes >= due && minutes - due <= REMINDER_WINDOW_MIN) {
+        const last = lastWeight(db, user.id, date);
+        const since = last ? daysBetween(last.date, date) : Infinity;
+        if (since >= user.weightReminderWeeks * 7 - 1) {
+          const delivered = await pushToUser(db, sender, user.id, {
+            title: translate(locale, 'push.weightTitle'),
+            body: translate(locale, 'push.weightBody'),
+            url: '/trends?tab=weight',
+            tag: `weight-${date}`
+          });
+          if (delivered > 0) {
+            db.update(users).set({ weightReminderLastSent: date }).where(eq(users.id, user.id)).run();
+            sent++;
+          }
+        }
+      }
+    }
 
     const userSlots = db
       .select()

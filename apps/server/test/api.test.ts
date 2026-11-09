@@ -345,7 +345,7 @@ test('claude.ai connector: OAuth 2.1 with PKCE, MCP tools, isolation, refresh an
   assert.equal(res.statusCode, 202);
   res = await mcp({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
   const names = res.json().result.tools.map((t: { name: string }) => t.name);
-  assert.deepEqual(names.sort(), ['add_entry', 'delete_entry', 'get_day', 'get_summary', 'get_thresholds', 'list_slots', 'update_entry']);
+  assert.deepEqual(names.sort(), ['add_entry', 'delete_entry', 'get_day', 'get_summary', 'get_thresholds', 'get_weights', 'list_slots', 'log_weight', 'update_entry']);
 
   res = await mcp({
     jsonrpc: '2.0',
@@ -533,6 +533,90 @@ test('estimate limits: daily requests and bursts', async () => {
   await app.inject({ method: 'PATCH', url: '/api/admin/ai', headers, payload: { perMinute: null, instanceMonthlyUsd: 0 } });
   res = await app.inject({ method: 'POST', url: '/api/ai/estimate', headers, payload: { description: 'd' } });
   assert.equal(res.json().error, 'aiInstanceCap');
+
+  await app.close();
+});
+
+test('favorites, suggestions, weights, trends, export and bulk estimates', async () => {
+  const { app, db, push, sent, ai } = await setupApp();
+  let res = await app.inject({ method: 'POST', url: '/api/setup', payload: admin });
+  const headers = { cookie: cookieOf(res) };
+  const slots = (await app.inject({ method: 'GET', url: '/api/slots', headers })).json();
+
+  // Favorites: save, use, counted.
+  res = await app.inject({
+    method: 'POST',
+    url: '/api/favorites',
+    headers,
+    payload: { name: 'Colazione solita', description: 'Yogurt e caffè', kcal: 150, protein: 8, carbs: 12, fat: 6, slotId: slots[0].id }
+  });
+  assert.equal(res.statusCode, 200, res.body);
+  const fav = res.json();
+  res = await app.inject({ method: 'POST', url: `/api/favorites/${fav.id}/use`, headers, payload: { slotId: slots[0].id, date: '2026-11-09' } });
+  assert.equal(res.json().source, 'favorite');
+  assert.equal(res.json().kcal, 150);
+  res = await app.inject({ method: 'GET', url: '/api/favorites', headers });
+  assert.equal(res.json()[0].uses, 1);
+
+  // Suggestions need a meal logged at least twice.
+  await app.inject({ method: 'POST', url: `/api/favorites/${fav.id}/use`, headers, payload: { slotId: slots[0].id, date: '2026-11-08' } });
+  res = await app.inject({ method: 'GET', url: `/api/suggestions?slotId=${slots[0].id}`, headers });
+  assert.equal(res.json()[0].times, 2);
+
+  // Weights.
+  res = await app.inject({ method: 'PUT', url: '/api/weights/2026-10-19', headers, payload: { kg: 73.2 } });
+  assert.equal(res.statusCode, 200, res.body);
+  await app.inject({ method: 'PUT', url: '/api/weights/2026-11-02', headers, payload: { kg: 72.44 } });
+  res = await app.inject({ method: 'GET', url: '/api/weights?from=2026-10-01&to=2026-11-30', headers });
+  assert.deepEqual(res.json().map((w: { kg: number }) => w.kg), [73.2, 72.4]);
+
+  // Weigh-in reminder: every 2 weeks on Monday at 07:30; last weigh-in 2026-11-02.
+  await app.inject({
+    method: 'PATCH',
+    url: '/api/me',
+    headers,
+    payload: { weightReminderEnabled: true, weightReminderWeeks: 2, weightReminderWeekday: 1, weightReminderTime: '07:30' }
+  });
+  await app.inject({
+    method: 'POST',
+    url: '/api/push/subscribe',
+    headers,
+    payload: { endpoint: 'https://push.example.com/w', keys: { p256dh: 'p256dh-key-0123456789', auth: 'auth-key-0123' } }
+  });
+  for (const s of slots) await app.inject({ method: 'PATCH', url: `/api/slots/${s.id}`, headers, payload: { reminderEnabled: false } });
+  // Monday 9 Nov, 07:40 in Rome: only 7 days since the last weigh-in → nothing.
+  assert.equal(await runReminderTick(db, push, new Date('2026-11-09T06:40:00Z')), 0);
+  // Monday 16 Nov: 14 days → reminder, once.
+  assert.equal(await runReminderTick(db, push, new Date('2026-11-16T06:40:00Z')), 1);
+  assert.equal(sent.at(-1)?.payload.url, '/trends?tab=weight');
+  assert.equal(await runReminderTick(db, push, new Date('2026-11-16T06:50:00Z')), 0);
+
+  // Trends with thresholds.
+  await app.inject({ method: 'PUT', url: '/api/thresholds', headers, payload: { items: [{ nutrient: 'kcal', min: null, max: 2000 }] } });
+  res = await app.inject({ method: 'GET', url: '/api/trends?from=2026-11-03&to=2026-11-09', headers });
+  assert.equal(res.statusCode, 200, res.body);
+  const days = res.json().days;
+  assert.equal(days.length, 7);
+  assert.equal(days.at(-1).kcal, 150);
+  assert.equal(days.at(-2).kcal, 150);
+
+  // Export.
+  res = await app.inject({ method: 'GET', url: '/api/export.csv?from=2026-11-01&to=2026-11-30', headers });
+  assert.match(res.headers['content-disposition'] as string, /attachment/);
+  assert.match(res.body, /Yogurt e caffè/);
+  res = await app.inject({ method: 'GET', url: '/api/export.json', headers });
+  const dump = JSON.parse(res.body);
+  assert.equal(dump.weights.length, 2);
+  assert.equal(dump.favorites.length, 1);
+
+  // Bulk background estimates for a day.
+  await app.inject({ method: 'PATCH', url: '/api/admin/ai', headers, payload: { enabled: true, apiKey: 'sk-ant-bulk-test', perMinute: null } });
+  await app.inject({ method: 'POST', url: '/api/entries', headers, payload: { slotId: slots[2].id, date: '2026-11-07', description: 'pasta' } });
+  await app.inject({ method: 'POST', url: '/api/entries', headers, payload: { slotId: slots[4].id, date: '2026-11-07', description: 'pizza' } });
+  res = await app.inject({ method: 'POST', url: '/api/day/2026-11-07/calculate', headers });
+  assert.equal(res.json().queued, 2);
+  const getUser = (id: number) => db.select().from(users).where(eq(users.id, id)).get();
+  assert.equal(await processPendingEntries(ai, getUser), 2);
 
   await app.close();
 });

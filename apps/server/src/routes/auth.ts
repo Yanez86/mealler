@@ -117,7 +117,12 @@ export async function authRoutes(app: FastifyInstance, { db, config }: AppContex
         remindersEnabled: z.boolean(),
         quietStart: zTime.nullable(),
         quietEnd: zTime.nullable(),
-        remindersPausedUntil: zDate.nullable()
+        remindersPausedUntil: zDate.nullable(),
+        lastSeenVersion: z.string().max(20),
+        weightReminderEnabled: z.boolean(),
+        weightReminderWeeks: z.number().int().min(1).max(12),
+        weightReminderWeekday: z.number().int().min(1).max(7),
+        weightReminderTime: zTime
       })
       .partial()
       .parse(request.body);

@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { LOCALES, type Locale, type Theme, type User } from '@mealler/shared';
+  import { LOCALES, addDays, todayIn, type Locale, type Theme, type User } from '@mealler/shared';
   import { patch, post } from '$lib/api';
   import { app, errorMessage, setUser, t } from '$lib/state.svelte';
   import Icon from '$lib/Icon.svelte';
@@ -16,6 +16,10 @@
   let timezone = $state(user.timezone);
   let prefsMsg = $state('');
   let prefsError = $state('');
+
+  const todayStr = todayIn(user.timezone);
+  let exportFrom = $state(addDays(todayStr, -29));
+  let exportTo = $state(todayStr);
 
   let current = $state('');
   let next = $state('');
@@ -73,6 +77,7 @@
     <a class="list-row" href="/profile/thresholds"><span>{t('profile.thresholds')}</span><Icon name="chevron" /></a>
     <a class="list-row" href="/profile/notifications"><span>{t('profile.notifications')}</span><Icon name="chevron" /></a>
     <a class="list-row" href="/profile/connector"><span>{t('profile.connector')}</span><Icon name="chevron" /></a>
+    <a class="list-row" href="/news"><span>{t('profile.news')}</span><Icon name="chevron" /></a>
     {#if user.role === 'admin'}
       <a class="list-row" href="/admin"><span>{t('profile.admin')}</span><Icon name="chevron" /></a>
     {/if}
@@ -126,6 +131,23 @@
     <button class="btn" type="submit">{t('profile.password')}</button>
   </form>
 
+  <section class="card stack" aria-labelledby="export-title">
+    <h2 id="export-title" class="section-title">{t('export.title')}</h2>
+    <p class="help">{t('export.help')}</p>
+    <div class="pair">
+      <div class="field">
+        <label for="ex-from">{t('export.from')}</label>
+        <input id="ex-from" type="date" bind:value={exportFrom} />
+      </div>
+      <div class="field">
+        <label for="ex-to">{t('export.to')}</label>
+        <input id="ex-to" type="date" bind:value={exportTo} />
+      </div>
+    </div>
+    <a class="btn" href="/api/export.csv?from={exportFrom}&to={exportTo}" download><Icon name="download" size={20} />{t('export.csv')}</a>
+    <a class="btn btn-ghost" href="/api/export.json" download><Icon name="download" size={20} />{t('export.json')}</a>
+  </section>
+
   <button class="btn btn-danger" type="button" onclick={logout}>{t('profile.logout')}</button>
 
   <section class="about muted small" aria-label={t('profile.about')}>
@@ -147,6 +169,11 @@
     color: var(--text);
     text-decoration: none;
     font-weight: 500;
+  }
+  .pair {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
   }
   .about {
     display: flex;

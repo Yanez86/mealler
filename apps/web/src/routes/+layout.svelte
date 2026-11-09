@@ -75,20 +75,43 @@
 
   const tabs = [
     { href: '/', key: 'nav.today', icon: 'calendar' },
+    { href: '/trends', key: 'nav.trends', icon: 'chart' },
+    { href: '/favorites', key: 'nav.favorites', icon: 'star' },
     { href: '/profile', key: 'nav.profile', icon: 'user' }
   ] as const;
+
+  // After an update, invite the user to read what changed (once per version).
+  const showNews = $derived(
+    !!app.user &&
+      !!app.status &&
+      app.status.version !== 'dev' &&
+      app.user.lastSeenVersion !== app.status.version &&
+      path !== '/news' &&
+      !isPublic
+  );
 
   // Render a page only once the user is allowed on it, so pages never fire requests before a redirect.
   const allowed = $derived(
     app.status?.setupRequired ? path === '/setup' : app.user ? !isPublic : isPublic && path !== '/setup'
   );
 
-  const activeTab =$derived(path === '/' || path.startsWith('/add') ? '/' : '/profile');
+  const activeTab = $derived(
+    path === '/' || path.startsWith('/add')
+      ? '/'
+      : path.startsWith('/trends')
+        ? '/trends'
+        : path.startsWith('/favorites')
+          ? '/favorites'
+          : '/profile'
+  );
 </script>
 
 <svelte:window ononline={onNetworkChange} onoffline={onNetworkChange} />
 
 {#if ready && allowed}
+  {#if showNews}
+    <a class="news" href="/news"><Icon name="gift" size={20} /><span>{t('news.banner', { v: app.status?.version ?? '' })} <strong>{t('news.see')}</strong></span></a>
+  {/if}
   {@render children()}
 
   {#if app.user && !isPublic}
@@ -106,6 +129,20 @@
 {/if}
 
 <style>
+  .news {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: calc(100% - 32px);
+    max-width: 528px;
+    margin: 8px auto 0;
+    padding: 10px 16px;
+    border-radius: 14px;
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+    text-decoration: none;
+    font-size: 15px;
+  }
   .tabbar {
     position: fixed;
     left: 0;
@@ -120,7 +157,7 @@
   }
   .tabbar a {
     flex: 1;
-    max-width: 160px;
+    max-width: 120px;
     min-height: 56px;
     display: flex;
     flex-direction: column;

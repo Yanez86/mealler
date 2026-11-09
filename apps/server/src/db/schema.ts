@@ -19,6 +19,11 @@ export const users = sqliteTable('users', {
   quietStart: text('quiet_start'),
   quietEnd: text('quiet_end'),
   remindersPausedUntil: text('reminders_paused_until'),
+  weightReminderEnabled: integer('weight_reminder_enabled', { mode: 'boolean' }).notNull().default(false),
+  weightReminderWeeks: integer('weight_reminder_weeks').notNull().default(2),
+  weightReminderWeekday: integer('weight_reminder_weekday').notNull().default(1),
+  weightReminderTime: text('weight_reminder_time').notNull().default('07:30'),
+  weightReminderLastSent: text('weight_reminder_last_sent'),
   createdAt: text('created_at').notNull().$defaultFn(now)
 });
 
@@ -164,4 +169,29 @@ export const aiUsageDaily = sqliteTable('ai_usage_daily', {
   day: text('day').notNull(),
   requests: integer('requests').notNull().default(0),
   tokens: integer('tokens').notNull().default(0)
+});
+
+export const favorites = sqliteTable('favorites', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull(),
+  name: text('name').notNull(),
+  description: text('description').notNull(),
+  quantity: text('quantity'),
+  kcal: real('kcal'),
+  protein: real('protein'),
+  carbs: real('carbs'),
+  fat: real('fat'),
+  fiber: real('fiber'),
+  detail: text('detail'),
+  slotId: integer('slot_id'),
+  uses: integer('uses').notNull().default(0),
+  createdAt: text('created_at').notNull().$defaultFn(now)
+});
+
+export const weights = sqliteTable('weights', {
+  userId: integer('user_id').notNull(),
+  date: text('date').notNull(),
+  kg: real('kg').notNull(),
+  note: text('note'),
+  createdAt: text('created_at').notNull().$defaultFn(now)
 });

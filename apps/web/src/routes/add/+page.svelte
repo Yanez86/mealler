@@ -12,7 +12,9 @@
     type Entry,
     type Estimate,
     type EstimateItem,
+    type Favorite,
     type Nutrient,
+    type Suggestion,
     type Slot
   } from '@mealler/shared';
   import { ApiError, del, get, patch, post } from '$lib/api';
@@ -54,6 +56,11 @@
   let items = $state<EstimateItem[] | null>(null);
   let estimatedValues = $state<Record<Nutrient, string> | null>(null);
   let fileInput = $state<HTMLInputElement | null>(null);
+
+  // Favorites and frequent meals (new entries only)
+  let favoritesList = $state<Favorite[]>([]);
+  let suggestions = $state<Suggestion[]>([]);
+  let favSaved = $state(false);
 
   const toNumber = (s: string): number | null => {
     const trimmed = s.trim().replace(',', '.');
@@ -103,11 +110,50 @@
       }
       slots = all;
       if (!slotId && all.length) slotId = all[0].id;
+      if (!entryId) {
+        [favoritesList, suggestions] = await Promise.all([
+          get<Favorite[]>('/favorites').catch(() => []),
+          get<Suggestion[]>(`/suggestions${slotId ? `?slotId=${slotId}` : ''}`).catch(() => [])
+        ]);
+      }
     } catch (e) {
       error = errorMessage(e);
     }
     loaded = true;
   });
+
+  /** Fills the form from a favorite or a frequent meal: no new estimate needed. */
+  function useQuick(q: Favorite | Suggestion) {
+    description = q.description;
+    quantity = q.quantity ?? '';
+    for (const n of NUTRIENTS) values[n] = toText(q[n]);
+    items = q.items;
+    estimate = null;
+    estimatedValues = null;
+  }
+
+  async function saveFavorite() {
+    error = '';
+    try {
+      await post('/favorites', {
+        description,
+        quantity: quantity || null,
+        ...parsed,
+        items,
+        slotId
+      });
+      favSaved = true;
+    } catch (e) {
+      error = errorMessage(e);
+    }
+  }
+
+  const quick = $derived([
+    ...favoritesList.slice(0, 6).map((f) => ({ key: `f${f.id}`, label: f.name, star: true, value: f as Favorite | Suggestion })),
+    ...suggestions
+      .filter((s) => !favoritesList.some((f) => f.description.toLowerCase() === s.description.toLowerCase()))
+      .map((s) => ({ key: `s${s.description}`, label: s.description, star: false, value: s as Favorite | Suggestion }))
+  ]);
 
   async function pickPhoto(event: Event) {
     const file = (event.currentTarget as HTMLInputElement).files?.[0];
@@ -226,6 +272,19 @@
         </div>
       </fieldset>
 
+      {#if !entryId && quick.length}
+        <section class="field" aria-labelledby="quick-title">
+          <h2 id="quick-title" class="label">{t('fav.quick')}</h2>
+          <div class="chips">
+            {#each quick as q (q.key)}
+              <button type="button" class="chip" aria-label={t('fav.use', { name: q.label })} onclick={() => useQuick(q.value)}>
+                {#if q.star}<Icon name="star" size={16} />{/if}{q.label}
+              </button>
+            {/each}
+          </div>
+        </section>
+      {/if}
+
       <div class="field">
         <label for="what">{t('entry.what')}</label>
         <textarea id="what" rows="3" maxlength="1000" aria-describedby="what-help" required={!photo} bind:value={description}></textarea>
@@ -297,7 +356,9 @@
 
       <section class="card stack" aria-labelledby="values-title">
         <h2 id="values-title" class="label">{t('entry.values')}</h2>
-        {#if !aiUsable}
+        {#if ai && !ai.enabled}
+          <p class="help">{t('ai.disabled')}</p>
+        {:else if !aiUsable}
           <p class="help">{t('entry.valuesHelp')}</p>
         {:else if !entryId && noValues}
           <p class="help">{t('ai.laterHint')}</p>
@@ -329,6 +390,11 @@
 
       <div class="footer">
         <button class="btn btn-primary btn-block" type="submit" disabled={busy || estimating || !slotId}>{t('entry.save')}</button>
+        {#if description.trim() && !noValues}
+          <button class="btn btn-block" type="button" disabled={busy || favSaved} onclick={saveFavorite}>
+            <Icon name="star" size={20} />{favSaved ? t('fav.saved') : t('fav.save')}
+          </button>
+        {/if}
         {#if entryId}
           <button class="btn btn-danger btn-block" type="button" disabled={busy} onclick={remove}>
             <Icon name="trash" size={20} />{t('entry.delete')}

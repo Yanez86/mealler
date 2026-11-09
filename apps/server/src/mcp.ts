@@ -19,6 +19,7 @@ import type { Db } from './db/index.ts';
 import { entries } from './db/schema.ts';
 import { isMcpEnabled, publicBase, userFromBearer } from './oauth.ts';
 import { buildDay, thresholdsOn, toEntry, userSlots } from './services.ts';
+import { lastWeight, listWeights, saveWeight } from './routes/weight.ts';
 
 const PROTOCOL_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
 const DEFAULT_PROTOCOL = '2025-06-18';
@@ -346,6 +347,42 @@ const TOOLS: Tool[] = [
         thresholds: Object.fromEntries(NUTRIENTS.map((n) => [n, { min: t[n].min, max: t[n].max }])),
         days
       };
+    }
+  }
+  {
+    name: 'log_weight',
+    title: 'Log body weight',
+    description: "Records the user's body weight in kg for a date (one value per day; a new value replaces the old one).",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        kg: { type: 'number', minimum: 20, maximum: 400 },
+        date: { type: 'string', description: 'YYYY-MM-DD; defaults to today' },
+        note: { type: 'string' }
+      },
+      required: ['kg']
+    },
+    run: (db, user, args) => {
+      const a = z.object({ kg: z.number().min(20).max(400), date: z.string().optional(), note: z.string().max(500).optional() }).parse(args ?? {});
+      return saveWeight(db, user.id, dateOrToday(user, a.date), a.kg, a.note ?? null);
+    }
+  },
+  {
+    name: 'get_weights',
+    title: 'Get weight history',
+    description: "Returns the user's weigh-ins between two dates (max 366 days) and the latest one.",
+    inputSchema: {
+      type: 'object',
+      properties: { from: { type: 'string' }, to: { type: 'string', description: 'defaults to today' } },
+      required: ['from']
+    },
+    annotations: { readOnlyHint: true },
+    run: (db, user, args) => {
+      const a = z.object({ from: z.string(), to: z.string().optional() }).parse(args ?? {});
+      const to = dateOrToday(user, a.to);
+      const from = dateOrToday(user, a.from);
+      if (from > to || from < addDays(to, -365)) throw new ToolError('Use a range of at most 366 days, from before to');
+      return { latest: lastWeight(db, user.id), weights: listWeights(db, user.id, from, to) };
     }
   }
 ];
