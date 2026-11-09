@@ -23,3 +23,27 @@ jobs:
       - name: Build
         if: ${{ !cancelled() }}
         run: pnpm -r build
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t mealler:test .
+      - name: Smoke test
+        run: |
+          docker run -d --name mealler -p 3000:3000 mealler:test
+          for i in $(seq 1 30); do curl -fsS http://localhost:3000/healthz && break; sleep 2; done
+          curl -fsS http://localhost:3000/api/status | tee /dev/stderr | grep -q '"setupRequired":true'
+          curl -fsS http://localhost:3000/ | grep -q '<html'
+          curl -fsS http://localhost:3000/manifest.webmanifest | grep -q Mealler
+          curl -fsS -c jar -H 'Content-Type: application/json' \
+            -d '{"name":"Admin","email":"admin@example.com","password":"a long password","locale":"it","timezone":"Europe/Rome"}' \
+            http://localhost:3000/api/setup | grep -q '"role":"admin"'
+          curl -fsS -b jar http://localhost:3000/api/slots | grep -q Colazione
+          docker restart mealler
+          for i in $(seq 1 30); do curl -fsS http://localhost:3000/healthz && break; sleep 2; done
+          curl -fsS http://localhost:3000/api/status | grep -q '"setupRequired":false'
+      - name: Container logs
+        if: always()
+        run: docker logs mealler || true
