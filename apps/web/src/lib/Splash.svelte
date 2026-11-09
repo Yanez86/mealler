@@ -28,7 +28,18 @@
     {/each}
   </div>
   <div class="mark"><Logo size={112} title="Mealler" /></div>
-  <p class="name">Mealler</p>
+  <!-- Wordmark drawn in strokes like the food icons; the two l are a fork and a knife. -->
+  <svg class="name" viewBox="-6 -12 336 80" role="img" aria-label="Mealler" fill="none" stroke-width="11" stroke-linecap="round" stroke-linejoin="round">
+    <g stroke="var(--text)">
+      <path d="M6 60V20M6 32a12 12 0 0 1 24 0V60M30 32a12 12 0 0 1 24 0V60M72 40H112A20 20 0 1 0 106.1 54.1M169 40a20 20 0 1 0 -40 0a20 20 0 1 0 40 0M169 20V60" />
+      <path transform="translate(16)" d="M229 40H269A20 20 0 1 0 263.1 54.1M289 60V20M289 38a18 18 0 0 1 18 -18" />
+    </g>
+    <g stroke="var(--accent)" transform="translate(6)">
+      <path d="M181 -6V10a8 8 0 0 0 16 0V-6M189 -6V12" stroke-width="5" />
+      <path d="M189 19V60M215 36V60" />
+      <path d="M209.5 36V0C209.5 -7 214 -9 217 -5C222 3 224 18 223 36Z" fill="var(--accent)" stroke-width="2" />
+    </g>
+  </svg>
   <p class="message">{message}</p>
   <div class="foot">
     <img class="leg" src="/food/meat.svg" alt="" width="34" height="34" draggable="false" />
@@ -113,9 +124,9 @@
     animation: pop 600ms ease-out both;
   }
   .name {
-    font-size: 32px;
-    font-weight: 700;
-    letter-spacing: -0.5px;
+    width: 176px;
+    height: auto;
+    display: block;
   }
   .message {
     margin-top: 20px;
