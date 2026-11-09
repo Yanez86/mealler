@@ -731,6 +731,17 @@ test('shared food library: barcode lookup, label reading, logging by grams and s
   res = await app.inject({ method: 'DELETE', url: `/api/products/${product.id}`, headers: bob });
   assert.equal(res.statusCode, 403);
 
+  // Nutrition label photo: the author stores it, everyone can see it.
+  assert.equal(product.labelUrl, null);
+  res = await app.inject({ method: 'PUT', url: `/api/products/${product.id}/label`, headers: bob, payload: { photo } });
+  assert.equal(res.statusCode, 403);
+  res = await app.inject({ method: 'PUT', url: `/api/products/${product.id}/label`, headers: asAdmin, payload: { photo } });
+  assert.equal(res.statusCode, 200, res.body);
+  res = await app.inject({ method: 'GET', url: res.json().labelUrl, headers: bob });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.headers['content-type'], 'image/jpeg');
+  assert.equal(res.rawPayload.length, 300);
+
   // Open Food Facts can be switched off by the admin.
   await app.inject({ method: 'PATCH', url: '/api/admin/settings', headers: asAdmin, payload: { offEnabled: false } });
   res = await app.inject({ method: 'GET', url: '/api/products/barcode/8013355998702', headers: bob });

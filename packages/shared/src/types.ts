@@ -228,6 +228,8 @@ export interface Product {
   source: 'manual' | 'label' | 'openfoodfacts';
   /** Chosen by the user; null = guessed from the name. */
   category: FoodCategory | null;
+  /** Photo of the nutrition label, if any. */
+  labelUrl: string | null;
   uses: number;
   canEdit: boolean;
 }
@@ -245,4 +247,6 @@ export interface ProductDraft {
   servingG: number | null;
   servingLabel: string | null;
   source: 'manual' | 'label' | 'openfoodfacts';
+  /** Nutrition label photo found on Open Food Facts, to keep with the product. */
+  labelPhoto?: { mime: string; data: string } | null;
 }

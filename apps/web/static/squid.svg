@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+  <!-- Happy Squid inc: a smiling squid, drawn like the Mealler food-category icons -->
+  <g transform="rotate(-12 32 32)">
+    <g fill="none" stroke-linecap="round">
+      <g stroke="#14181D" stroke-width="8.4">
+        <path d="M21 36C19 44 14 48 11 56"/>
+        <path d="M26.5 37C26 46 22 51 21 58"/>
+        <path d="M32 38C32 47 34 53 32 60"/>
+        <path d="M37.5 37C38 46 42 51 43 58"/>
+        <path d="M43 36C45 44 50 48 53 56"/>
+      </g>
+      <g stroke="#D95F8A" stroke-width="3.4">
+        <path d="M21 36C19 44 14 48 11 56"/>
+        <path d="M26.5 37C26 46 22 51 21 58"/>
+        <path d="M32 38C32 47 34 53 32 60"/>
+        <path d="M37.5 37C38 46 42 51 43 58"/>
+        <path d="M43 36C45 44 50 48 53 56"/>
+      </g>
+    </g>
+    <path d="M22 13L10 17L19 25Z" fill="#D95F8A" stroke="#14181D" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M42 13L54 17L45 25Z" fill="#D95F8A" stroke="#14181D" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M32 4C43 10 48 23 47 36Q32 43 17 36C16 23 21 10 32 4Z" fill="#E8739A" stroke="#14181D" stroke-width="3" stroke-linejoin="round"/>
+    <ellipse cx="27" cy="14" rx="2.4" ry="5.5" fill="#F4A8C2" transform="rotate(22 27 14)"/>
+    <ellipse cx="21.5" cy="33" rx="2.6" ry="1.6" fill="#F7B6CB"/>
+    <ellipse cx="42.5" cy="33" rx="2.6" ry="1.6" fill="#F7B6CB"/>
+    <circle cx="26" cy="27" r="4.2" fill="#FFFFFF" stroke="#14181D" stroke-width="2.4"/>
+    <circle cx="38" cy="27" r="4.2" fill="#FFFFFF" stroke="#14181D" stroke-width="2.4"/>
+    <circle cx="26.6" cy="27.6" r="1.9" fill="#14181D"/>
+    <circle cx="38.6" cy="27.6" r="1.9" fill="#14181D"/>
+    <path d="M27.5 33.5Q32 38 36.5 33.5" fill="none" stroke="#14181D" stroke-width="2.4" stroke-linecap="round"/>
+  </g>
+</svg>

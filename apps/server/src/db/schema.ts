@@ -226,6 +226,7 @@ export const products = sqliteTable('products', {
   servingLabel: text('serving_label'),
   source: text('source', { enum: ['manual', 'label', 'openfoodfacts'] }).notNull().default('manual'),
   category: text('category', { enum: FOOD_CATEGORIES }),
+  labelMime: text('label_mime'),
   createdBy: integer('created_by'),
   uses: integer('uses').notNull().default(0),
   createdAt: text('created_at').notNull().$defaultFn(now),

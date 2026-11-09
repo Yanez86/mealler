@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import type { FastifyInstance } from 'fastify';
+import { createReadStream, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Product, ProductDraft } from '@mealler/shared';
@@ -31,6 +33,7 @@ export function toProduct(row: typeof products.$inferSelect, user: UserRow): Pro
     servingLabel: row.servingLabel,
     source: row.source,
     category: row.category,
+    labelUrl: row.labelMime ? `/api/products/${row.id}/label?v=${encodeURIComponent(row.updatedAt)}` : null,
     uses: row.uses,
     canEdit: user.role === 'admin' || row.createdBy === user.id
   };
@@ -74,6 +77,11 @@ export function logProduct(
   return toEntry(row);
 }
 
+const zPhoto = z.object({
+  mime: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+  data: z.string().min(100).max(8 * 1024 * 1024).regex(/^[A-Za-z0-9+/=]+$/)
+});
+
 const per100 = z.number().min(0).max(1000);
 const productBody = z.object({
   name: z.string().trim().min(1).max(200),
@@ -100,6 +108,7 @@ export async function productRoutes(app: FastifyInstance, { db, ai, foods }: App
     requireUser(request);
   });
 
+  const labelFile = (id: number) => join(ai.dataDir, 'labels', String(id));
   const get = (id: number) => db.select().from(products).where(eq(products.id, id)).get();
   const editable = (user: UserRow, row: typeof products.$inferSelect) => {
     if (user.role !== 'admin' && row.createdBy !== user.id) throw forbidden();
@@ -131,14 +140,7 @@ export async function productRoutes(app: FastifyInstance, { db, ai, foods }: App
 
   app.post('/products/label', { bodyLimit: 10 * 1024 * 1024 }, async (request): Promise<ProductDraft> => {
     const user = requireUser(request);
-    const { photo } = z
-      .object({
-        photo: z.object({
-          mime: z.enum(['image/jpeg', 'image/png', 'image/webp']),
-          data: z.string().min(100).max(8 * 1024 * 1024).regex(/^[A-Za-z0-9+/=]+$/)
-        })
-      })
-      .parse(request.body);
+    const { photo } = z.object({ photo: zPhoto }).parse(request.body);
     const v = await readNutritionLabel(ai, user, photo);
     return { ...v, name: v.name ?? '', barcode: null, source: 'label' };
   });
@@ -195,7 +197,36 @@ export async function productRoutes(app: FastifyInstance, { db, ai, foods }: App
     if (!row) throw notFound();
     editable(user, row);
     db.delete(products).where(eq(products.id, id)).run();
+    rmSync(labelFile(id), { force: true });
     return { ok: true };
+  });
+
+  /** Nutrition label photo: shared like the product, replaced by whoever can edit it. */
+  app.get('/products/:id/label', async (request, reply) => {
+    requireUser(request);
+    const { id } = z.object({ id: zId }).parse(request.params);
+    const row = get(id);
+    if (!row?.labelMime || !existsSync(labelFile(id))) throw notFound();
+    reply.header('Cache-Control', 'private, max-age=31536000, immutable');
+    return reply.type(row.labelMime).send(createReadStream(labelFile(id)));
+  });
+
+  app.put('/products/:id/label', { bodyLimit: 10 * 1024 * 1024 }, async (request) => {
+    const user = requireUser(request);
+    const { id } = z.object({ id: zId }).parse(request.params);
+    const row = get(id);
+    if (!row) throw notFound();
+    editable(user, row);
+    const { photo } = z.object({ photo: zPhoto }).parse(request.body);
+    mkdirSync(join(ai.dataDir, 'labels'), { recursive: true });
+    writeFileSync(labelFile(id), Buffer.from(photo.data, 'base64'), { mode: 0o600 });
+    const updated = db
+      .update(products)
+      .set({ labelMime: photo.mime, updatedAt: new Date().toISOString() })
+      .where(eq(products.id, id))
+      .returning()
+      .get();
+    return toProduct(updated, user);
   });
 
   app.post('/products/:id/log', async (request) => {

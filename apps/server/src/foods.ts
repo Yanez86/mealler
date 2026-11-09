@@ -2,6 +2,9 @@
 // Shared food library: packaged products with values per 100 g, barcode lookup on Open Food Facts.
 import type { ProductDraft } from '@mealler/shared';
 
+const LABEL_MIMES = ['image/jpeg', 'image/png', 'image/webp'];
+const MAX_LABEL_BYTES = 6 * 1024 * 1024;
+
 export type BarcodeLookup = (barcode: string) => Promise<ProductDraft | null>;
 
 const num = (v: unknown): number | null => {
@@ -10,15 +13,34 @@ const num = (v: unknown): number | null => {
 };
 
 /**
- * Looks a barcode up on Open Food Facts (open database, ODbL). Only the barcode is sent.
+ * Looks a barcode up on Open Food Facts (open database, ODbL). Only the barcode is sent (and the request for the label photo).
  * Returns null when the product is unknown or the service cannot be reached.
  */
 export function openFoodFactsLookup(version: string): BarcodeLookup {
+  const headers = { 'User-Agent': `Mealler/${version} (self-hosted food diary; https://github.com/Yanez86/mealler)` };
+
+  /** The nutrition table photo at full size (the 400 px one is often unreadable); null if missing or too big. */
+  const labelPhoto = async (url: unknown) => {
+    if (typeof url !== 'string' || !url.startsWith('https://images.openfoodfacts.org/')) return null;
+    for (const src of [url.replace(/\.\d+\.jpg$/, '.full.jpg'), url]) {
+      try {
+        const res = await fetch(src, { headers, signal: AbortSignal.timeout(10000) });
+        const mime = res.headers.get('content-type')?.split(';')[0];
+        if (!res.ok || !mime || !LABEL_MIMES.includes(mime)) continue;
+        const bytes = Buffer.from(await res.arrayBuffer());
+        if (bytes.length <= MAX_LABEL_BYTES) return { mime, data: bytes.toString('base64') };
+      } catch {
+        // try the smaller one
+      }
+    }
+    return null;
+  };
+
   return async (barcode) => {
-    const fields = 'product_name,product_name_it,product_name_en,brands,nutriments,serving_quantity,serving_size';
+    const fields = 'product_name,product_name_it,product_name_en,brands,nutriments,serving_quantity,serving_size,image_nutrition_url';
     try {
       const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}.json?fields=${fields}`, {
-        headers: { 'User-Agent': `Mealler/${version} (self-hosted food diary; https://github.com/Yanez86/mealler)` },
+        headers,
         signal: AbortSignal.timeout(8000)
       });
       if (!res.ok) return null;
@@ -42,7 +64,8 @@ export function openFoodFactsLookup(version: string): BarcodeLookup {
         fiber: num(n['fiber_100g']),
         servingG: servingG && servingG > 0 ? servingG : null,
         servingLabel: typeof p.serving_size === 'string' && p.serving_size ? p.serving_size.slice(0, 100) : null,
-        source: 'openfoodfacts'
+        source: 'openfoodfacts',
+        labelPhoto: await labelPhoto(p.image_nutrition_url)
       };
     } catch {
       return null;

@@ -3,6 +3,11 @@
 Tutte le modifiche rilevanti di Mealler sono annotate qui.
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il [versionamento semantico](https://semver.org/lang/it/).
 
+## [Non rilasciato]
+
+### Aggiunto
+- Ogni alimento della libreria può avere la foto della tabella nutrizionale, visibile a tutti nella scheda dell'alimento per leggere tutti i valori. Con il codice a barre viene scaricata da Open Food Facts; altrimenti si scatta con «Foto della tabella nutrizionale», che funziona anche senza AI (con l'AI attiva legge anche i valori).
+
 ## [1.2.1] - 2026-11-09
 
 ### Modificato

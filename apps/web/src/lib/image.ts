@@ -10,7 +10,7 @@ export interface PreparedPhoto {
   previewUrl: string;
 }
 
-export async function preparePhoto(file: File): Promise<PreparedPhoto> {
+export async function preparePhoto(file: Blob): Promise<PreparedPhoto> {
   const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' } as ImageBitmapOptions);
   const scale = Math.min(1, MAX_SIDE / Math.max(bitmap.width, bitmap.height));
   const width = Math.round(bitmap.width * scale);

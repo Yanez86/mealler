@@ -3,7 +3,7 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
   import { mealCategory, type AiStatus, type FoodCategory, type Product, type ProductDraft } from '@mealler/shared';
-  import { del, get, patch, post } from './api';
+  import { del, get, patch, post, put } from './api';
   import { preparePhoto } from './image';
   import { app, errorMessage, t } from './state.svelte';
   import BarcodeScanner from './BarcodeScanner.svelte';
@@ -54,6 +54,11 @@
   let reading = $state(false);
   let ai = $state<AiStatus | null>(null);
   let fileInput = $state<HTMLInputElement | null>(null);
+  // Nutrition label photo: what is shown, and what still has to be uploaded with the product.
+  const dataUrl = (p: { mime: string; data: string }) => `data:${p.mime};base64,${p.data}`;
+  let labelPhoto = $state<{ mime: string; data: string } | null>(untrack(() => draft?.labelPhoto ?? null));
+  let labelSrc = $state<string | null>(untrack(() => (draft?.labelPhoto ? dataUrl(draft.labelPhoto) : (product?.labelUrl ?? null))));
+  const aiReady = $derived(!!ai?.enabled && !ai.capReached && !ai.limitReached);
   const readOnly = untrack(() => !!product && !product.canEdit);
 
   onMount(async () => {
@@ -71,6 +76,10 @@
     fiber = toText(d.fiber);
     if (d.servingG != null) servingG = toText(d.servingG);
     if (d.servingLabel) servingLabel = d.servingLabel;
+    if (d.labelPhoto) {
+      labelPhoto = d.labelPhoto;
+      labelSrc = dataUrl(d.labelPhoto);
+    }
     source = d.source;
   }
 
@@ -96,11 +105,15 @@
   async function readLabel(event: Event) {
     const file = (event.currentTarget as HTMLInputElement).files?.[0];
     if (!file) return;
-    reading = true;
     error = notice = '';
     try {
       const photo = await preparePhoto(file);
-      apply(await post<ProductDraft>('/products/label', { photo: { mime: photo.mime, data: photo.data } }));
+      labelPhoto = { mime: photo.mime, data: photo.data };
+      labelSrc = photo.previewUrl;
+      // Without AI the photo is only kept, to read the label by eye.
+      if (!aiReady) return;
+      reading = true;
+      apply(await post<ProductDraft>('/products/label', { photo: labelPhoto }));
       notice = t('foods.fromLabel');
     } catch (e) {
       error = errorMessage(e);
@@ -133,7 +146,13 @@
     busy = true;
     error = '';
     try {
-      onsaved(product ? await patch<Product>(`/products/${product.id}`, body) : await post<Product>('/products', body));
+      let saved = product ? await patch<Product>(`/products/${product.id}`, body) : await post<Product>('/products', body);
+      if (labelPhoto) {
+        // Open Food Facts photos can be large: shrink them like the ones taken here.
+        const small = await preparePhoto(new Blob([Uint8Array.from(atob(labelPhoto.data), (c) => c.charCodeAt(0))], { type: labelPhoto.mime }));
+        saved = await put<Product>(`/products/${saved.id}/label`, { photo: { mime: small.mime, data: small.data } });
+      }
+      onsaved(saved);
     } catch (e) {
       error = errorMessage(e);
     } finally {
@@ -169,16 +188,21 @@
     {:else}
       <div class="tools">
         <button class="btn" type="button" onclick={() => (scanning = true)}><Icon name="barcode" size={20} />{t('foods.scan')}</button>
-        {#if ai?.enabled && !ai.capReached && !ai.limitReached}
-          <button class="btn" type="button" disabled={reading} onclick={() => fileInput?.click()}><Icon name="camera" size={20} />{t('foods.label')}</button>
-          <input bind:this={fileInput} class="visually-hidden" type="file" accept="image/*" capture="environment" tabindex="-1" aria-hidden="true" onchange={readLabel} />
-        {/if}
+        <button class="btn" type="button" disabled={reading} onclick={() => fileInput?.click()}><Icon name="camera" size={20} />{t('foods.label')}</button>
+        <input bind:this={fileInput} class="visually-hidden" type="file" accept="image/*" capture="environment" tabindex="-1" aria-hidden="true" onchange={readLabel} />
       </div>
     {/if}
   {/if}
 
   {#if reading}<p class="notice" role="status">{t('foods.labelReading')}</p>{/if}
   {#if notice}<p class="notice" role="status">{notice}</p>{/if}
+
+  {#if labelSrc}
+    <details class="label-photo" open>
+      <summary class="label">{t('foods.labelPhoto')}</summary>
+      <img src={labelSrc} alt={t('foods.labelPhoto')} />
+    </details>
+  {/if}
 
   <fieldset disabled={readOnly} class="stack plain">
     <div class="field">
@@ -241,6 +265,12 @@
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
+  }
+  .label-photo img {
+    display: block;
+    width: 100%;
+    margin-top: 8px;
+    border-radius: 12px;
   }
   .row {
     display: flex;
