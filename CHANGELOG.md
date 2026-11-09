@@ -5,6 +5,13 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e i
 
 ## [Non rilasciato]
 
+## [0.4.1] - 2026-11-09
+
+### Aggiunto
+- Limiti al calcolo con Claude, configurabili in Amministrazione: richieste al giorno per utente (40 di default), richieste al minuto per utente (6 di default), token al giorno per utente e budget mensile complessivo dell'istanza.
+- Ogni tentativo viene conteggiato prima della chiamata all'API, così gli errori ripetuti non aggirano i limiti.
+- Nella schermata Aggiungi pasto il contatore dei calcoli usati oggi e un avviso chiaro quando un limite è raggiunto.
+
 ## [0.4.0] - 2026-11-09
 
 ### Aggiunto

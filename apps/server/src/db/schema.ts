@@ -158,3 +158,10 @@ export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
   value: text('value').notNull()
 });
+
+export const aiUsageDaily = sqliteTable('ai_usage_daily', {
+  userId: integer('user_id').notNull(),
+  day: text('day').notNull(),
+  requests: integer('requests').notNull().default(0),
+  tokens: integer('tokens').notNull().default(0)
+});

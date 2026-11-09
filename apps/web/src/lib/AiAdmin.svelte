@@ -19,6 +19,7 @@
   let settings = $state<AiSettings | null>(null);
   let apiKey = $state('');
   let cap = $state('');
+  let limits = $state({ dailyRequests: '', dailyTokens: '', perMinute: '', instanceMonthlyUsd: '' });
   let usage = $state<UsageRow[]>([]);
   let message = $state('');
   let error = $state('');
@@ -34,6 +35,13 @@
     try {
       settings = await get<AiSettings>('/admin/ai');
       cap = settings.monthlyCapUsd == null ? '' : String(settings.monthlyCapUsd);
+      const text = (v: number | null) => (v == null ? '' : String(v));
+      limits = {
+        dailyRequests: text(settings.dailyRequests),
+        dailyTokens: text(settings.dailyTokens),
+        perMinute: text(settings.perMinute),
+        instanceMonthlyUsd: text(settings.instanceMonthlyUsd)
+      };
       usage = (await get<{ rows: UsageRow[] }>('/admin/ai/usage')).rows;
     } catch (e) {
       error = errorMessage(e);
@@ -56,11 +64,19 @@
   async function saveForm(event: SubmitEvent) {
     event.preventDefault();
     if (!settings) return;
-    const capValue = cap.trim() ? Number(cap.replace(',', '.')) : null;
+    const num = (s: string, int = false) => {
+      if (!s.trim()) return null;
+      const n = Number(s.replace(',', '.'));
+      return Number.isFinite(n) ? (int ? Math.round(n) : n) : null;
+    };
     const body: Record<string, unknown> = {
       modelText: settings.modelText,
       modelPhoto: settings.modelPhoto,
-      monthlyCapUsd: capValue != null && Number.isFinite(capValue) ? capValue : null
+      monthlyCapUsd: num(cap),
+      dailyRequests: num(limits.dailyRequests, true),
+      dailyTokens: num(limits.dailyTokens, true),
+      perMinute: num(limits.perMinute, true),
+      instanceMonthlyUsd: num(limits.instanceMonthlyUsd)
     };
     if (apiKey.trim()) body.apiKey = apiKey.trim();
     await save(body);
@@ -112,11 +128,30 @@
           {#each settings.models as m (m)}<option value={m}>{m}</option>{/each}
         </select>
       </div>
-      <div class="field">
-        <label for="ai-cap">{t('admin.aiCap')}</label>
-        <input id="ai-cap" inputmode="decimal" autocomplete="off" bind:value={cap} aria-describedby="ai-cap-help" />
-        <p id="ai-cap-help" class="help">{t('admin.aiCapHelp')}</p>
-      </div>
+      <fieldset class="limits">
+        <legend class="label">{t('admin.aiLimits')}</legend>
+        <p class="help">{t('admin.aiLimitsHelp')}</p>
+        <div class="field">
+          <label for="ai-dr">{t('admin.aiDailyRequests')}</label>
+          <input id="ai-dr" inputmode="numeric" autocomplete="off" bind:value={limits.dailyRequests} />
+        </div>
+        <div class="field">
+          <label for="ai-pm">{t('admin.aiPerMinute')}</label>
+          <input id="ai-pm" inputmode="numeric" autocomplete="off" bind:value={limits.perMinute} />
+        </div>
+        <div class="field">
+          <label for="ai-dt">{t('admin.aiDailyTokens')}</label>
+          <input id="ai-dt" inputmode="numeric" autocomplete="off" bind:value={limits.dailyTokens} />
+        </div>
+        <div class="field">
+          <label for="ai-cap">{t('admin.aiCap')}</label>
+          <input id="ai-cap" inputmode="decimal" autocomplete="off" bind:value={cap} />
+        </div>
+        <div class="field">
+          <label for="ai-ic">{t('admin.aiInstanceCap')}</label>
+          <input id="ai-ic" inputmode="decimal" autocomplete="off" bind:value={limits.instanceMonthlyUsd} />
+        </div>
+      </fieldset>
       <div class="row">
         <button class="btn btn-primary" type="submit" disabled={busy}>{t('common.save')}</button>
         {#if settings.hasKey}
@@ -155,6 +190,19 @@
 {/if}
 
 <style>
+  .limits {
+    border: none;
+    margin: 0;
+    padding: 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .limits legend {
+    padding: 0;
+    margin-bottom: 4px;
+  }
   .row {
     display: flex;
     flex-wrap: wrap;

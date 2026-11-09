@@ -18,7 +18,7 @@ import {
 } from '@mealler/shared';
 import type { UserRow } from './auth.ts';
 import type { Db } from './db/index.ts';
-import { aiUsage, entries, photos } from './db/schema.ts';
+import { aiUsage, aiUsageDaily, entries, photos } from './db/schema.ts';
 import { HttpError } from './http.ts';
 import type { SecretBox } from './secrets.ts';
 import { getSetting, setSetting } from './services.ts';
@@ -32,6 +32,8 @@ export const PRICES: Record<string, { input: number; output: number }> = {
 export const AI_MODELS = Object.keys(PRICES);
 const DEFAULT_TEXT_MODEL = 'claude-haiku-5-5';
 const DEFAULT_PHOTO_MODEL = 'claude-sonnet-5-5';
+const DEFAULT_DAILY_REQUESTS = 40;
+const DEFAULT_PER_MINUTE = 6;
 const API_URL = 'https://api.anthropic.com/v1/messages';
 const API_VERSION = '2023-06-01';
 
@@ -77,6 +79,12 @@ export function readAiSettings(db: Db, secrets: SecretBox): AiSettings & { apiKe
     }
   }
   const cap = getSetting(db, 'ai_monthly_cap_usd');
+  // Limits: an unset setting uses the default, an empty one means "no limit".
+  const limit = (key: string, fallback: number | null) => {
+    const v = getSetting(db, key);
+    if (v === null) return fallback;
+    return v === '' ? null : Number(v);
+  };
   const pick = (key: string, fallback: string) => {
     const v = getSetting(db, key);
     return v && AI_MODELS.includes(v) ? v : fallback;
@@ -89,6 +97,10 @@ export function readAiSettings(db: Db, secrets: SecretBox): AiSettings & { apiKe
     modelText: pick('ai_model_text', DEFAULT_TEXT_MODEL),
     modelPhoto: pick('ai_model_photo', DEFAULT_PHOTO_MODEL),
     monthlyCapUsd: cap ? Number(cap) : null,
+    dailyRequests: limit('ai_daily_requests', DEFAULT_DAILY_REQUESTS),
+    dailyTokens: limit('ai_daily_tokens', null),
+    perMinute: limit('ai_per_minute', DEFAULT_PER_MINUTE),
+    instanceMonthlyUsd: limit('ai_instance_monthly_usd', null),
     keepPhotos: getSetting(db, 'ai_keep_photos') === 'true',
     models: AI_MODELS
   };
@@ -101,6 +113,10 @@ export const aiSettingsBody = z
     modelText: z.enum(AI_MODELS as [string, ...string[]]),
     modelPhoto: z.enum(AI_MODELS as [string, ...string[]]),
     monthlyCapUsd: z.number().min(0).max(10000).nullable(),
+    dailyRequests: z.number().int().min(0).max(10000).nullable(),
+    dailyTokens: z.number().int().min(0).max(100_000_000).nullable(),
+    perMinute: z.number().int().min(1).max(600).nullable(),
+    instanceMonthlyUsd: z.number().min(0).max(100000).nullable(),
     keepPhotos: z.boolean()
   })
   .partial();
@@ -112,11 +128,75 @@ export function writeAiSettings(db: Db, secrets: SecretBox, body: z.infer<typeof
   if (body.modelPhoto) setSetting(db, 'ai_model_photo', body.modelPhoto);
   if (body.monthlyCapUsd !== undefined) setSetting(db, 'ai_monthly_cap_usd', body.monthlyCapUsd == null ? '' : String(body.monthlyCapUsd));
   if (body.keepPhotos !== undefined) setSetting(db, 'ai_keep_photos', String(body.keepPhotos));
+  const limits = [
+    ['dailyRequests', 'ai_daily_requests'],
+    ['dailyTokens', 'ai_daily_tokens'],
+    ['perMinute', 'ai_per_minute'],
+    ['instanceMonthlyUsd', 'ai_instance_monthly_usd']
+  ] as const;
+  for (const [field, key] of limits) {
+    const value = body[field];
+    if (value !== undefined) setSetting(db, key, value == null ? '' : String(value));
+  }
 }
 
 // ---------- Usage ----------
 
 const monthOf = (user: UserRow) => todayIn(user.timezone).slice(0, 7);
+
+function today(db: Db, user: UserRow): { requests: number; tokens: number } {
+  const row = db
+    .select()
+    .from(aiUsageDaily)
+    .where(and(eq(aiUsageDaily.userId, user.id), eq(aiUsageDaily.day, todayIn(user.timezone))))
+    .get();
+  return { requests: row?.requests ?? 0, tokens: row?.tokens ?? 0 };
+}
+
+function countDaily(db: Db, user: UserRow, requests: number, tokens: number) {
+  db.insert(aiUsageDaily)
+    .values({ userId: user.id, day: todayIn(user.timezone), requests, tokens })
+    .onConflictDoUpdate({
+      target: [aiUsageDaily.userId, aiUsageDaily.day],
+      set: { requests: sql`${aiUsageDaily.requests} + ${requests}`, tokens: sql`${aiUsageDaily.tokens} + ${tokens}` }
+    })
+    .run();
+}
+
+function instanceSpentThisMonth(db: Db): number {
+  const month = new Date().toISOString().slice(0, 7);
+  const row = db
+    .select({ cost: sql<number>`coalesce(sum(${aiUsage.costUsd}), 0)` })
+    .from(aiUsage)
+    .where(eq(aiUsage.month, month))
+    .get();
+  return Number(row?.cost ?? 0);
+}
+
+// Short-term burst protection, per user, in memory.
+const recent = new Map<string, number[]>();
+function tooFast(user: UserRow, perMinute: number | null, now = Date.now()): boolean {
+  if (!perMinute) return false;
+  const key = `${user.id}:${user.createdAt}`;
+  const list = (recent.get(key) ?? []).filter((t) => now - t < 60_000);
+  const blocked = list.length >= perMinute;
+  if (!blocked) list.push(now);
+  recent.set(key, list);
+  return blocked;
+}
+
+/** Throws when any limit is reached; otherwise counts the attempt before the API call. */
+function checkLimits(db: Db, user: UserRow, s: ReturnType<typeof readAiSettings>) {
+  if (s.monthlyCapUsd != null && spentThisMonth(db, user) >= s.monthlyCapUsd) throw new HttpError(429, 'aiCapReached');
+  if (s.instanceMonthlyUsd != null && instanceSpentThisMonth(db) >= s.instanceMonthlyUsd) {
+    throw new HttpError(429, 'aiInstanceCap');
+  }
+  const day = today(db, user);
+  if (s.dailyRequests != null && day.requests >= s.dailyRequests) throw new HttpError(429, 'aiDailyLimit');
+  if (s.dailyTokens != null && day.tokens >= s.dailyTokens) throw new HttpError(429, 'aiDailyLimit');
+  if (tooFast(user, s.perMinute)) throw new HttpError(429, 'aiTooFast');
+  countDaily(db, user, 1, 0);
+}
 
 export function spentThisMonth(db: Db, user: UserRow): number {
   const row = db
@@ -130,8 +210,21 @@ export function spentThisMonth(db: Db, user: UserRow): number {
 export function aiStatus(db: Db, secrets: SecretBox, user: UserRow): AiStatus {
   const s = readAiSettings(db, secrets);
   const spent = spentThisMonth(db, user);
-  const capReached = s.monthlyCapUsd != null && spent >= s.monthlyCapUsd;
-  return { enabled: s.enabled && s.hasKey, capUsd: s.monthlyCapUsd, spentUsd: Math.round(spent * 10000) / 10000, capReached };
+  const day = today(db, user);
+  const capReached =
+    (s.monthlyCapUsd != null && spent >= s.monthlyCapUsd) ||
+    (s.instanceMonthlyUsd != null && instanceSpentThisMonth(db) >= s.instanceMonthlyUsd);
+  const limitReached =
+    (s.dailyRequests != null && day.requests >= s.dailyRequests) || (s.dailyTokens != null && day.tokens >= s.dailyTokens);
+  return {
+    enabled: s.enabled && s.hasKey,
+    capUsd: s.monthlyCapUsd,
+    spentUsd: Math.round(spent * 10000) / 10000,
+    capReached,
+    requestsToday: day.requests,
+    dailyRequests: s.dailyRequests,
+    limitReached
+  };
 }
 
 function recordUsage(db: Db, user: UserRow, model: string, input: number, output: number): number {
@@ -228,9 +321,7 @@ export interface EstimateInput {
 export async function estimateMeal(ctx: AiContext, user: UserRow, input: EstimateInput): Promise<Estimate> {
   const settings = readAiSettings(ctx.db, ctx.secrets);
   if (!settings.enabled || !settings.apiKey) throw new HttpError(403, 'aiDisabled');
-  if (settings.monthlyCapUsd != null && spentThisMonth(ctx.db, user) >= settings.monthlyCapUsd) {
-    throw new HttpError(429, 'aiCapReached');
-  }
+  checkLimits(ctx.db, user, settings);
   const model = input.photo ? settings.modelPhoto : settings.modelText;
   const locale = isLocale(user.locale) ? user.locale : 'it';
   const text = [input.text.trim() || (locale === 'it' ? '(vedi foto)' : '(see photo)'), input.quantity ? `Quantity: ${input.quantity}` : '']
@@ -261,6 +352,7 @@ export async function estimateMeal(ctx: AiContext, user: UserRow, input: Estimat
 
   const usage = response.body.usage ?? {};
   const cost = recordUsage(ctx.db, user, model, usage.input_tokens ?? 0, usage.output_tokens ?? 0);
+  countDaily(ctx.db, user, 0, (usage.input_tokens ?? 0) + (usage.output_tokens ?? 0));
 
   const call = response.body.content?.find((c) => c.type === 'tool_use' && c.name === TOOL.name);
   const parsed = toolOutput.safeParse(call?.input);
@@ -354,7 +446,7 @@ export async function processPendingEntries(ctx: AiContext, getUser: (id: number
     } catch (error) {
       const code = error instanceof HttpError ? error.code : 'aiFailed';
       // Transient problems are retried on the next run; anything else falls back to manual input.
-      if (code === 'aiBusy') continue;
+      if (code === 'aiBusy' || code === 'aiTooFast') continue;
       ctx.db
         .update(entries)
         .set({ calcStatus: 'manual', calcError: code, updatedAt: new Date().toISOString() })

@@ -504,3 +504,35 @@ test('in-app estimates: settings, encryption, photos, background calculation and
 
   await app.close();
 });
+
+test('estimate limits: daily requests and bursts', async () => {
+  const { app } = await setupApp();
+  let res = await app.inject({ method: 'POST', url: '/api/setup', payload: admin });
+  const headers = { cookie: cookieOf(res) };
+  await app.inject({ method: 'PATCH', url: '/api/admin/ai', headers, payload: { enabled: true, apiKey: 'sk-ant-limit-test', dailyRequests: 3, perMinute: null } });
+  for (let i = 0; i < 3; i++) {
+    res = await app.inject({ method: 'POST', url: '/api/ai/estimate', headers, payload: { description: `pasto ${i}` } });
+    assert.equal(res.statusCode, 200, res.body);
+  }
+  res = await app.inject({ method: 'POST', url: '/api/ai/estimate', headers, payload: { description: 'troppi' } });
+  assert.equal(res.json().error, 'aiDailyLimit');
+  res = await app.inject({ method: 'GET', url: '/api/ai/status', headers });
+  assert.equal(res.json().limitReached, true);
+  assert.equal(res.json().requestsToday, 3);
+
+  // Burst protection.
+  await app.inject({ method: 'PATCH', url: '/api/admin/ai', headers, payload: { dailyRequests: null, perMinute: 2 } });
+  res = await app.inject({ method: 'POST', url: '/api/ai/estimate', headers, payload: { description: 'a' } });
+  assert.equal(res.statusCode, 200);
+  res = await app.inject({ method: 'POST', url: '/api/ai/estimate', headers, payload: { description: 'b' } });
+  assert.equal(res.statusCode, 200);
+  res = await app.inject({ method: 'POST', url: '/api/ai/estimate', headers, payload: { description: 'c' } });
+  assert.equal(res.json().error, 'aiTooFast');
+
+  // Instance budget.
+  await app.inject({ method: 'PATCH', url: '/api/admin/ai', headers, payload: { perMinute: null, instanceMonthlyUsd: 0 } });
+  res = await app.inject({ method: 'POST', url: '/api/ai/estimate', headers, payload: { description: 'd' } });
+  assert.equal(res.json().error, 'aiInstanceCap');
+
+  await app.close();
+});

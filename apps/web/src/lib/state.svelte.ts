@@ -87,6 +87,12 @@ export function errorMessage(error: unknown): string {
         return t('error.aiFailed');
       case 'aiCapReached':
         return t('ai.capReached');
+      case 'aiDailyLimit':
+        return t('error.aiDailyLimit');
+      case 'aiTooFast':
+        return t('error.aiTooFast');
+      case 'aiInstanceCap':
+        return t('error.aiInstanceCap');
       case 'connectorDisabled':
         return t('connector.disabled');
       case 'invalidOAuthRequest':

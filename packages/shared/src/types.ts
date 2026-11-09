@@ -88,6 +88,9 @@ export interface AiStatus {
   capUsd: number | null;
   spentUsd: number;
   capReached: boolean;
+  requestsToday: number;
+  dailyRequests: number | null;
+  limitReached: boolean;
 }
 
 export interface AiSettings {
@@ -97,6 +100,10 @@ export interface AiSettings {
   modelText: string;
   modelPhoto: string;
   monthlyCapUsd: number | null;
+  dailyRequests: number | null;
+  dailyTokens: number | null;
+  perMinute: number | null;
+  instanceMonthlyUsd: number | null;
   keepPhotos: boolean;
   models: string[];
 }

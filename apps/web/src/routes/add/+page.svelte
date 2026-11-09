@@ -73,7 +73,7 @@
   });
   const mismatch = $derived(kcalMismatch(parsed));
   const noValues = $derived(NUTRIENTS.every((n) => parsed[n] == null));
-  const aiUsable = $derived(!!ai?.enabled && !ai.capReached);
+  const aiUsable = $derived(!!ai?.enabled && !ai.capReached && !ai.limitReached);
   const edited = $derived(!!estimatedValues && NUTRIENTS.some((n) => values[n] !== estimatedValues![n]));
   const back = $derived(date === today ? '/' : `/?d=${date}`);
 
@@ -134,6 +134,7 @@
         photo: photo ? { mime: photo.mime, data: photo.data } : null
       });
       estimate = res.estimate;
+      if (ai) ai.requestsToday += 1;
       items = res.estimate.items;
       if (res.photoId) photoId = res.photoId;
       if (!description.trim()) description = res.estimate.description;
@@ -141,7 +142,10 @@
       estimatedValues = { ...values };
     } catch (e) {
       error = errorMessage(e);
-      if (e instanceof ApiError && e.code === 'aiCapReached' && ai) ai.capReached = true;
+      if (e instanceof ApiError && ai) {
+        if (e.code === 'aiCapReached' || e.code === 'aiInstanceCap') ai.capReached = true;
+        if (e.code === 'aiDailyLimit') ai.limitReached = true;
+      }
     } finally {
       estimating = false;
     }
@@ -238,8 +242,13 @@
           </button>
           <input bind:this={fileInput} class="visually-hidden" type="file" accept="image/*" capture="environment" tabindex="-1" aria-hidden="true" onchange={pickPhoto} />
         </div>
-      {:else if ai?.capReached}
+      {:else if ai?.enabled && ai.capReached}
         <p class="notice">{t('ai.capReached')}</p>
+      {:else if ai?.enabled && ai.limitReached}
+        <p class="notice">{t('ai.limitReached')}</p>
+      {/if}
+      {#if aiUsable && ai?.dailyRequests}
+        <p class="help">{t('ai.remaining', { n: ai.requestsToday, max: ai.dailyRequests })}</p>
       {/if}
 
       {#if photo || existingPhotoId}

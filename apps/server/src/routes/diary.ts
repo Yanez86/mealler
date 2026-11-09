@@ -157,7 +157,8 @@ export async function diaryRoutes(app: FastifyInstance, { db, ai }: AppContext) 
     const body = entryBody.parse(request.body);
     if (!ownSlot(user.id, body.slotId)) throw badRequest('slot');
     if (!ownPhoto(user.id, body.photoId)) throw badRequest('photo');
-    const background = body.calculate === true && aiStatus(db, ai.secrets, user).enabled && !aiStatus(db, ai.secrets, user).capReached;
+    const status = body.calculate === true ? aiStatus(db, ai.secrets, user) : null;
+    const background = !!status && status.enabled && !status.capReached && !status.limitReached;
     const row = db
       .insert(entries)
       .values({
