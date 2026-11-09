@@ -8,20 +8,23 @@
 
   let { message, version }: { message: string; version: string } = $props();
 
-  // ponytail: fixed 18×26 lattice covers screens up to about 1300 px wide once tilted; raise COLS for wider ones.
+  // ponytail: 18 columns cover screens up to about 1300 px wide, and 3 cycles up to about 1280 px tall; raise them for bigger ones.
   const COLS = 18;
-  const ROWS = 26;
-  // Each row shifts by 5 categories, so the same icon never stacks in a column.
-  const tiles = Array.from({ length: COLS * ROWS }, (_, i) => {
-    const r = Math.floor(i / COLS);
-    return FOOD_CATEGORIES[((i % COLS) + r * 5) % FOOD_CATEGORIES.length];
-  });
+  const ROWS = FOOD_CATEGORIES.length * 3; // each column slides by one cycle, so 3 never leave a gap
+  // Each row shifts by 5 categories, so the same icon never sits next to itself.
+  const columns = Array.from({ length: COLS }, (_, c) =>
+    Array.from({ length: ROWS }, (_, r) => FOOD_CATEGORIES[(c + r * 5) % FOOD_CATEGORIES.length])
+  );
 </script>
 
 <div class="splash" role="status" aria-live="polite">
-  <div class="lattice" style:--cols={COLS} aria-hidden="true">
-    {#each tiles as c, i (i)}
-      <span class="tile" style:--tint={tints[c]}><img src="/food/{c}.svg" alt="" draggable="false" /></span>
+  <div class="lattice" aria-hidden="true">
+    {#each columns as column, ci (ci)}
+      <div class="col">
+        {#each column as c, i (i)}
+          <span class="tile" style:--tint={tints[c]}><img src="/food/{c}.svg" alt="" draggable="false" /></span>
+        {/each}
+      </div>
     {/each}
   </div>
   <div class="mark"><Logo size={112} title="Mealler" /></div>
@@ -54,11 +57,10 @@
     position: absolute;
     inset: -40%;
     z-index: -1;
-    display: grid;
-    grid-template-columns: repeat(var(--cols), 60px);
-    grid-auto-rows: 60px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
     gap: 8px;
-    place-content: center;
     transform: rotate(12deg);
     opacity: 0.35;
     animation: fade 900ms ease-out both;
@@ -72,7 +74,20 @@
     background: linear-gradient(to bottom, transparent 35%, var(--bg) 100%);
     pointer-events: none;
   }
+  /* Columns slide by one cycle of the 17 categories (17 × 68 px), every other one the opposite way. */
+  .col {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    animation: up 100s linear infinite;
+  }
+  .col:nth-child(even) {
+    animation-name: down;
+  }
   .tile {
+    width: 60px;
+    height: 60px;
     border-radius: 23%;
     background: color-mix(in srgb, var(--tint) 22%, var(--surface));
     display: grid;
@@ -147,6 +162,22 @@
   @keyframes fade {
     from {
       opacity: 0;
+    }
+  }
+  @keyframes up {
+    from {
+      transform: translateY(578px);
+    }
+    to {
+      transform: translateY(-578px);
+    }
+  }
+  @keyframes down {
+    from {
+      transform: translateY(-578px);
+    }
+    to {
+      transform: translateY(578px);
     }
   }
   @keyframes spin {

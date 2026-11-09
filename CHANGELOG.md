@@ -3,12 +3,14 @@
 Tutte le modifiche rilevanti di Mealler sono annotate qui.
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il [versionamento semantico](https://semver.org/lang/it/).
 
-## [Non rilasciato]
+## [1.3.1] - 2026-11-09
 
 ### Aggiunto
+- In «Informazioni», sotto il nome, la pillola «Splash page» mostra la schermata di avvio; un tocco la richiude.
 - Nella schermata del pasto, «Tabella valori»: scrivi l'alimento, scegli la foto o lo screenshot della tabella nutrizionale (o della lista ingredienti con i grammi) e l'AI ne copia i valori nella riga, come un solo alimento con il peso totale. Se non hai scritto la quantità, la ricava dall'immagine.
 
 ### Modificato
+- Nella schermata di avvio le colonne di icone scorrono piano, una verso l'alto e la vicina verso il basso.
 - I pulsanti foto permettono di scegliere un'immagine dalla galleria, non solo di scattarla.
 - «Foto» si chiama «Foto del piatto», per distinguerla da «Tabella valori».
 - La foto della tabella nella scheda alimento legge anche gli screenshot e le liste ingredienti con i grammi; se l'AI non può leggerla, ora lo dice.
