@@ -16,8 +16,8 @@ jobs:
       - run: npm install -g pnpm@10
       - run: pnpm install --no-frozen-lockfile
       - name: Typecheck
-        run: pnpm -r typecheck
+        run: pnpm -r --no-bail typecheck
       - name: Test
-        run: pnpm -r test
+        run: pnpm -r --no-bail test
       - name: Build
         run: pnpm -r build
