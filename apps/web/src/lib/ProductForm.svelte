@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <!-- Create or edit a library food: by hand, from a barcode (library / Open Food Facts) or from a label photo. -->
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import type { AiStatus, Product, ProductDraft } from '@mealler/shared';
   import { del, get, patch, post } from './api';
   import { preparePhoto } from './image';
@@ -21,7 +21,9 @@
     oncancel: () => void;
   } = $props();
 
-  const start = product ?? draft;
+  // The form copies its initial values once; the parent remounts it for another product.
+  const start = untrack(() => product ?? draft);
+  const initialSource = untrack(() => draft?.source);
   const toText = (n: number | null | undefined) =>
     n == null ? '' : String(n).replace('.', app.locale === 'it' ? ',' : '.');
   const toNumber = (s: string): number | null => {
@@ -42,14 +44,14 @@
   let servingG = $state(toText(start?.servingG));
   let servingLabel = $state(start?.servingLabel ?? '');
   let source = $state<ProductDraft['source']>(start?.source ?? 'manual');
-  let notice = $state(draft?.source === 'openfoodfacts' ? t('foods.fromOff') : draft?.source === 'label' ? t('foods.fromLabel') : '');
+  let notice = $state(initialSource === 'openfoodfacts' ? t('foods.fromOff') : initialSource === 'label' ? t('foods.fromLabel') : '');
   let error = $state('');
   let busy = $state(false);
   let scanning = $state(false);
   let reading = $state(false);
   let ai = $state<AiStatus | null>(null);
   let fileInput = $state<HTMLInputElement | null>(null);
-  const readOnly = !!product && !product.canEdit;
+  const readOnly = untrack(() => !!product && !product.canEdit);
 
   onMount(async () => {
     ai = await get<AiStatus>('/ai/status').catch(() => null);
