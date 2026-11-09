@@ -5,6 +5,9 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e i
 
 ## [Non rilasciato]
 
+### Aggiunto
+- Un sito di presentazione con il logo, le icone e le schermate dell'app.
+
 ### Modificato
 - Il pulsante «Calcola con Claude» nel pasto ora si chiama «Stima», con la stellina.
 - Nel diario il pulsante per le voci senza valori ora dice «Stima le voci senza valori».
