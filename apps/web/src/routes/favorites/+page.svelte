@@ -10,6 +10,7 @@
   import FoodIcon from '$lib/FoodIcon.svelte';
   import Icon from '$lib/Icon.svelte';
   import ProductForm from '$lib/ProductForm.svelte';
+  import { servingKcal, servingText } from '$lib/serving';
   import TopBar from '$lib/TopBar.svelte';
 
   const tab = $derived(page.url.searchParams.get('tab') === 'foods' ? 'foods' : 'favorites');
@@ -140,13 +141,18 @@
     {:else if foods}
       <ul class="card list">
         {#each foods as p (p.id)}
+          {@const serving = servingText(p)}
+          {@const perServing = servingKcal(p)}
           <li>
             <button class="list-row item" type="button" onclick={() => (editing = p)}>
               <FoodIcon category={p.category ?? mealCategory([p.name])} size={44} />
               <span class="grow">
                 <span class="name">{p.name}</span>
                 {#if p.brand}<span class="muted small"> · {p.brand}</span>{/if}
-                <span class="muted small block">{t('foods.per100short', { kcal: formatNumber(p.kcal) })}{#if p.servingLabel} · {p.servingLabel}{/if}</span>
+                {#if serving}
+                  <span class="small block">{perServing != null ? `${serving} · ${formatNumber(perServing)} kcal` : serving}</span>
+                {/if}
+                <span class="muted small block">{t('foods.per100short', { kcal: formatNumber(p.kcal) })}</span>
               </span>
               <Icon name="chevron" />
             </button>

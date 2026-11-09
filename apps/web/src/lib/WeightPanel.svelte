@@ -273,7 +273,7 @@
         </h2>
         {#if user.weightReminderEnabled}
           <p class="muted small">
-            {t('weight.when', { day: dayName(user.weightReminderWeekday), time: user.weightReminderTime })}{#if nextReminder} · {t('weight.next', { d: formatDate(nextReminder, { day: 'numeric', month: 'short' }) })}{/if}
+            {t('weight.when', { day: dayName(user.weightReminderWeekday), time: user.weightReminderTime })}{#if nextReminder}{` · ${t('weight.next', { d: formatDate(nextReminder, { day: 'numeric', month: 'short' }) })}`}{/if}
           </p>
         {/if}
       </div>

@@ -126,7 +126,7 @@
           <ul class="breakdown">
             {#each row.items as item, i (i)}
               <li>
-                <span class="grow">{item.name}{#if item.quantity} · {item.quantity}{/if}</span>
+                <span class="grow">{item.quantity ? `${item.name} · ${item.quantity}` : item.name}</span>
                 <span class="muted">{formatNumber(item.kcal)} kcal</span>
               </li>
             {/each}

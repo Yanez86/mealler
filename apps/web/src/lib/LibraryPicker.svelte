@@ -7,6 +7,7 @@
   import { app, errorMessage, formatNumber, t } from './state.svelte';
   import BarcodeScanner from './BarcodeScanner.svelte';
   import FoodIcon from './FoodIcon.svelte';
+  import { servingKcal, servingText } from './serving';
   import Icon from './Icon.svelte';
 
   let { slotId, date, onlogged }: { slotId: number | null; date: string; onlogged: () => void } = $props();
@@ -111,7 +112,7 @@
       {#if selected.servingG}
         <div class="chips" role="group" aria-label={t('foods.amount')}>
           <button class="chip" type="button" aria-pressed={mode === 'servings'} onclick={() => { mode = 'servings'; amount = '1'; }}>
-            {t('foods.servings')}{#if selected.servingLabel} · {selected.servingLabel}{/if}
+            {t('foods.servings')} · {servingText(selected)}
           </button>
           <button class="chip" type="button" aria-pressed={mode === 'grams'} onclick={() => { mode = 'grams'; amount = weightText(selected?.servingG ?? null); }}>{weightLabel}</button>
         </div>
@@ -139,7 +140,9 @@
                 <span class="name">{p.name}</span>
                 {#if p.brand}<span class="muted small"> · {p.brand}</span>{/if}
               </span>
-              <span class="muted small">{t('foods.per100short', { kcal: formatNumber(p.kcal) })}</span>
+              <span class="muted small per">
+                {#if servingKcal(p) != null}{`${formatNumber(servingKcal(p) ?? 0)} kcal · ${servingText(p)}`}<br />{/if}{t('foods.per100short', { kcal: formatNumber(p.kcal) })}
+              </span>
             </button>
           </li>
         {/each}
@@ -183,6 +186,11 @@
   .grow {
     flex: 1;
     min-width: 0;
+  }
+  .per {
+    flex: none;
+    max-width: 45%;
+    text-align: right;
   }
   .name {
     font-weight: 600;

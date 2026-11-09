@@ -124,7 +124,7 @@
         <li class="list-row user">
           <div class="grow">
             <p><strong>{u.name}</strong> {#if u.id === app.user?.id}<span class="muted">({t('admin.you')})</span>{/if}</p>
-            <p class="muted small">{u.email}{#if !u.active} · {t('admin.inactive')}{/if}</p>
+            <p class="muted small">{u.active ? u.email : `${u.email} · ${t('admin.inactive')}`}</p>
           </div>
           <label class="visually-hidden" for="role-{u.id}">{t('admin.role')}</label>
           <select id="role-{u.id}" class="input role" value={u.role} onchange={(e) => setRole(u, e.currentTarget.value as 'admin' | 'user')}>

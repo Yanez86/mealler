@@ -3,6 +3,12 @@
 Tutte le modifiche rilevanti di Mealler sono annotate qui.
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il [versionamento semantico](https://semver.org/lang/it/).
 
+## [1.1.4] - 2026-11-09
+
+### Corretto
+- Nella libreria degli alimenti si vede la porzione con i suoi grammi e le sue calorie, per esempio «1 pezzo (50 g) · 195 kcal», oltre ai valori per 100 g. Lo stesso in Aggiungi pasto, quando cerchi un alimento.
+- Tornato lo spazio prima del puntino in alcune righe, come «100 g· 1 pezzo».
+
 ## [1.1.3] - 2026-11-09
 
 ### Aggiunto
