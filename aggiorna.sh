@@ -69,7 +69,7 @@ main() {
       ok "Mealler è già aggiornato (versione $from)."
       return 0
     fi
-    echo "Nessun commit nuovo: ricompilo comunque (--forza)."
+    echo "Il codice è già alla versione $from (nessun commit nuovo da scaricare): ricompilo e riavvio con questa versione."
   else
     echo
     if [ "$from" != "$to" ]; then
