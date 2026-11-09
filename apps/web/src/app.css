@@ -1,0 +1,338 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Design tokens: light and dark themes, WCAG 2.2 AA contrast. */
+
+:root {
+  color-scheme: light;
+  --bg: #f3f5f7;
+  --surface: #ffffff;
+  --surface-2: #e3e8ed;
+  --border: #dce1e6;
+  --field: #7a8492;
+  --nav: #ffffff;
+  --text: #14181d;
+  --text-2: #4a5361;
+  --accent: #0f766e;
+  --on-accent: #ffffff;
+  --accent-soft: #e0f2ef;
+  --accent-ink: #0b5c55;
+  --ok: #0f766e;
+  --ok-ink: #0b5c55;
+  --under: #1d4ed8;
+  --under-ink: #1e40af;
+  --over: #b45309;
+  --over-ink: #92400e;
+  --danger: #b42318;
+  --radius: 20px;
+  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --bg: #0e1114;
+    --surface: #181c21;
+    --surface-2: #2a3038;
+    --border: #2c333b;
+    --field: #6e7884;
+    --nav: #14181c;
+    --text: #eceff3;
+    --text-2: #a9b1bc;
+    --accent: #2dd4bf;
+    --on-accent: #042f2b;
+    --accent-soft: #143a35;
+    --accent-ink: #8bebdd;
+    --ok: #2dd4bf;
+    --ok-ink: #8bebdd;
+    --under: #7fa6fa;
+    --under-ink: #a9c3fc;
+    --over: #fb923c;
+    --over-ink: #fdba74;
+    --danger: #f97066;
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0e1114;
+  --surface: #181c21;
+  --surface-2: #2a3038;
+  --border: #2c333b;
+  --field: #6e7884;
+  --nav: #14181c;
+  --text: #eceff3;
+  --text-2: #a9b1bc;
+  --accent: #2dd4bf;
+  --on-accent: #042f2b;
+  --accent-soft: #143a35;
+  --accent-ink: #8bebdd;
+  --ok: #2dd4bf;
+  --ok-ink: #8bebdd;
+  --under: #7fa6fa;
+  --under-ink: #a9c3fc;
+  --over: #fb923c;
+  --over-ink: #fdba74;
+  --danger: #f97066;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+a {
+  color: var(--accent-ink);
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.page {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 0 16px 120px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.muted {
+  color: var(--text-2);
+}
+
+.small {
+  font-size: 14px;
+}
+
+.section-title {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+/* Buttons: every target is at least 44 px, primary actions 48–52 px. */
+.btn {
+  min-height: 48px;
+  padding: 0 20px;
+  border-radius: 24px;
+  border: 1px solid var(--field);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.btn-ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--accent-ink);
+}
+
+.btn-danger {
+  border-color: var(--danger);
+  background: transparent;
+  color: var(--danger);
+}
+
+.btn-block {
+  width: 100%;
+  min-height: 52px;
+  font-size: 17px;
+  border-radius: 26px;
+}
+
+.icon-btn {
+  width: 48px;
+  height: 48px;
+  flex: none;
+  padding: 0;
+  border: none;
+  border-radius: 24px;
+  background: var(--surface);
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.icon-btn.plain {
+  background: transparent;
+  color: var(--accent-ink);
+}
+
+/* Forms: 16 px text avoids zoom on iOS; borders keep 3:1 contrast. */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field > label,
+.label {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.input,
+.field input:not([type='checkbox']):not([type='radio']),
+.field select,
+.field textarea {
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1.5px solid var(--field);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+}
+
+.field textarea {
+  resize: vertical;
+  min-height: 88px;
+}
+
+.help {
+  font-size: 14px;
+  color: var(--text-2);
+}
+
+.error {
+  color: var(--danger);
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.notice {
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: 15px;
+}
+
+.chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.chip {
+  flex: none;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 22px;
+  border: 1px solid var(--field);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.chip[aria-pressed='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+}
+
+.list-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+
+.list-row:first-child {
+  border-top: none;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

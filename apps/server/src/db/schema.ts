@@ -1,0 +1,86 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Drizzle table definitions. They mirror migrations/*.sql, which remain the source of truth.
+import { sqliteTable, integer, text, real } from 'drizzle-orm/sqlite-core';
+
+const now = () => new Date().toISOString();
+
+export const users = sqliteTable('users', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  email: text('email').notNull(),
+  name: text('name').notNull(),
+  passwordHash: text('password_hash').notNull(),
+  role: text('role', { enum: ['admin', 'user'] }).notNull(),
+  locale: text('locale').notNull().default('it'),
+  timezone: text('timezone').notNull().default('Europe/Rome'),
+  theme: text('theme', { enum: ['system', 'light', 'dark'] }).notNull().default('system'),
+  active: integer('active', { mode: 'boolean' }).notNull().default(true),
+  lastSeenVersion: text('last_seen_version'),
+  createdAt: text('created_at').notNull().$defaultFn(now)
+});
+
+export const sessions = sqliteTable('sessions', {
+  id: text('id').primaryKey(),
+  userId: integer('user_id').notNull(),
+  expiresAt: integer('expires_at').notNull(),
+  userAgent: text('user_agent'),
+  createdAt: text('created_at').notNull().$defaultFn(now)
+});
+
+export const invites = sqliteTable('invites', {
+  token: text('token').primaryKey(),
+  email: text('email'),
+  expiresAt: integer('expires_at').notNull(),
+  createdBy: integer('created_by'),
+  usedAt: text('used_at'),
+  createdAt: text('created_at').notNull().$defaultFn(now)
+});
+
+export const slots = sqliteTable('slots', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull(),
+  name: text('name').notNull(),
+  time: text('time').notNull(),
+  days: integer('days').notNull().default(127),
+  position: integer('position').notNull().default(0),
+  reminderEnabled: integer('reminder_enabled', { mode: 'boolean' }).notNull().default(true),
+  reminderDelayMin: integer('reminder_delay_min').notNull().default(15),
+  archived: integer('archived', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').notNull().$defaultFn(now)
+});
+
+export const entries = sqliteTable('entries', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull(),
+  slotId: integer('slot_id').notNull(),
+  date: text('date').notNull(),
+  description: text('description').notNull(),
+  quantity: text('quantity'),
+  kcal: real('kcal'),
+  protein: real('protein'),
+  carbs: real('carbs'),
+  fat: real('fat'),
+  fiber: real('fiber'),
+  detail: text('detail'),
+  source: text('source', { enum: ['manual', 'claude_ai', 'in_app', 'favorite'] }).notNull().default('manual'),
+  calcStatus: text('calc_status', { enum: ['manual', 'pending', 'calculated', 'corrected'] })
+    .notNull()
+    .default('manual'),
+  notes: text('notes'),
+  createdAt: text('created_at').notNull().$defaultFn(now),
+  updatedAt: text('updated_at').notNull().$defaultFn(now)
+});
+
+export const thresholds = sqliteTable('thresholds', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull(),
+  nutrient: text('nutrient').notNull(),
+  min: real('min'),
+  max: real('max'),
+  validFrom: text('valid_from').notNull(),
+  createdAt: text('created_at').notNull().$defaultFn(now)
+});
+
+export const settings = sqliteTable('settings', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull()
+});

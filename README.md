@@ -1,0 +1,74 @@
+<p align="center"><img src="apps/web/static/logo.svg" width="96" alt="Mealler"></p>
+
+# Mealler
+
+Diario alimentare **self-hosted**, **multiutente**, installabile come **PWA** su telefono e desktop.
+Registri cosa mangi negli slot che decidi tu, tieni d'occhio calorie e macronutrienti rispetto alle tue soglie (tutte facoltative) e, nelle prossime versioni, ti fai aiutare da Claude per il calcolo.
+
+> *English summary below.*
+
+## Stato
+
+Versione **0.1.0**: prima versione usabile, con inserimento manuale dei valori.
+
+| Funzione | Stato |
+| --- | --- |
+| Primo avvio con creazione dell'amministratore | ✅ |
+| Utenti, inviti, registrazione libera opzionale | ✅ |
+| Slot dei pasti personalizzabili (orario, giorni, ordine) | ✅ |
+| Diario giornaliero con inserimento manuale di kcal e macro | ✅ |
+| Soglie minime e massime facoltative, versionate nel tempo | ✅ |
+| Tema chiaro/scuro, italiano e inglese, PWA installabile | ✅ |
+| Promemoria push per gli slot | 🔜 milestone 2 |
+| Connettore per claude.ai (MCP) | 🔜 milestone 3 |
+| Calcolo con l'API Anthropic, anche da foto | 🔜 milestone 4 |
+| Preferiti, grafici, peso, export | 🔜 milestone 5 |
+
+## Installazione con Docker
+
+```bash
+git clone https://github.com/Yanez86/mealler.git
+cd mealler
+cp .env.example .env        # modifica porta e fuso orario se serve
+docker compose up -d --build
+```
+
+Poi apri `http://IP-DEL-SERVER:3000`: la prima pagina ti fa creare l'account amministratore.
+
+- I dati (database SQLite) stanno nel volume `mealler-data`, montato su `/data`.
+- Per installare la PWA sul telefono e ricevere in futuro le notifiche serve **HTTPS**: metti Mealler dietro un reverse proxy (Caddy, Traefik, nginx o quello integrato nel tuo NAS) e imposta `MEALLER_BASE_URL`.
+- Aggiornamento: `git pull && docker compose up -d --build`. Le migrazioni del database partono da sole.
+- Backup: copia il contenuto del volume `/data` (file `mealler.db*`), meglio a container fermo.
+
+### Variabili d'ambiente
+
+| Variabile | Default | Descrizione |
+| --- | --- | --- |
+| `PORT` | `3000` | Porta HTTP interna al container |
+| `MEALLER_DATA_DIR` | `/data` | Cartella del database |
+| `MEALLER_BASE_URL` | — | Indirizzo pubblico, usato per i link d'invito |
+| `MEALLER_SOURCE_URL` | questo repo | Link al codice sorgente mostrato nell'app (AGPL) |
+| `LOG_LEVEL` | `info` | Livello di log |
+
+## Sviluppo
+
+Requisiti: Node.js 22 e pnpm 10.
+
+```bash
+pnpm install
+pnpm --filter @mealler/server dev   # API su :3000 (usa ./data)
+pnpm --filter @mealler/web dev      # interfaccia su :5173, con proxy verso /api
+pnpm typecheck && pnpm test && pnpm build
+```
+
+Struttura: `apps/server` (Fastify, SQLite con Drizzle, migrazioni SQL in `apps/server/migrations`), `apps/web` (SvelteKit come SPA), `packages/shared` (tipi, calcoli, traduzioni).
+
+## Licenza
+
+[GNU Affero General Public License v3.0 o successiva](LICENSE). Se offri Mealler ad altri tramite rete, devi rendere disponibile il codice sorgente, comprese le tue modifiche: l'app mostra già un link al sorgente nella pagina Profilo.
+
+---
+
+## English
+
+Mealler is a self-hosted, multi-user food diary PWA. Log meals into slots you define, track calories and macros against optional min/max thresholds, and (in upcoming versions) let Claude estimate nutritional values, through a claude.ai connector or the Anthropic API. Version 0.1.0 provides setup, users and invites, slots, a manual diary, thresholds, light/dark themes and Italian/English UI. Install with `docker compose up -d --build`, then open port 3000. Licensed under AGPL-3.0-or-later.

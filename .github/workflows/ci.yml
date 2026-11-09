@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install -g pnpm@10
+      - run: pnpm install --no-frozen-lockfile
+      - name: Typecheck
+        run: pnpm -r typecheck
+      - name: Test
+        run: pnpm -r test
+      - name: Build
+        run: pnpm -r build

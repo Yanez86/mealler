@@ -1,0 +1,17 @@
+{
+  "name": "mealler",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Self-hosted, multi-user food diary PWA with Claude integration",
+  "license": "AGPL-3.0-or-later",
+  "repository": "https://github.com/Yanez86/mealler",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel -r dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test"
+  }
+}

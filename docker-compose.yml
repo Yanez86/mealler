@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Mealler — avvio:  docker compose up -d
+# Aggiornamento:    docker compose pull && docker compose up -d
+services:
+  mealler:
+    image: ghcr.io/yanez86/mealler:latest
+    # Per compilare l'immagine sul NAS invece di scaricarla: docker compose up -d --build
+    build: .
+    container_name: mealler
+    restart: unless-stopped
+    ports:
+      - "${MEALLER_PORT:-3000}:3000"
+    environment:
+      TZ: ${TZ:-Europe/Rome}
+      # Indirizzo pubblico, es. https://mealler.miodominio.it (serve per i link d'invito e il connettore claude.ai)
+      MEALLER_BASE_URL: ${MEALLER_BASE_URL:-}
+    volumes:
+      - mealler-data:/data
+      # In alternativa, una cartella del NAS (deve essere scrivibile dall'utente con UID 1000):
+      # - /volume1/docker/mealler:/data
+
+volumes:
+  mealler-data:
