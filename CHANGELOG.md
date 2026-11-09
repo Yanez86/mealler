@@ -5,6 +5,13 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e i
 
 ## [Non rilasciato]
 
+## [0.5.2] - 2026-11-09
+
+### Modificato
+- Vista del giorno: nomi dei nutrienti e soglie restano su una riga e vengono troncati invece di andare a capo.
+- Le voci stimate sono etichettate "Stima AI".
+- Se le calorie hanno sia un minimo sia un massimo, il riepilogo mostra l'intervallo.
+
 ## [0.5.1] - 2026-11-09
 
 ### Modificato

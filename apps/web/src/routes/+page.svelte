@@ -163,7 +163,9 @@
             {kcal.value <= kcal.max
               ? t('day.kcalLeft', { n: formatNumber(kcal.max - kcal.value) })
               : t('day.kcalOver', { n: formatNumber(kcal.value - kcal.max) })}<br />
-            {t('day.maxOf', { n: formatNumber(kcal.max) })}
+            {kcal.min != null
+              ? t('day.range', { min: formatNumber(kcal.min), max: formatNumber(kcal.max) })
+              : t('day.maxOf', { n: formatNumber(kcal.max) })}
           </p>
         {:else if kcal.min != null}
           <p class="muted small right">{t('day.min', { n: `${formatNumber(kcal.min)} kcal` })}</p>
@@ -181,8 +183,8 @@
           {@const s = day.summary[n]}
           <div class="macro">
             <div class="macro-head">
-              <span class="muted">{t(`nutrient.${n}`)}</span>
-              <span class="muted small">{target(s, 'g')}</span>
+              <span class="muted name">{t(`nutrient.${n}`)}</span>
+              <span class="muted small target">{target(s, 'g')}</span>
             </div>
             <span class="value">{formatNumber(s.value, 1)} g</span>
             <div class="bar"><span class="status-{s.status}" style="width: {percent(s)}%"></span></div>
@@ -302,9 +304,24 @@
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    gap: 4px;
+    gap: 6px;
     font-size: 14px;
     font-weight: 500;
+    min-width: 0;
+  }
+  /* One line only: long labels are truncated, never wrapped. */
+  .macro-head .name,
+  .macro-head .target {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .macro-head .name {
+    flex: 0 1 auto;
+  }
+  .macro-head .target {
+    flex: 0 1 auto;
+    text-align: right;
   }
   .value {
     font-size: 20px;
