@@ -299,14 +299,14 @@ const TOOL = {
   }
 };
 
-// The image shows information about the food rather than the food itself.
+// "Tabella valori": the image shows information about the food, not the plate ("Foto" is the plate).
 const LABEL_PROMPT = [
-  'The image is not a photo of the meal: it is information about it, such as a nutrition facts table on a package,',
+  'The image is not a photo of the meal: it is nutrition information about the food the user wrote, such as a nutrition facts table on a package,',
   'a menu, or a screenshot from a meal delivery or recipe app, possibly an ingredient list with quantities.',
-  'Values printed in the image win over your own estimates: copy them exactly.',
-  'If they are per 100 g or per 100 ml, scale them to the quantity the user gives, or else to the portion shown (serving size, net weight, or the sum of the listed ingredient weights).',
-  'If only ingredients with their quantities are listed, return one item per ingredient with its quantity as written and its values, so the totals are the whole portion.',
-  'If the user wrote what the food is, use that name for the description.'
+  'The values printed in it win over your own estimates: copy them exactly (energy in kcal, not kJ).',
+  'If they are per 100 g or per 100 ml, scale them to the quantity the user gives, or else to the portion shown (serving size or net weight).',
+  'If only ingredients with their quantities are listed, compute the values of each ingredient and add them up.',
+  'Information about one product or one dish is a single item: its name (the one the user wrote, if any), its total quantity (e.g. the sum of the listed ingredient weights) and its total values.'
 ].join(' ');
 
 function systemPrompt(locale: string, label: boolean): string {
@@ -317,7 +317,7 @@ function systemPrompt(locale: string, label: boolean): string {
     label ? LABEL_PROMPT : '',
     'When quantities are missing, assume typical single-person portions for Italian/European home cooking and state the assumption in notes.',
     'Use per-item values consistent with standard food composition tables; energy should be close to 4 kcal/g protein, 4 kcal/g carbohydrate, 9 kcal/g fat.',
-    'If the photo or text does not show food or information about food, return one item named "unknown" with zeros and confidence "low".',
+    'If the photo or text does not show food, return one item named "unknown" with zeros and confidence "low".',
     `Write description, item names, quantities and notes in ${language}.`,
     'Always answer by calling the record_estimate tool.'
   ]
@@ -329,7 +329,7 @@ export interface EstimateInput {
   text: string;
   quantity?: string | null;
   photo?: { mime: string; data: string } | null;
-  /** The photo is a nutrition table or an ingredient list, not the plate. */
+  /** The photo is a nutrition table or an ingredient list ("Tabella valori"), not the plate ("Foto"). */
   label?: boolean;
 }
 
@@ -412,7 +412,7 @@ const LABEL_TOOL = {
       fiber_100g: { type: 'number', description: 'Use -1 if not on the label' },
       serving_g: { type: 'number', description: 'Grams per serving/portion if stated, else -1' },
       serving_label: { type: 'string', description: 'Serving description if stated, e.g. "1 pacchetto (32 g)"' },
-      readable: { type: 'boolean', description: 'false if this is not a readable nutrition table' }
+      readable: { type: 'boolean', description: 'false if there is neither a readable nutrition table nor an ingredient list with quantities' }
     },
     required: ['kcal_100g', 'protein_100g', 'carbs_100g', 'fat_100g', 'readable']
   }
@@ -455,8 +455,11 @@ export async function readNutritionLabel(ctx: AiContext, user: UserRow, photo: {
       model,
       max_tokens: 800,
       system:
-        'You read nutrition facts tables on food packaging. Report values per 100 g (or 100 ml). ' +
+        'You read nutrition facts tables: photos of food packaging, or screenshots from a meal delivery, recipe or shop app or website. ' +
+        'Report values per 100 g (or 100 ml). ' +
         'If the label only gives per-serving values and the serving weight, convert to per 100 g. ' +
+        'If there is no nutrition table but an ingredient list with quantities, compute the values of each ingredient from standard food composition tables, ' +
+        'add them up, convert to per 100 g of the total, and report the total weight as serving_g. ' +
         'Energy must be in kcal (convert from kJ by dividing by 4.184 if only kJ is shown). ' +
         'Always answer by calling the record_label tool.',
       tools: [LABEL_TOOL],

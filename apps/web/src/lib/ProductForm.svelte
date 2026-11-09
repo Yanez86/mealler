@@ -5,6 +5,7 @@
   import { mealCategory, type AiStatus, type FoodCategory, type Product, type ProductDraft } from '@mealler/shared';
   import { del, get, patch, post, put } from './api';
   import { preparePhoto } from './image';
+  import { reveal } from './reveal';
   import { app, errorMessage, t } from './state.svelte';
   import BarcodeScanner from './BarcodeScanner.svelte';
   import CategoryPicker from './CategoryPicker.svelte';
@@ -110,8 +111,11 @@
       const photo = await preparePhoto(file);
       labelPhoto = { mime: photo.mime, data: photo.data };
       labelSrc = photo.previewUrl;
-      // Without AI the photo is only kept, to read the label by eye.
-      if (!aiReady) return;
+      // Without AI the photo is only kept, to read the label by eye: say why nothing else happens.
+      if (!aiReady) {
+        notice = t(!ai?.enabled ? 'ai.disabled' : ai.capReached ? 'ai.capReached' : 'ai.limitReached');
+        return;
+      }
       reading = true;
       apply(await post<ProductDraft>('/products/label', { photo: labelPhoto }));
       notice = t('foods.fromLabel');
@@ -240,7 +244,7 @@
     </div>
   </fieldset>
 
-  {#if error}<p class="error" role="alert">{error}</p>{/if}
+  {#if error}<p class="error" role="alert" use:reveal>{error}</p>{/if}
 
   <div class="row">
     {#if !readOnly}<button class="btn btn-primary" type="submit" disabled={busy}>{t('foods.save')}</button>{/if}

@@ -6,10 +6,13 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e i
 ## [Non rilasciato]
 
 ### Aggiunto
-- Nella schermata del pasto, «Tabella valori»: scrivi l'alimento, scegli la foto o lo screenshot della tabella nutrizionale (o della lista ingredienti con i grammi) e l'AI ne copia i valori nella riga. Se non hai scritto la quantità, la ricava dall'immagine.
+- Nella schermata del pasto, «Tabella valori»: scrivi l'alimento, scegli la foto o lo screenshot della tabella nutrizionale (o della lista ingredienti con i grammi) e l'AI ne copia i valori nella riga, come un solo alimento con il peso totale. Se non hai scritto la quantità, la ricava dall'immagine.
 
 ### Modificato
 - I pulsanti foto permettono di scegliere un'immagine dalla galleria, non solo di scattarla.
+- «Foto» si chiama «Foto del piatto», per distinguerla da «Tabella valori».
+- La foto della tabella nella scheda alimento legge anche gli screenshot e le liste ingredienti con i grammi; se l'AI non può leggerla, ora lo dice.
+- I messaggi d'errore in fondo ai moduli scorrono in vista, invece di restare fuori dallo schermo.
 
 ## [1.3.0] - 2026-11-09
 

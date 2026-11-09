@@ -19,6 +19,7 @@
   } from '@mealler/shared';
   import { ApiError, del, get, patch, post } from '$lib/api';
   import { preparePhoto, type PreparedPhoto } from '$lib/image';
+  import { reveal } from '$lib/reveal';
   import { enqueueEntry, net } from '$lib/offline.svelte';
   import { app, errorMessage, formatDate, t } from '$lib/state.svelte';
   import {
@@ -519,7 +520,7 @@
         {#if named.length > 1}<p id="notes-help" class="help">{t('entry.notesFirst')}</p>{/if}
       </div>
 
-      {#if error}<p class="error" role="alert">{error}</p>{/if}
+      {#if error}<p class="error" role="alert" use:reveal>{error}</p>{/if}
 
       <div class="footer">
         <button class="btn btn-primary btn-block" type="submit" disabled={busy || estimating || !slotId}>
