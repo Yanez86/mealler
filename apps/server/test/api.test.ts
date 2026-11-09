@@ -47,11 +47,12 @@ async function setupApp(publicDir = '/nonexistent') {
     return {
       status: 200,
       body: {
+        // Structured output: thinking block first, then the JSON as text.
         content: [
+          { type: 'thinking' },
           {
-            type: 'tool_use',
-            name: 'record_estimate',
-            input: {
+            type: 'text',
+            text: JSON.stringify({
               description: 'Yogurt bianco e biscotti',
               items: [
                 { name: 'Yogurt bianco', quantity: '125 g', kcal: 80, protein: 4.5, carbs: 6, fat: 4.5, fiber: 0 },
@@ -59,7 +60,7 @@ async function setupApp(publicDir = '/nonexistent') {
               ],
               confidence: 'medium',
               notes: 'Porzioni tipiche'
-            }
+            })
           }
         ],
         usage: { input_tokens: 1000, output_tokens: 300 }
@@ -494,7 +495,10 @@ test('in-app estimates: settings, encryption, photos, background calculation and
   const { estimate } = res.json();
   assert.equal(estimate.totals.kcal, 150);
   assert.equal(estimate.model, 'claude-haiku-5-5');
-  assert.equal((calls.at(-1) as { tool_choice: { name: string } }).tool_choice.name, 'record_estimate');
+  // No forced tool_choice (Sonnet 5.5 / Opus 5.5 reject it): a JSON schema instead.
+  const last = calls.at(-1) as { tool_choice?: unknown; output_config: { format: { type: string } } };
+  assert.equal(last.tool_choice, undefined);
+  assert.equal(last.output_config.format.type, 'json_schema');
 
   // Photo estimate uses the photo model and keeps the photo for its owner only.
   const photo = { mime: 'image/jpeg', data: Buffer.alloc(300, 1).toString('base64') };
@@ -717,7 +721,7 @@ test('shared food library: barcode lookup, label reading, logging by grams and s
   respondNext({
     status: 200,
     body: {
-      content: [{ type: 'tool_use', name: 'record_label', input: { name: 'Crackers', kcal_100g: 430, protein_100g: 10, carbs_100g: 70, fat_100g: 11, fiber_100g: -1, serving_g: 25, readable: true } }],
+      content: [{ type: 'text', text: JSON.stringify({ name: 'Crackers', kcal_100g: 430, protein_100g: 10, carbs_100g: 70, fat_100g: 11, fiber_100g: -1, serving_g: 25, readable: true }) }],
       usage: { input_tokens: 1500, output_tokens: 100 }
     }
   });

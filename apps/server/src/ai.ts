@@ -40,7 +40,7 @@ const API_VERSION = '2023-06-01';
 export interface AnthropicResponse {
   status: number;
   body: {
-    content?: { type: string; name?: string; input?: unknown }[];
+    content?: { type: string; text?: string }[];
     usage?: { input_tokens?: number; output_tokens?: number };
     error?: { type?: string; message?: string };
   };
@@ -268,35 +268,35 @@ const toolOutput = z.object({
   notes: z.string().max(1000).nullable().optional()
 });
 
-const TOOL = {
-  name: 'record_estimate',
-  description: 'Record the nutritional estimate of the meal.',
-  input_schema: {
-    type: 'object',
-    properties: {
-      description: { type: 'string', description: "Short, clean description of the meal in the user's language" },
+// Structured outputs rather than a forced tool call: Sonnet 5.5 and Opus 5.5 reject a forced tool_choice.
+// Every object needs additionalProperties: false.
+const ESTIMATE_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    description: { type: 'string', description: "Short, clean description of the meal in the user's language" },
+    items: {
+      type: 'array',
+      description: 'One entry per food',
       items: {
-        type: 'array',
-        description: 'One entry per food',
-        items: {
-          type: 'object',
-          properties: {
-            name: { type: 'string' },
-            quantity: { type: 'string', description: 'Estimated amount, in g or ml when possible, e.g. "120 g", "200 ml"' },
-            kcal: { type: 'number' },
-            protein: { type: 'number', description: 'grams' },
-            carbs: { type: 'number', description: 'grams' },
-            fat: { type: 'number', description: 'grams' },
-            fiber: { type: 'number', description: 'grams' }
-          },
-          required: ['name', 'quantity', 'kcal', 'protein', 'carbs', 'fat', 'fiber']
-        }
-      },
-      confidence: { type: 'string', enum: ['low', 'medium', 'high'] },
-      notes: { type: 'string', description: 'Assumptions made, in one or two short sentences' }
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          name: { type: 'string' },
+          quantity: { type: 'string', description: 'Estimated amount, in g or ml when possible, e.g. "120 g", "200 ml"' },
+          kcal: { type: 'number' },
+          protein: { type: 'number', description: 'grams' },
+          carbs: { type: 'number', description: 'grams' },
+          fat: { type: 'number', description: 'grams' },
+          fiber: { type: 'number', description: 'grams' }
+        },
+        required: ['name', 'quantity', 'kcal', 'protein', 'carbs', 'fat', 'fiber']
+      }
     },
-    required: ['description', 'items', 'confidence']
-  }
+    confidence: { type: 'string', enum: ['low', 'medium', 'high'] },
+    notes: { type: 'string', description: 'Assumptions made, in one or two short sentences' }
+  },
+  required: ['description', 'items', 'confidence']
 };
 
 // "Tabella valori": the image shows information about the food, not the plate ("Foto" is the plate).
@@ -319,7 +319,6 @@ function systemPrompt(locale: string, label: boolean): string {
     'Use per-item values consistent with standard food composition tables; energy should be close to 4 kcal/g protein, 4 kcal/g carbohydrate, 9 kcal/g fat.',
     'If the photo or text does not show food, return one item named "unknown" with zeros and confidence "low".',
     `Write description, item names, quantities and notes in ${language}.`,
-    'Always answer by calling the record_estimate tool.'
   ]
     .filter(Boolean)
     .join(' ');
@@ -347,6 +346,16 @@ async function callApi(ctx: AiContext, apiKey: string, body: Record<string, unkn
   return response;
 }
 
+/** The JSON object of a structured-output answer (its text block), or undefined. */
+function jsonAnswer(response: AnthropicResponse): unknown {
+  const text = response.body.content?.find((c) => c.type === 'text')?.text;
+  try {
+    return text ? JSON.parse(text) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export interface EstimateInput {
   text: string;
   quantity?: string | null;
@@ -372,10 +381,10 @@ export async function estimateMeal(ctx: AiContext, user: UserRow, input: Estimat
 
   const response = await callApi(ctx, settings.apiKey, {
     model,
-    max_tokens: 1500,
+    // Room for thinking, which is always on with Sonnet 5.5 and Opus 5.5.
+    max_tokens: 8000,
     system: systemPrompt(locale, !!(input.label && input.photo)),
-    tools: [TOOL],
-    tool_choice: { type: 'tool', name: TOOL.name },
+    output_config: { effort: 'medium', format: { type: 'json_schema', schema: ESTIMATE_SCHEMA } },
     messages: [{ role: 'user', content }]
   });
 
@@ -383,10 +392,9 @@ export async function estimateMeal(ctx: AiContext, user: UserRow, input: Estimat
   const cost = recordUsage(ctx.db, user, model, usage.input_tokens ?? 0, usage.output_tokens ?? 0);
   countDaily(ctx.db, user, 0, (usage.input_tokens ?? 0) + (usage.output_tokens ?? 0));
 
-  const call = response.body.content?.find((c) => c.type === 'tool_use' && c.name === TOOL.name);
-  const parsed = toolOutput.safeParse(call?.input);
+  const parsed = toolOutput.safeParse(jsonAnswer(response));
   if (!parsed.success) {
-    console.error(`Anthropic API: unexpected estimate from ${model}: ${JSON.stringify(call?.input ?? response.body.content).slice(0, 500)}`);
+    console.error(`Anthropic API: unexpected estimate from ${model}: ${JSON.stringify(response.body).slice(0, 500)}`);
     throw new HttpError(500, 'aiFailed');
   }
 
@@ -414,25 +422,22 @@ export async function estimateMeal(ctx: AiContext, user: UserRow, input: Estimat
 
 // ---------- Nutrition label ----------
 
-const LABEL_TOOL = {
-  name: 'record_label',
-  description: 'Record the values read from a packaged food nutrition label.',
-  input_schema: {
-    type: 'object',
-    properties: {
-      name: { type: 'string', description: 'Product name if visible, otherwise empty' },
-      brand: { type: 'string', description: 'Brand if visible, otherwise empty' },
-      kcal_100g: { type: 'number' },
-      protein_100g: { type: 'number' },
-      carbs_100g: { type: 'number', description: 'Total carbohydrates' },
-      fat_100g: { type: 'number' },
-      fiber_100g: { type: 'number', description: 'Use -1 if not on the label' },
-      serving_g: { type: 'number', description: 'Grams per serving/portion if stated, else -1' },
-      serving_label: { type: 'string', description: 'Serving description if stated, e.g. "1 pacchetto (32 g)"' },
-      readable: { type: 'boolean', description: 'false if there is neither a readable nutrition table nor an ingredient list with quantities' }
-    },
-    required: ['kcal_100g', 'protein_100g', 'carbs_100g', 'fat_100g', 'readable']
-  }
+const LABEL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    name: { type: 'string', description: 'Product name if visible, otherwise empty' },
+    brand: { type: 'string', description: 'Brand if visible, otherwise empty' },
+    kcal_100g: { type: 'number' },
+    protein_100g: { type: 'number' },
+    carbs_100g: { type: 'number', description: 'Total carbohydrates' },
+    fat_100g: { type: 'number' },
+    fiber_100g: { type: 'number', description: 'Use -1 if not on the label' },
+    serving_g: { type: 'number', description: 'Grams per serving/portion if stated, else -1' },
+    serving_label: { type: 'string', description: 'Serving description if stated, e.g. "1 pacchetto (32 g)"' },
+    readable: { type: 'boolean', description: 'false if there is neither a readable nutrition table nor an ingredient list with quantities' }
+  },
+  required: ['kcal_100g', 'protein_100g', 'carbs_100g', 'fat_100g', 'readable']
 };
 
 const labelOutput = z.object({
@@ -468,17 +473,15 @@ export async function readNutritionLabel(ctx: AiContext, user: UserRow, photo: {
   const model = settings.modelPhoto;
   const response = await callApi(ctx, settings.apiKey, {
     model,
-    max_tokens: 800,
+    max_tokens: 8000,
     system:
       'You read nutrition facts tables: photos of food packaging, or screenshots from a meal delivery, recipe or shop app or website. ' +
       'Report values per 100 g (or 100 ml). ' +
       'If the label only gives per-serving values and the serving weight, convert to per 100 g. ' +
       'If there is no nutrition table but an ingredient list with quantities, compute the values of each ingredient from standard food composition tables, ' +
       'add them up, convert to per 100 g of the total, and report the total weight as serving_g. ' +
-      'Energy must be in kcal (convert from kJ by dividing by 4.184 if only kJ is shown). ' +
-      'Always answer by calling the record_label tool.',
-    tools: [LABEL_TOOL],
-    tool_choice: { type: 'tool', name: LABEL_TOOL.name },
+      'Energy must be in kcal (convert from kJ by dividing by 4.184 if only kJ is shown).',
+    output_config: { effort: 'medium', format: { type: 'json_schema', schema: LABEL_SCHEMA } },
     messages: [
       {
         role: 'user',
@@ -492,9 +495,8 @@ export async function readNutritionLabel(ctx: AiContext, user: UserRow, photo: {
   const usage = response.body.usage ?? {};
   recordUsage(ctx.db, user, model, usage.input_tokens ?? 0, usage.output_tokens ?? 0);
   countDaily(ctx.db, user, 0, (usage.input_tokens ?? 0) + (usage.output_tokens ?? 0));
-  const call = response.body.content?.find((c) => c.type === 'tool_use' && c.name === LABEL_TOOL.name);
-  const parsed = labelOutput.safeParse(call?.input);
-  if (!parsed.success) console.error(`Anthropic API: unexpected label from ${model}: ${JSON.stringify(call?.input ?? response.body.content).slice(0, 500)}`);
+  const parsed = labelOutput.safeParse(jsonAnswer(response));
+  if (!parsed.success) console.error(`Anthropic API: unexpected label from ${model}: ${JSON.stringify(response.body).slice(0, 500)}`);
   if (!parsed.success || !parsed.data.readable) throw new HttpError(422, 'labelUnreadable');
   const d = parsed.data;
   const r = (v: number) => Math.round(v * 10) / 10;
