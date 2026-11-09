@@ -30,11 +30,12 @@ export async function aiRoutes(app: FastifyInstance, { db, ai }: AppContext) {
               data: z.string().min(100).max(MAX_PHOTO_BASE64).regex(/^[A-Za-z0-9+/=]+$/)
             })
             .nullable()
-            .optional()
+            .optional(),
+          label: z.boolean().optional()
         })
         .refine((b) => b.description.length > 0 || !!b.photo)
         .parse(request.body);
-      const estimate = await estimateMeal(ai, user, { text: body.description, quantity: body.quantity, photo: body.photo });
+      const estimate = await estimateMeal(ai, user, { text: body.description, quantity: body.quantity, photo: body.photo, label: body.label });
       const settings = readAiSettings(db, ai.secrets);
       const photoId = body.photo && settings.keepPhotos ? savePhoto(ai, user, body.photo) : null;
       return { estimate, photoId };

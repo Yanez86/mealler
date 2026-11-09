@@ -7,6 +7,7 @@
   import {
     isIsoDate,
     mealCategory,
+    parseQuantity,
     splitFoods,
     todayIn,
     type AiStatus,
@@ -64,6 +65,8 @@
   let existingPhotoId = $state<string | null>(null);
   let photoId = $state<string | null>(null);
   let photoEstimating = $state(false);
+  // The picked photo is a nutrition table / ingredient list for one food, not the plate.
+  let labelMode = false;
   let fileInput = $state<HTMLInputElement | null>(null);
 
   // Favorites and frequent meals (new entries only)
@@ -254,7 +257,7 @@
     error = '';
     try {
       photo = await preparePhoto(file);
-      await estimatePhoto();
+      await (labelMode ? estimateLabel() : estimatePhoto());
     } catch {
       error = t('common.error');
     } finally {
@@ -282,6 +285,47 @@
         ? estimate.items.map((item) => rowFromItem(item, estimate, units, locale))
         : [newRow(units, estimate.description)];
       if (rows.length > 1) splitMessage = t('entry.splitDone', { n: rows.length });
+    } catch (e) {
+      noteAiError(e);
+    } finally {
+      photoEstimating = false;
+    }
+  }
+
+  /**
+   * A nutrition table or an ingredient list (photo or screenshot) for one food: it fills the first
+   * food still without values, keeping its name; the quantity comes from the image when not typed.
+   */
+  async function estimateLabel() {
+    if (!photo) return;
+    splitAll();
+    let row = rows.find((r) => !hasValues(r));
+    if (!row) {
+      rows.push(newRow(units));
+      row = rows[rows.length - 1];
+    }
+    photoEstimating = true;
+    error = '';
+    try {
+      const res = await post<{ estimate: Estimate; photoId: string | null }>('/ai/estimate', {
+        description: row.name.trim(),
+        quantity: rowQuantity(row, locale),
+        photo: { mime: photo.mime, data: photo.data },
+        label: true
+      });
+      if (ai) ai.requestsToday += 1;
+      if (res.photoId) photoId = res.photoId;
+      const estimate = res.estimate;
+      if (!row.name.trim()) row.name = estimate.description;
+      if (!rowQuantity(row, locale)) {
+        // The portion is the sum of the listed amounts, when they are all weights or volumes.
+        const qs = estimate.items.map((i) => parseQuantity(i.quantity ?? ''));
+        const unit = qs[0]?.unit;
+        if (unit && (unit === 'g' || unit === 'ml') && qs.every((q) => q?.unit === unit)) {
+          setQuantity(row, { amount: qs.reduce((s, q) => s + q!.amount, 0), unit }, units, locale);
+        }
+      }
+      applyEstimate(row, estimate, locale);
     } catch (e) {
       noteAiError(e);
     } finally {
@@ -424,13 +468,16 @@
 
       {#if canEstimate}
         <div class="ai-actions">
-          <button class="btn" type="button" disabled={estimating} onclick={() => fileInput?.click()}>
+          <button class="btn" type="button" disabled={estimating} onclick={() => { labelMode = false; fileInput?.click(); }}>
             <Icon name="camera" size={20} />{t('ai.photo')}
+          </button>
+          <button class="btn" type="button" disabled={estimating} onclick={() => { labelMode = true; fileInput?.click(); }}>
+            <Icon name="camera" size={20} />{t('ai.labelPhoto')}
           </button>
           <button class="btn btn-primary" type="button" disabled={estimating || !named.length} onclick={estimateAll}>
             <Icon name="sparkle" size={20} />{t('ai.calculate')}
           </button>
-          <input bind:this={fileInput} class="visually-hidden" type="file" accept="image/*" capture="environment" tabindex="-1" aria-hidden="true" onchange={pickPhoto} />
+          <input bind:this={fileInput} class="visually-hidden" type="file" accept="image/*" tabindex="-1" aria-hidden="true" onchange={pickPhoto} />
         </div>
       {:else if ai?.enabled && ai.capReached}
         <p class="notice">{t('ai.capReached')}</p>
@@ -518,8 +565,11 @@
   }
   .ai-actions {
     display: grid;
-    grid-template-columns: 1fr 2fr;
+    grid-template-columns: 1fr 1fr;
     gap: 12px;
+  }
+  .ai-actions .btn-primary {
+    grid-column: 1 / -1;
   }
   .photo {
     margin: 0;

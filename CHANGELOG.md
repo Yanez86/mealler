@@ -3,6 +3,14 @@
 Tutte le modifiche rilevanti di Mealler sono annotate qui.
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il [versionamento semantico](https://semver.org/lang/it/).
 
+## [Non rilasciato]
+
+### Aggiunto
+- Nella schermata del pasto, «Tabella valori»: scrivi l'alimento, scegli la foto o lo screenshot della tabella nutrizionale (o della lista ingredienti con i grammi) e l'AI ne copia i valori nella riga. Se non hai scritto la quantità, la ricava dall'immagine.
+
+### Modificato
+- I pulsanti foto permettono di scegliere un'immagine dalla galleria, non solo di scattarla.
+
 ## [1.3.0] - 2026-11-09
 
 ### Aggiunto

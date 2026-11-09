@@ -189,7 +189,7 @@
       <div class="tools">
         <button class="btn" type="button" onclick={() => (scanning = true)}><Icon name="barcode" size={20} />{t('foods.scan')}</button>
         <button class="btn" type="button" disabled={reading} onclick={() => fileInput?.click()}><Icon name="camera" size={20} />{t('foods.label')}</button>
-        <input bind:this={fileInput} class="visually-hidden" type="file" accept="image/*" capture="environment" tabindex="-1" aria-hidden="true" onchange={readLabel} />
+        <input bind:this={fileInput} class="visually-hidden" type="file" accept="image/*" tabindex="-1" aria-hidden="true" onchange={readLabel} />
       </div>
     {/if}
   {/if}

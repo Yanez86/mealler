@@ -505,6 +505,13 @@ test('in-app estimates: settings, encryption, photos, background calculation and
   assert.ok(photoId);
   res = await app.inject({ method: 'GET', url: `/api/photos/${photoId}`, headers: asAdmin });
   assert.equal(res.statusCode, 200);
+  const system = () => (calls.at(-1) as { system: string }).system;
+  assert.ok(!system().includes('nutrition facts table'));
+
+  // A nutrition table or ingredient list (photo or screenshot) is read, not estimated as a plate.
+  res = await app.inject({ method: 'POST', url: '/api/ai/estimate', headers: asAdmin, payload: { description: 'tortellini al ragù', photo, label: true } });
+  assert.equal(res.statusCode, 200, res.body);
+  assert.ok(system().includes('nutrition facts table'));
 
   // Save an entry with the estimate attached.
   res = await app.inject({

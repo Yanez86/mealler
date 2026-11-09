@@ -299,23 +299,38 @@ const TOOL = {
   }
 };
 
-function systemPrompt(locale: string): string {
+// The image shows information about the food rather than the food itself.
+const LABEL_PROMPT = [
+  'The image is not a photo of the meal: it is information about it, such as a nutrition facts table on a package,',
+  'a menu, or a screenshot from a meal delivery or recipe app, possibly an ingredient list with quantities.',
+  'Values printed in the image win over your own estimates: copy them exactly.',
+  'If they are per 100 g or per 100 ml, scale them to the quantity the user gives, or else to the portion shown (serving size, net weight, or the sum of the listed ingredient weights).',
+  'If only ingredients with their quantities are listed, return one item per ingredient with its quantity as written and its values, so the totals are the whole portion.',
+  'If the user wrote what the food is, use that name for the description.'
+].join(' ');
+
+function systemPrompt(locale: string, label: boolean): string {
   const language = locale === 'en' ? 'English' : 'Italian';
   return [
     'You are a careful nutrition assistant inside a food diary.',
     'Estimate the nutritional values of the meal the user describes and/or shows in a photo.',
+    label ? LABEL_PROMPT : '',
     'When quantities are missing, assume typical single-person portions for Italian/European home cooking and state the assumption in notes.',
     'Use per-item values consistent with standard food composition tables; energy should be close to 4 kcal/g protein, 4 kcal/g carbohydrate, 9 kcal/g fat.',
-    'If the photo or text does not show food, return one item named "unknown" with zeros and confidence "low".',
+    'If the photo or text does not show food or information about food, return one item named "unknown" with zeros and confidence "low".',
     `Write description, item names, quantities and notes in ${language}.`,
     'Always answer by calling the record_estimate tool.'
-  ].join(' ');
+  ]
+    .filter(Boolean)
+    .join(' ');
 }
 
 export interface EstimateInput {
   text: string;
   quantity?: string | null;
   photo?: { mime: string; data: string } | null;
+  /** The photo is a nutrition table or an ingredient list, not the plate. */
+  label?: boolean;
 }
 
 export async function estimateMeal(ctx: AiContext, user: UserRow, input: EstimateInput): Promise<Estimate> {
@@ -338,7 +353,7 @@ export async function estimateMeal(ctx: AiContext, user: UserRow, input: Estimat
     response = await ctx.call(settings.apiKey, {
       model,
       max_tokens: 1500,
-      system: systemPrompt(locale),
+      system: systemPrompt(locale, !!(input.label && input.photo)),
       tools: [TOOL],
       tool_choice: { type: 'tool', name: TOOL.name },
       messages: [{ role: 'user', content }]
