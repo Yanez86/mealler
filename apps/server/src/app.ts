@@ -19,6 +19,8 @@ import { aiRoutes } from './routes/ai.ts';
 import { favoriteRoutes } from './routes/favorites.ts';
 import { weightRoutes } from './routes/weight.ts';
 import { insightRoutes } from './routes/insights.ts';
+import { productRoutes } from './routes/products.ts';
+import type { BarcodeLookup } from './foods.ts';
 import type { AiContext } from './ai.ts';
 import type { PushSender } from './push.ts';
 
@@ -27,6 +29,7 @@ export interface AppContext {
   config: Config;
   push: PushSender;
   ai: AiContext & { kick(): void };
+  foods: { lookup: BarcodeLookup };
 }
 
 export async function buildApp(ctx: AppContext, opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
@@ -68,6 +71,7 @@ export async function buildApp(ctx: AppContext, opts: { logger?: boolean } = {})
       await api.register(async (scope) => favoriteRoutes(scope, ctx));
       await api.register(async (scope) => weightRoutes(scope, ctx));
       await api.register(async (scope) => insightRoutes(scope, ctx));
+      await api.register(async (scope) => productRoutes(scope, ctx));
     },
     { prefix: '/api' }
   );

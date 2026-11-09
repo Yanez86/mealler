@@ -9,7 +9,7 @@ Registri cosa mangi negli slot che decidi tu, tieni d'occhio calorie e macronutr
 
 ## Stato
 
-Versione **0.5.2**: diario con promemoria push, uso offline, connettore per claude.ai e calcolo con Claude dentro l'app, anche da foto.
+Versione **0.6.0**: diario con promemoria push, uso offline, connettore per claude.ai e calcolo con Claude dentro l'app, anche da foto.
 
 | Funzione | Stato |
 | --- | --- |
@@ -24,6 +24,7 @@ Versione **0.5.2**: diario con promemoria push, uso offline, connettore per clau
 | Connettore per claude.ai (MCP + OAuth 2.1) | ✅ |
 | Calcolo con l'API Anthropic, anche da foto | ✅ |
 | Preferiti, grafici, peso, export, pagina Novità | ✅ |
+| Libreria alimenti condivisa: codice a barre, Open Food Facts, foto dell'etichetta | ✅ |
 
 ## Installazione con Docker
 

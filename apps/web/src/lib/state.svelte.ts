@@ -93,6 +93,10 @@ export function errorMessage(error: unknown): string {
         return t('error.aiTooFast');
       case 'aiInstanceCap':
         return t('error.aiInstanceCap');
+      case 'barcodeTaken':
+        return t('error.barcodeTaken');
+      case 'labelUnreadable':
+        return t('error.labelUnreadable');
       case 'connectorDisabled':
         return t('connector.disabled');
       case 'invalidOAuthRequest':

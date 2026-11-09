@@ -380,6 +380,109 @@ export async function estimateMeal(ctx: AiContext, user: UserRow, input: Estimat
   };
 }
 
+// ---------- Nutrition label ----------
+
+const LABEL_TOOL = {
+  name: 'record_label',
+  description: 'Record the values read from a packaged food nutrition label.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      name: { type: 'string', description: 'Product name if visible, otherwise empty' },
+      brand: { type: 'string', description: 'Brand if visible, otherwise empty' },
+      kcal_100g: { type: 'number' },
+      protein_100g: { type: 'number' },
+      carbs_100g: { type: 'number', description: 'Total carbohydrates' },
+      fat_100g: { type: 'number' },
+      fiber_100g: { type: 'number', description: 'Use -1 if not on the label' },
+      serving_g: { type: 'number', description: 'Grams per serving/portion if stated, else -1' },
+      serving_label: { type: 'string', description: 'Serving description if stated, e.g. "1 pacchetto (32 g)"' },
+      readable: { type: 'boolean', description: 'false if this is not a readable nutrition table' }
+    },
+    required: ['kcal_100g', 'protein_100g', 'carbs_100g', 'fat_100g', 'readable']
+  }
+};
+
+const labelOutput = z.object({
+  name: z.string().max(200).optional(),
+  brand: z.string().max(200).optional(),
+  kcal_100g: n,
+  protein_100g: n,
+  carbs_100g: n,
+  fat_100g: n,
+  fiber_100g: z.number().optional(),
+  serving_g: z.number().optional(),
+  serving_label: z.string().max(100).optional(),
+  readable: z.boolean()
+});
+
+export interface LabelValues {
+  name: string | null;
+  brand: string | null;
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number | null;
+  servingG: number | null;
+  servingLabel: string | null;
+}
+
+/** Reads a nutrition label photo: values per 100 g (converted from per-serving if needed). */
+export async function readNutritionLabel(ctx: AiContext, user: UserRow, photo: { mime: string; data: string }): Promise<LabelValues> {
+  const settings = readAiSettings(ctx.db, ctx.secrets);
+  if (!settings.enabled || !settings.apiKey) throw new HttpError(403, 'aiDisabled');
+  checkLimits(ctx.db, user, settings);
+  const model = settings.modelPhoto;
+  let response: AnthropicResponse;
+  try {
+    response = await ctx.call(settings.apiKey, {
+      model,
+      max_tokens: 800,
+      system:
+        'You read nutrition facts tables on food packaging. Report values per 100 g (or 100 ml). ' +
+        'If the label only gives per-serving values and the serving weight, convert to per 100 g. ' +
+        'Energy must be in kcal (convert from kJ by dividing by 4.184 if only kJ is shown). ' +
+        'Always answer by calling the record_label tool.',
+      tools: [LABEL_TOOL],
+      tool_choice: { type: 'tool', name: LABEL_TOOL.name },
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: photo.mime, data: photo.data } },
+            { type: 'text', text: 'Read this nutrition label.' }
+          ]
+        }
+      ]
+    });
+  } catch {
+    throw new HttpError(502, 'aiFailed');
+  }
+  if (response.status === 401 || response.status === 403) throw new HttpError(502, 'aiKeyInvalid');
+  if (response.status === 429 || response.status === 529) throw new HttpError(503, 'aiBusy');
+  if (response.status >= 400) throw new HttpError(502, 'aiFailed');
+  const usage = response.body.usage ?? {};
+  recordUsage(ctx.db, user, model, usage.input_tokens ?? 0, usage.output_tokens ?? 0);
+  countDaily(ctx.db, user, 0, (usage.input_tokens ?? 0) + (usage.output_tokens ?? 0));
+  const call = response.body.content?.find((c) => c.type === 'tool_use' && c.name === LABEL_TOOL.name);
+  const parsed = labelOutput.safeParse(call?.input);
+  if (!parsed.success || !parsed.data.readable) throw new HttpError(422, 'labelUnreadable');
+  const d = parsed.data;
+  const r = (v: number) => Math.round(v * 10) / 10;
+  return {
+    name: d.name?.trim() || null,
+    brand: d.brand?.trim() || null,
+    kcal: r(d.kcal_100g),
+    protein: r(d.protein_100g),
+    carbs: r(d.carbs_100g),
+    fat: r(d.fat_100g),
+    fiber: d.fiber_100g != null && d.fiber_100g >= 0 ? r(d.fiber_100g) : null,
+    servingG: d.serving_g != null && d.serving_g > 0 ? r(d.serving_g) : null,
+    servingLabel: d.serving_label?.trim() || null
+  };
+}
+
 /** Quick validity check of the configured key with a tiny request. */
 export async function testApiKey(ctx: AiContext): Promise<'ok' | 'invalid' | 'unreachable'> {
   const settings = readAiSettings(ctx.db, ctx.secrets);

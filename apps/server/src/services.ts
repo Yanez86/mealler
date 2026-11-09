@@ -73,7 +73,9 @@ export function toEntry(row: typeof entries.$inferSelect): Entry {
     kcalMismatch: kcalMismatch(values),
     photoId: row.photoId,
     calcError: row.calcError,
-    items: parseItems(row.detail)
+    items: parseItems(row.detail),
+    productId: row.productId,
+    amountG: row.amountG
   };
 }
 

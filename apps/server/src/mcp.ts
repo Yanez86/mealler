@@ -20,6 +20,8 @@ import { entries } from './db/schema.ts';
 import { isMcpEnabled, publicBase, userFromBearer } from './oauth.ts';
 import { buildDay, thresholdsOn, toEntry, userSlots } from './services.ts';
 import { lastWeight, listWeights, saveWeight } from './routes/weight.ts';
+import { logProduct, searchProducts } from './routes/products.ts';
+import { products } from './db/schema.ts';
 
 const PROTOCOL_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
 const DEFAULT_PROTOCOL = '2025-06-18';
@@ -347,6 +349,64 @@ const TOOLS: Tool[] = [
         thresholds: Object.fromEntries(NUTRIENTS.map((n) => [n, { min: t[n].min, max: t[n].max }])),
         days
       };
+    }
+  },
+  {
+    name: 'search_foods',
+    title: 'Search the food library',
+    description:
+      'Searches the shared library of packaged foods (values per 100 g, from the package label). ' +
+      'Check it before estimating branded products: if found, use log_food so the exact label values are used.',
+    inputSchema: { type: 'object', properties: { query: { type: 'string', description: 'Name, brand or barcode' } }, required: ['query'] },
+    annotations: { readOnlyHint: true },
+    run: (db, _user, args) => {
+      const { query } = z.object({ query: z.string().max(100) }).parse(args ?? {});
+      return {
+        foods: searchProducts(db, query, 10).map((p) => ({
+          product_id: p.id,
+          name: p.name,
+          brand: p.brand,
+          per_100g: { kcal: p.kcal, protein: p.protein, carbs: p.carbs, fat: p.fat, fiber: p.fiber },
+          serving_g: p.servingG,
+          serving_label: p.servingLabel
+        }))
+      };
+    }
+  },
+  {
+    name: 'log_food',
+    title: 'Log a library food',
+    description: 'Logs a food from the library into a meal slot, by grams or by servings; values are computed from the label.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        product_id: { type: 'integer' },
+        grams: { type: 'number' },
+        servings: { type: 'number', description: 'Number of servings, when the product has a serving size' },
+        slot_id: { type: 'integer' },
+        slot_name: { type: 'string' },
+        date: { type: 'string', description: 'YYYY-MM-DD; defaults to today' }
+      },
+      required: ['product_id']
+    },
+    run: (db, user, args) => {
+      const a = z
+        .object({
+          product_id: z.number().int(),
+          grams: z.number().min(0.1).max(5000).optional(),
+          servings: z.number().min(0.1).max(100).optional(),
+          slot_id: z.number().int().optional(),
+          slot_name: z.string().max(100).optional(),
+          date: z.string().optional()
+        })
+        .parse(args ?? {});
+      const product = db.select().from(products).where(eq(products.id, a.product_id)).get();
+      if (!product) throw new ToolError('Food not found in the library');
+      const grams = a.grams ?? (a.servings != null && product.servingG ? a.servings * product.servingG : null);
+      if (grams == null) throw new ToolError('Give grams (this food has no serving size)');
+      const slot = resolveSlot(db, user, a.slot_id, a.slot_name);
+      const entry = logProduct(db, user, product, { slotId: slot.id, date: dateOrToday(user, a.date), grams });
+      return { entry_id: entry.id, slot: slot.name, grams, logged: { kcal: entry.kcal, protein: entry.protein, carbs: entry.carbs, fat: entry.fat, fiber: entry.fiber } };
     }
   },
   {

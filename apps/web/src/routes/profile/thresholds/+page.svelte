@@ -35,6 +35,31 @@
     }
   });
 
+  let notice = $state('');
+
+  /** Fills the form with the SINU LARN reference values for adults, derived from calories and body weight. */
+  async function recommended() {
+    error = notice = '';
+    const kcalMax = toNumber(rows.kcal.max);
+    const kcalMin = toNumber(rows.kcal.min);
+    const kcal = kcalMax ?? kcalMin;
+    if (kcal == null) {
+      error = t('thresholds.needKcal');
+      return;
+    }
+    const pct = (share: number, perGram: number) => Math.round((kcal * share) / perGram);
+    rows.carbs = { min: toText(pct(0.45, 4)), max: toText(pct(0.6, 4)) };
+    rows.fat = { min: toText(pct(0.2, 9)), max: toText(pct(0.35, 9)) };
+    rows.fiber = { min: '25', max: rows.fiber.max };
+    try {
+      const { last } = await get<{ last: { kg: number } | null }>('/weights/last');
+      if (last) rows.protein = { min: toText(Math.round(last.kg * 0.9)), max: rows.protein.max };
+      notice = last ? t('thresholds.filled') : `${t('thresholds.filled')} ${t('thresholds.needWeight')}`;
+    } catch (e) {
+      error = errorMessage(e);
+    }
+  }
+
   async function save(event: SubmitEvent) {
     event.preventDefault();
     error = '';
@@ -66,6 +91,15 @@
     {/snippet}
   </TopBar>
   <p class="muted">{t('thresholds.intro')}</p>
+
+  <section class="card stack">
+    <button class="btn" type="button" onclick={recommended}>{t('thresholds.recommended')}</button>
+    <p class="help">
+      {t('thresholds.recommendedHelp')}
+      <a href="https://eng.sinu.it/tabelle-larn-2014/" target="_blank" rel="noopener">SINU LARN</a>
+    </p>
+    {#if notice}<p class="notice" role="status">{notice}</p>{/if}
+  </section>
 
   <form class="stack" onsubmit={save}>
     {#each NUTRIENTS as n (n)}

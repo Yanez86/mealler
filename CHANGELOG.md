@@ -5,6 +5,16 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e i
 
 ## [Non rilasciato]
 
+## [0.6.0] - 2026-11-09
+
+### Aggiunto
+- Libreria alimenti condivisa tra gli utenti dell'istanza: prodotti confezionati con valori per 100 g e porzione tipica, nella scheda Preferiti → Alimenti.
+- Quattro modi per aggiungere un prodotto: inserimento manuale, scansione del codice a barre (con ricerca su Open Food Facts se non è già in libreria), foto della tabella nutrizionale letta dall'AI.
+- Nella schermata Aggiungi pasto: ricerca o scansione di un prodotto della libreria, quantità in grammi o porzioni, valori calcolati dalla confezione senza consumare calcoli AI.
+- Strumenti del connettore claude.ai search_foods e log_food: Claude usa i valori esatti dei prodotti in libreria.
+- Pulsante "Usa i valori consigliati (LARN)" nelle soglie: carboidrati 45–60% e grassi 20–35% delle calorie, proteine 0,9 g/kg, fibre almeno 25 g.
+- Interruttore in Amministrazione per la ricerca su Open Food Facts.
+
 ## [0.5.2] - 2026-11-09
 
 ### Modificato

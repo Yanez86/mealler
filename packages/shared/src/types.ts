@@ -4,7 +4,7 @@ import type { Locale } from './i18n.ts';
 
 export type Role = 'admin' | 'user';
 export type Theme = 'system' | 'light' | 'dark';
-export type EntrySource = 'manual' | 'claude_ai' | 'in_app' | 'favorite';
+export type EntrySource = 'manual' | 'claude_ai' | 'in_app' | 'favorite' | 'library';
 export type CalcStatus = 'manual' | 'pending' | 'calculated' | 'corrected';
 
 export interface User {
@@ -102,6 +102,8 @@ export interface Entry extends NutrientValues {
   photoId: string | null;
   calcError: string | null;
   items: EstimateItem[] | null;
+  productId: number | null;
+  amountG: number | null;
 }
 
 export interface EstimateItem {
@@ -182,4 +184,37 @@ export interface Invite {
   expiresAt: string;
   usedAt: string | null;
   url: string;
+}
+
+/** A packaged food in the shared library. Nutrient values are per 100 g. */
+export interface Product {
+  id: number;
+  name: string;
+  brand: string | null;
+  barcode: string | null;
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number | null;
+  servingG: number | null;
+  servingLabel: string | null;
+  source: 'manual' | 'label' | 'openfoodfacts';
+  uses: number;
+  canEdit: boolean;
+}
+
+/** Product data proposed by a barcode lookup or a label photo, to be confirmed by the user. */
+export interface ProductDraft {
+  name: string;
+  brand: string | null;
+  barcode: string | null;
+  kcal: number | null;
+  protein: number | null;
+  carbs: number | null;
+  fat: number | null;
+  fiber: number | null;
+  servingG: number | null;
+  servingLabel: string | null;
+  source: 'manual' | 'label' | 'openfoodfacts';
 }

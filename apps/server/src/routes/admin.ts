@@ -17,6 +17,7 @@ import {
 } from '../services.ts';
 import { zEmail, zId, zLocale, zName, zPassword, zTimezone } from '../validation.ts';
 import { isMcpEnabled } from '../oauth.ts';
+import { isOffEnabled } from './products.ts';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -108,12 +109,20 @@ export async function adminRoutes(app: FastifyInstance, { db, config }: AppConte
     return { ok: true };
   });
 
-  const currentSettings = () => ({ registrationOpen: isRegistrationOpen(db), mcpEnabled: isMcpEnabled(db) });
+  const currentSettings = () => ({
+    registrationOpen: isRegistrationOpen(db),
+    mcpEnabled: isMcpEnabled(db),
+    offEnabled: isOffEnabled(db)
+  });
 
   app.get('/settings', async () => currentSettings());
 
   app.patch('/settings', async (request) => {
-    const body = z.object({ registrationOpen: z.boolean(), mcpEnabled: z.boolean() }).partial().parse(request.body);
+    const body = z
+      .object({ registrationOpen: z.boolean(), mcpEnabled: z.boolean(), offEnabled: z.boolean() })
+      .partial()
+      .parse(request.body);
+    if (body.offEnabled !== undefined) setSetting(db, 'off_enabled', String(body.offEnabled));
     if (body.registrationOpen !== undefined) setSetting(db, 'registration_open', String(body.registrationOpen));
     if (body.mcpEnabled !== undefined) setSetting(db, 'mcp_enabled', String(body.mcpEnabled));
     return currentSettings();

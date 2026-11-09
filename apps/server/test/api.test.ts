@@ -72,7 +72,25 @@ async function setupApp() {
     dataDir: mkdtempSync(join(tmpdir(), 'mealler-test-')),
     kick: () => {}
   };
-  const app = await buildApp({ db, config, push, ai }, { logger: false });
+  const foods = {
+    lookup: async (barcode: string) =>
+      barcode === '8013355998702'
+        ? {
+            name: 'Tarallini classici',
+            brand: 'Gran Pavesi',
+            barcode,
+            kcal: 474,
+            protein: 9.4,
+            carbs: 63,
+            fat: 20,
+            fiber: 3.5,
+            servingG: 32,
+            servingLabel: '1 pacchetto (32 g)',
+            source: 'openfoodfacts' as const
+          }
+        : null
+  };
+  const app = await buildApp({ db, config, push, ai, foods }, { logger: false });
   return { app, db, sqlite, push, sent, ai, calls, respondNext: (r: AnthropicResponse) => (nextResponse = r) };
 }
 
@@ -345,7 +363,7 @@ test('claude.ai connector: OAuth 2.1 with PKCE, MCP tools, isolation, refresh an
   assert.equal(res.statusCode, 202);
   res = await mcp({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
   const names = res.json().result.tools.map((t: { name: string }) => t.name);
-  assert.deepEqual(names.sort(), ['add_entry', 'delete_entry', 'get_day', 'get_summary', 'get_thresholds', 'get_weights', 'list_slots', 'log_weight', 'update_entry']);
+  assert.deepEqual(names.sort(), ['add_entry', 'delete_entry', 'get_day', 'get_summary', 'get_thresholds', 'get_weights', 'list_slots', 'log_food', 'log_weight', 'search_foods', 'update_entry']);
 
   res = await mcp({
     jsonrpc: '2.0',
@@ -617,6 +635,75 @@ test('favorites, suggestions, weights, trends, export and bulk estimates', async
   assert.equal(res.json().queued, 2);
   const getUser = (id: number) => db.select().from(users).where(eq(users.id, id)).get();
   assert.equal(await processPendingEntries(ai, getUser), 2);
+
+  await app.close();
+});
+
+test('shared food library: barcode lookup, label reading, logging by grams and servings, permissions', async () => {
+  const { app, respondNext } = await setupApp();
+  let res = await app.inject({ method: 'POST', url: '/api/setup', payload: admin });
+  const asAdmin = { cookie: cookieOf(res) };
+  const slots = (await app.inject({ method: 'GET', url: '/api/slots', headers: asAdmin })).json();
+
+  // Unknown in the library: Open Food Facts proposes a draft.
+  res = await app.inject({ method: 'GET', url: '/api/products/barcode/8013355998702', headers: asAdmin });
+  assert.equal(res.json().product, null);
+  const draft = res.json().draft;
+  assert.equal(draft.brand, 'Gran Pavesi');
+
+  res = await app.inject({ method: 'POST', url: '/api/products', headers: asAdmin, payload: draft });
+  assert.equal(res.statusCode, 200, res.body);
+  const product = res.json();
+  res = await app.inject({ method: 'POST', url: '/api/products', headers: asAdmin, payload: draft });
+  assert.equal(res.statusCode, 409);
+
+  // Now it is found locally.
+  res = await app.inject({ method: 'GET', url: '/api/products/barcode/8013355998702', headers: asAdmin });
+  assert.equal(res.json().product.id, product.id);
+
+  // Log one serving (32 g) and 50 g.
+  res = await app.inject({ method: 'POST', url: `/api/products/${product.id}/log`, headers: asAdmin, payload: { slotId: slots[1].id, date: '2026-11-09', servings: 1 } });
+  assert.equal(res.statusCode, 200, res.body);
+  assert.equal(res.json().kcal, 151.7);
+  assert.equal(res.json().source, 'library');
+  res = await app.inject({ method: 'POST', url: `/api/products/${product.id}/log`, headers: asAdmin, payload: { slotId: slots[1].id, date: '2026-11-09', grams: 50 } });
+  assert.equal(res.json().kcal, 237);
+
+  // Search by name and brand.
+  res = await app.inject({ method: 'GET', url: '/api/products?q=pavesi', headers: asAdmin });
+  assert.equal(res.json().length, 1);
+
+  // Label photo read by AI.
+  await app.inject({ method: 'PATCH', url: '/api/admin/ai', headers: asAdmin, payload: { enabled: true, apiKey: 'sk-ant-label', perMinute: null } });
+  respondNext({
+    status: 200,
+    body: {
+      content: [{ type: 'tool_use', name: 'record_label', input: { name: 'Crackers', kcal_100g: 430, protein_100g: 10, carbs_100g: 70, fat_100g: 11, fiber_100g: -1, serving_g: 25, readable: true } }],
+      usage: { input_tokens: 1500, output_tokens: 100 }
+    }
+  });
+  const photo = { mime: 'image/jpeg', data: Buffer.alloc(300, 2).toString('base64') };
+  res = await app.inject({ method: 'POST', url: '/api/products/label', headers: asAdmin, payload: { photo } });
+  assert.equal(res.statusCode, 200, res.body);
+  assert.equal(res.json().kcal, 430);
+  assert.equal(res.json().fiber, null);
+  assert.equal(res.json().servingG, 25);
+
+  // Shared: another user sees it but cannot edit it.
+  res = await app.inject({ method: 'POST', url: '/api/admin/invites', headers: asAdmin, payload: {} });
+  res = await app.inject({ method: 'POST', url: '/api/register', payload: { token: res.json().token, name: 'Bob', email: 'bob@example.com', password: 'another long password' } });
+  const bob = { cookie: cookieOf(res) };
+  res = await app.inject({ method: 'GET', url: '/api/products?q=taral', headers: bob });
+  assert.equal(res.json()[0].canEdit, false);
+  res = await app.inject({ method: 'DELETE', url: `/api/products/${product.id}`, headers: bob });
+  assert.equal(res.statusCode, 403);
+
+  // Open Food Facts can be switched off by the admin.
+  await app.inject({ method: 'PATCH', url: '/api/admin/settings', headers: asAdmin, payload: { offEnabled: false } });
+  res = await app.inject({ method: 'GET', url: '/api/products/barcode/8013355998702', headers: bob });
+  assert.ok(res.json().product);
+  res = await app.inject({ method: 'GET', url: '/api/products/barcode/12345678', headers: bob });
+  assert.equal(res.json().draft, null);
 
   await app.close();
 });

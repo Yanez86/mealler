@@ -23,6 +23,7 @@
   import { app, errorMessage, formatDate, formatNumber, t } from '$lib/state.svelte';
   import Icon from '$lib/Icon.svelte';
   import TopBar from '$lib/TopBar.svelte';
+  import LibraryPicker from '$lib/LibraryPicker.svelte';
 
   const params = page.url.searchParams;
   const entryId = Number(params.get('entry')) || null;
@@ -285,6 +286,10 @@
           {/each}
         </div>
       </fieldset>
+
+      {#if !entryId}
+        <LibraryPicker {slotId} {date} onlogged={() => goto(back)} />
+      {/if}
 
       {#if !entryId && quick.length}
         <section class="field" aria-labelledby="quick-title">

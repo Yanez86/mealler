@@ -13,6 +13,7 @@
   let invites = $state<Invite[]>([]);
   let registrationOpen = $state(false);
   let mcpEnabled = $state(false);
+  let offEnabled = $state(true);
   let error = $state('');
   let copied = $state<string | null>(null);
 
@@ -28,9 +29,10 @@
   async function load() {
     try {
       [users, invites] = await Promise.all([get<User[]>('/admin/users'), get<Invite[]>('/admin/invites')]);
-      const settings = await get<{ registrationOpen: boolean; mcpEnabled: boolean }>('/admin/settings');
+      const settings = await get<{ registrationOpen: boolean; mcpEnabled: boolean; offEnabled: boolean }>('/admin/settings');
       registrationOpen = settings.registrationOpen;
       mcpEnabled = settings.mcpEnabled;
+      offEnabled = settings.offEnabled;
     } catch (e) {
       error = errorMessage(e);
     }
@@ -51,6 +53,7 @@
   const revoke = (i: Invite) => run(() => del(`/admin/invites/${encodeURIComponent(i.token)}`));
   const setRegistration = () => run(() => patch('/admin/settings', { registrationOpen: !registrationOpen }));
   const setMcp = () => run(() => patch('/admin/settings', { mcpEnabled: !mcpEnabled }));
+  const setOff = () => run(() => patch('/admin/settings', { offEnabled: !offEnabled }));
   const update = $derived(
     app.status && isNewerVersion(app.status.latestVersion, app.status.version) ? app.status.latestVersion : null
   );
@@ -105,6 +108,10 @@
     <label class="check">
       <input type="checkbox" checked={mcpEnabled} onchange={setMcp} />
       <span>{t('admin.mcp')}<br /><span class="muted small">{t('admin.mcpHelp')}</span></span>
+    </label>
+    <label class="check">
+      <input type="checkbox" checked={offEnabled} onchange={setOff} />
+      <span>{t('admin.off')}<br /><span class="muted small">{t('admin.offHelp')}</span></span>
     </label>
   </section>
 

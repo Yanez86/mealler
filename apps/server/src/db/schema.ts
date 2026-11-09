@@ -88,13 +88,15 @@ export const entries = sqliteTable('entries', {
   fat: real('fat'),
   fiber: real('fiber'),
   detail: text('detail'),
-  source: text('source', { enum: ['manual', 'claude_ai', 'in_app', 'favorite'] }).notNull().default('manual'),
+  source: text('source', { enum: ['manual', 'claude_ai', 'in_app', 'favorite', 'library'] }).notNull().default('manual'),
   calcStatus: text('calc_status', { enum: ['manual', 'pending', 'calculated', 'corrected'] })
     .notNull()
     .default('manual'),
   notes: text('notes'),
   photoId: text('photo_id'),
   calcError: text('calc_error'),
+  productId: integer('product_id'),
+  amountG: real('amount_g'),
   createdAt: text('created_at').notNull().$defaultFn(now),
   updatedAt: text('updated_at').notNull().$defaultFn(now)
 });
@@ -194,4 +196,23 @@ export const weights = sqliteTable('weights', {
   kg: real('kg').notNull(),
   note: text('note'),
   createdAt: text('created_at').notNull().$defaultFn(now)
+});
+
+export const products = sqliteTable('products', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  brand: text('brand'),
+  barcode: text('barcode'),
+  kcal: real('kcal').notNull(),
+  protein: real('protein').notNull(),
+  carbs: real('carbs').notNull(),
+  fat: real('fat').notNull(),
+  fiber: real('fiber'),
+  servingG: real('serving_g'),
+  servingLabel: text('serving_label'),
+  source: text('source', { enum: ['manual', 'label', 'openfoodfacts'] }).notNull().default('manual'),
+  createdBy: integer('created_by'),
+  uses: integer('uses').notNull().default(0),
+  createdAt: text('created_at').notNull().$defaultFn(now),
+  updatedAt: text('updated_at').notNull().$defaultFn(now)
 });
