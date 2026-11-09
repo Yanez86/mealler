@@ -3,6 +3,11 @@
 Tutte le modifiche rilevanti di Mealler sono annotate qui.
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il [versionamento semantico](https://semver.org/lang/it/).
 
+## [1.2.1] - 2026-11-09
+
+### Modificato
+- Nuova schermata di avvio: dietro il logo c'è un reticolo inclinato con le icone di tutte le categorie di alimenti, che sfuma verso il basso. In fondo, la coscia di pollo che gira durante il caricamento, la versione e la firma Happy Squid inc.
+
 ## [1.2.0] - 2026-11-09
 
 ### Aggiunto

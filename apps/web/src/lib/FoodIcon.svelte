@@ -1,12 +1,10 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <!-- Colored food-category icon, drawn in the style of the Mealler logo (files in static/food). -->
 <!-- Decorative for screen readers (the food's name is always written next to it); the category is a tooltip. -->
-<script lang="ts">
+<script module lang="ts">
   import type { FoodCategory } from '@mealler/shared';
-  import { t } from './state.svelte';
-
   // Badge tint for each category, taken from the icon's main color.
-  const tints: Record<FoodCategory, string> = {
+  export const tints: Record<FoodCategory, string> = {
     fruit: '#E04F3F',
     vegetables: '#4E9E45',
     legumes: '#7CC36E',
@@ -25,6 +23,10 @@
     alcohol: '#A62B4D',
     other: '#0F766E'
   };
+</script>
+
+<script lang="ts">
+  import { t } from './state.svelte';
 
   let { category, size = 40, badge = true }: { category: FoodCategory; size?: number; badge?: boolean } = $props();
 </script>
