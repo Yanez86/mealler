@@ -14,6 +14,7 @@ import {
   verifyPassword
 } from '../auth.ts';
 import { invites, sessions, users } from '../db/schema.ts';
+import { latestVersion } from '../updates.ts';
 import { HttpError, conflict, forbidden } from '../http.ts';
 import {
   countUsers,
@@ -31,6 +32,7 @@ export async function authRoutes(app: FastifyInstance, { db, config }: AppContex
     setupRequired: countUsers(db) === 0,
     registrationOpen: isRegistrationOpen(db),
     version: config.version,
+    latestVersion: latestVersion(config.updateCheck),
     sourceUrl: config.sourceUrl
   }));
 

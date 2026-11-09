@@ -13,6 +13,7 @@ export interface Config {
   sourceUrl: string;
   version: string;
   logLevel: string;
+  updateCheck: boolean;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -26,6 +27,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     baseUrl,
     sourceUrl: env.MEALLER_SOURCE_URL ?? 'https://github.com/Yanez86/mealler',
     version: typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev',
-    logLevel: env.LOG_LEVEL ?? 'info'
+    logLevel: env.LOG_LEVEL ?? 'info',
+    updateCheck: env.MEALLER_UPDATE_CHECK !== 'false'
   };
 }

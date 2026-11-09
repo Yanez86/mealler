@@ -102,6 +102,37 @@ export const thresholds = sqliteTable('thresholds', {
   createdAt: text('created_at').notNull().$defaultFn(now)
 });
 
+export const oauthClients = sqliteTable('oauth_clients', {
+  clientId: text('client_id').primaryKey(),
+  clientSecretHash: text('client_secret_hash'),
+  name: text('name').notNull(),
+  redirectUris: text('redirect_uris').notNull(),
+  createdAt: text('created_at').notNull().$defaultFn(now)
+});
+
+export const oauthCodes = sqliteTable('oauth_codes', {
+  codeHash: text('code_hash').primaryKey(),
+  clientId: text('client_id').notNull(),
+  userId: integer('user_id').notNull(),
+  redirectUri: text('redirect_uri').notNull(),
+  codeChallenge: text('code_challenge').notNull(),
+  scope: text('scope').notNull(),
+  expiresAt: integer('expires_at').notNull()
+});
+
+export const oauthTokens = sqliteTable('oauth_tokens', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  clientId: text('client_id').notNull(),
+  userId: integer('user_id').notNull(),
+  accessHash: text('access_hash').notNull(),
+  refreshHash: text('refresh_hash').notNull(),
+  scope: text('scope').notNull(),
+  accessExpiresAt: integer('access_expires_at').notNull(),
+  refreshExpiresAt: integer('refresh_expires_at').notNull(),
+  createdAt: text('created_at').notNull().$defaultFn(now),
+  lastUsedAt: text('last_used_at')
+});
+
 export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
   value: text('value').notNull()

@@ -2,7 +2,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import type { Invite, User } from '@mealler/shared';
+  import { isNewerVersion, type Invite, type User } from '@mealler/shared';
   import { del, get, patch, post } from '$lib/api';
   import { app, errorMessage, formatDate, t } from '$lib/state.svelte';
   import Icon from '$lib/Icon.svelte';
@@ -11,6 +11,7 @@
   let users = $state<User[]>([]);
   let invites = $state<Invite[]>([]);
   let registrationOpen = $state(false);
+  let mcpEnabled = $state(false);
   let error = $state('');
   let copied = $state<string | null>(null);
 
@@ -26,7 +27,9 @@
   async function load() {
     try {
       [users, invites] = await Promise.all([get<User[]>('/admin/users'), get<Invite[]>('/admin/invites')]);
-      registrationOpen = (await get<{ registrationOpen: boolean }>('/admin/settings')).registrationOpen;
+      const settings = await get<{ registrationOpen: boolean; mcpEnabled: boolean }>('/admin/settings');
+      registrationOpen = settings.registrationOpen;
+      mcpEnabled = settings.mcpEnabled;
     } catch (e) {
       error = errorMessage(e);
     }
@@ -46,6 +49,10 @@
   const setRole = (u: User, role: 'admin' | 'user') => run(() => patch(`/admin/users/${u.id}`, { role }));
   const revoke = (i: Invite) => run(() => del(`/admin/invites/${encodeURIComponent(i.token)}`));
   const setRegistration = () => run(() => patch('/admin/settings', { registrationOpen: !registrationOpen }));
+  const setMcp = () => run(() => patch('/admin/settings', { mcpEnabled: !mcpEnabled }));
+  const update = $derived(
+    app.status && isNewerVersion(app.status.latestVersion, app.status.version) ? app.status.latestVersion : null
+  );
 
   async function createInvite(event: SubmitEvent) {
     event.preventDefault();
@@ -84,6 +91,21 @@
     {/snippet}
   </TopBar>
   {#if error}<p class="error" role="alert">{error}</p>{/if}
+
+  {#if update}
+    <div class="notice" role="status">
+      <p><strong>{t('update.available', { v: update })}</strong></p>
+      <p class="small">{t('update.how')}</p>
+    </div>
+  {/if}
+
+  <section class="card stack" aria-labelledby="mcp-title">
+    <h2 id="mcp-title" class="section-title">{t('admin.mcp')}</h2>
+    <label class="check">
+      <input type="checkbox" checked={mcpEnabled} onchange={setMcp} />
+      <span>{t('admin.mcp')}<br /><span class="muted small">{t('admin.mcpHelp')}</span></span>
+    </label>
+  </section>
 
   <section class="card" aria-labelledby="users-title">
     <h2 id="users-title" class="section-title">{t('admin.users')}</h2>

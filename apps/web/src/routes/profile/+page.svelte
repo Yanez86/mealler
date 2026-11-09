@@ -72,6 +72,7 @@
     <a class="list-row" href="/profile/slots"><span>{t('profile.slots')}</span><Icon name="chevron" /></a>
     <a class="list-row" href="/profile/thresholds"><span>{t('profile.thresholds')}</span><Icon name="chevron" /></a>
     <a class="list-row" href="/profile/notifications"><span>{t('profile.notifications')}</span><Icon name="chevron" /></a>
+    <a class="list-row" href="/profile/connector"><span>{t('profile.connector')}</span><Icon name="chevron" /></a>
     {#if user.role === 'admin'}
       <a class="list-row" href="/admin"><span>{t('profile.admin')}</span><Icon name="chevron" /></a>
     {/if}
@@ -130,7 +131,7 @@
   <section class="about muted small" aria-label={t('profile.about')}>
     <p>{t('common.license')}</p>
     <p>
-      {t('common.version', { v: app.status?.version ?? '' })} ·
+      {t('common.version', { v: app.status?.version ?? __APP_VERSION__ })} ·
       <a href={app.status?.sourceUrl ?? 'https://github.com/Yanez86/mealler'} rel="noopener" target="_blank">{t('common.source')}</a>
     </p>
   </section>

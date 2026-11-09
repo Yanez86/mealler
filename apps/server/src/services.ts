@@ -6,9 +6,15 @@ import {
   NUTRIENTS,
   isLocale,
   kcalMismatch,
+  slotActiveOn,
+  sumValues,
+  thresholdStatus,
+  todayIn,
+  type DayResponse,
   type Entry,
   type Locale,
   type Nutrient,
+  type NutrientSummary,
   type Slot,
   type User
 } from '@mealler/shared';
@@ -152,4 +158,31 @@ export function userSlots(db: Db, userId: number, includeArchived: boolean) {
     ? eq(slots.userId, userId)
     : and(eq(slots.userId, userId), eq(slots.archived, false));
   return db.select().from(slots).where(where).orderBy(asc(slots.position), asc(slots.time), asc(slots.id)).all();
+}
+
+/** Everything the day view needs: slots active that day (plus any with entries), entries, totals vs thresholds. */
+export function buildDay(db: Db, user: UserRow, date: string): DayResponse {
+  const dayEntries = db
+    .select()
+    .from(entries)
+    .where(and(eq(entries.userId, user.id), eq(entries.date, date)))
+    .orderBy(asc(entries.createdAt), asc(entries.id))
+    .all()
+    .map(toEntry);
+  const used = new Set(dayEntries.map((e) => e.slotId));
+  const daySlots = userSlots(db, user.id, true)
+    .filter((s) => used.has(s.id) || (!s.archived && slotActiveOn(s.days, date)))
+    .map(toSlot)
+    .map((slot) => {
+      const list = dayEntries.filter((e) => e.slotId === slot.id);
+      return { slot, entries: list, totals: sumValues(list) };
+    });
+  const totals = sumValues(dayEntries);
+  const limits = thresholdsOn(db, user.id, date);
+  const summary = {} as Record<Nutrient, NutrientSummary>;
+  for (const n of NUTRIENTS) {
+    const { min, max } = limits[n];
+    summary[n] = { value: totals[n], min, max, status: thresholdStatus(totals[n], min, max) };
+  }
+  return { date, today: todayIn(user.timezone), slots: daySlots, summary };
 }

@@ -33,6 +33,7 @@ export interface Status {
   setupRequired: boolean;
   registrationOpen: boolean;
   version: string;
+  latestVersion: string | null;
   sourceUrl: string;
 }
 

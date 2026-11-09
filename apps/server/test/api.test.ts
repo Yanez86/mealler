@@ -13,6 +13,7 @@ async function setupApp() {
   const config = {
     ...loadConfig({}),
     publicDir: '/nonexistent',
+    updateCheck: false,
     migrationsDir: fileURLToPath(new URL('../migrations', import.meta.url))
   };
   const { sqlite, db } = openDatabase('', ':memory:');
@@ -199,6 +200,169 @@ test('slot reminders respect time, filled slots, quiet hours and pauses', async 
   assert.equal(res.json().delivered, 1);
   res = await app.inject({ method: 'POST', url: '/api/push/test', headers });
   assert.equal(sent.filter((s) => s.endpoint.endsWith('/gone')).length, 1);
+
+  await app.close();
+});
+
+test('claude.ai connector: OAuth 2.1 with PKCE, MCP tools, isolation, refresh and revoke', async () => {
+  const { createHash } = await import('node:crypto');
+  const { app } = await setupApp();
+  let res = await app.inject({ method: 'POST', url: '/api/setup', payload: admin });
+  const adminCookie = cookieOf(res);
+  const asAdmin = { cookie: adminCookie };
+
+  // Disabled by default: discovery and MCP are hidden.
+  res = await app.inject({ method: 'GET', url: '/.well-known/oauth-authorization-server' });
+  assert.equal(res.statusCode, 404);
+  res = await app.inject({ method: 'POST', url: '/mcp', payload: { jsonrpc: '2.0', id: 1, method: 'ping' } });
+  assert.equal(res.statusCode, 404);
+
+  res = await app.inject({ method: 'PATCH', url: '/api/admin/settings', headers: asAdmin, payload: { mcpEnabled: true } });
+  assert.equal(res.json().mcpEnabled, true);
+
+  // Unauthenticated MCP call points to the protected-resource metadata.
+  res = await app.inject({ method: 'POST', url: '/mcp', payload: { jsonrpc: '2.0', id: 1, method: 'ping' } });
+  assert.equal(res.statusCode, 401);
+  assert.match(String(res.headers['www-authenticate']), /resource_metadata=".*\/\.well-known\/oauth-protected-resource"/);
+
+  res = await app.inject({ method: 'GET', url: '/.well-known/oauth-protected-resource' });
+  assert.equal(res.statusCode, 200);
+  res = await app.inject({ method: 'GET', url: '/.well-known/oauth-authorization-server' });
+  const meta = res.json();
+  assert.deepEqual(meta.code_challenge_methods_supported, ['S256']);
+
+  // Dynamic client registration.
+  const redirectUri = 'https://claude.ai/api/mcp/auth_callback';
+  res = await app.inject({
+    method: 'POST',
+    url: '/oauth/register',
+    payload: { client_name: 'Claude', redirect_uris: [redirectUri], token_endpoint_auth_method: 'none' }
+  });
+  assert.equal(res.statusCode, 201, res.body);
+  const clientId = res.json().client_id;
+  res = await app.inject({ method: 'POST', url: '/oauth/register', payload: { redirect_uris: ['http://evil.example.com/cb'] } });
+  assert.equal(res.statusCode, 400);
+
+  // Authorization request with PKCE.
+  const verifier = 'v'.repeat(64);
+  const challenge = createHash('sha256').update(verifier).digest('base64url');
+  const params = {
+    response_type: 'code',
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    code_challenge: challenge,
+    code_challenge_method: 'S256',
+    state: 'xyz'
+  };
+  const qs = new URLSearchParams(params).toString();
+  res = await app.inject({ method: 'GET', url: `/oauth/authorize?${qs}` });
+  assert.equal(res.statusCode, 302);
+  assert.equal(res.headers.location, `/consent?${qs}`);
+  res = await app.inject({ method: 'GET', url: `/oauth/authorize?${qs.replace('claude.ai', 'evil.example.com')}` });
+  assert.equal(res.statusCode, 400);
+
+  res = await app.inject({ method: 'GET', url: `/api/oauth/request?${qs}`, headers: asAdmin });
+  assert.equal(res.json().clientName, 'Claude');
+  res = await app.inject({ method: 'POST', url: '/api/oauth/decision', headers: asAdmin, payload: { approve: true, params } });
+  const redirect = new URL(res.json().redirect);
+  assert.equal(redirect.searchParams.get('state'), 'xyz');
+  const code = redirect.searchParams.get('code')!;
+
+  const form = (body: Record<string, string>) => ({
+    method: 'POST' as const,
+    url: '/oauth/token',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    payload: new URLSearchParams(body).toString()
+  });
+
+  // Wrong verifier fails, and burns the code.
+  res = await app.inject(form({ grant_type: 'authorization_code', code, redirect_uri: redirectUri, client_id: clientId, code_verifier: 'w'.repeat(64) }));
+  assert.equal(res.statusCode, 400);
+  res = await app.inject(form({ grant_type: 'authorization_code', code, redirect_uri: redirectUri, client_id: clientId, code_verifier: verifier }));
+  assert.equal(res.statusCode, 400);
+
+  // Fresh code, correct verifier.
+  res = await app.inject({ method: 'POST', url: '/api/oauth/decision', headers: asAdmin, payload: { approve: true, params } });
+  const code2 = new URL(res.json().redirect).searchParams.get('code')!;
+  res = await app.inject(form({ grant_type: 'authorization_code', code: code2, redirect_uri: redirectUri, client_id: clientId, code_verifier: verifier }));
+  assert.equal(res.statusCode, 200, res.body);
+  const tokens = res.json();
+  assert.equal(tokens.token_type, 'Bearer');
+
+  const mcp = (body: unknown, token = tokens.access_token) =>
+    app.inject({ method: 'POST', url: '/mcp', headers: { authorization: `Bearer ${token}` }, payload: body as object });
+
+  res = await mcp({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '1' } } });
+  assert.equal(res.json().result.protocolVersion, '2025-06-18');
+  assert.match(res.json().result.instructions, /Europe\/Rome/);
+  res = await mcp({ jsonrpc: '2.0', method: 'notifications/initialized' });
+  assert.equal(res.statusCode, 202);
+  res = await mcp({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
+  const names = res.json().result.tools.map((t: { name: string }) => t.name);
+  assert.deepEqual(names.sort(), ['add_entry', 'delete_entry', 'get_day', 'get_summary', 'get_thresholds', 'list_slots', 'update_entry']);
+
+  res = await mcp({
+    jsonrpc: '2.0',
+    id: 3,
+    method: 'tools/call',
+    params: {
+      name: 'add_entry',
+      arguments: {
+        date: '2026-11-09',
+        slot_name: 'pranzo',
+        description: 'Pasta al pomodoro e insalata',
+        items: [
+          { name: 'Pasta al pomodoro', quantity: '120 g', kcal: 520, protein: 16, carbs: 95, fat: 8 },
+          { name: 'Insalata con olio', kcal: 120, protein: 2, carbs: 5, fat: 10, fiber: 3 }
+        ]
+      }
+    }
+  });
+  const added = res.json().result;
+  assert.equal(added.isError, undefined, JSON.stringify(added));
+  assert.equal(added.structuredContent.logged.kcal, 640);
+  assert.equal(added.structuredContent.slot, 'Pranzo');
+
+  res = await mcp({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'add_entry', arguments: { description: 'x', slot_name: 'Brunch' } } });
+  assert.equal(res.json().result.isError, true);
+  assert.match(res.json().result.content[0].text, /Colazione/);
+
+  res = await mcp({ jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'get_summary', arguments: { from: '2026-11-03', to: '2026-11-09' } } });
+  assert.equal(res.json().result.structuredContent.averages.kcal, 640);
+
+  // The web diary shows the entry as a Claude estimate.
+  res = await app.inject({ method: 'GET', url: '/api/day/2026-11-09', headers: asAdmin });
+  const lunch = res.json().slots.find((s: { slot: { name: string } }) => s.slot.name === 'Pranzo');
+  assert.equal(lunch.entries[0].source, 'claude_ai');
+
+  // Another user's token cannot reach this entry.
+  res = await app.inject({ method: 'POST', url: '/api/admin/invites', headers: asAdmin, payload: {} });
+  res = await app.inject({ method: 'POST', url: '/api/register', payload: { token: res.json().token, name: 'Bob', email: 'bob@example.com', password: 'another long password' } });
+  const bob = { cookie: cookieOf(res) };
+  res = await app.inject({ method: 'POST', url: '/api/oauth/decision', headers: bob, payload: { approve: true, params } });
+  const bobCode = new URL(res.json().redirect).searchParams.get('code')!;
+  res = await app.inject(form({ grant_type: 'authorization_code', code: bobCode, redirect_uri: redirectUri, client_id: clientId, code_verifier: verifier }));
+  const bobToken = res.json().access_token;
+  res = await mcp({ jsonrpc: '2.0', id: 6, method: 'tools/call', params: { name: 'delete_entry', arguments: { entry_id: added.structuredContent.entry_id } } }, bobToken);
+  assert.equal(res.json().result.isError, true);
+
+  // Refresh rotates the tokens.
+  res = await app.inject(form({ grant_type: 'refresh_token', refresh_token: tokens.refresh_token, client_id: clientId }));
+  assert.equal(res.statusCode, 200, res.body);
+  const rotated = res.json();
+  res = await app.inject(form({ grant_type: 'refresh_token', refresh_token: tokens.refresh_token, client_id: clientId }));
+  assert.equal(res.statusCode, 400);
+  res = await mcp({ jsonrpc: '2.0', id: 7, method: 'ping' }, tokens.access_token);
+  assert.equal(res.statusCode, 401);
+  res = await mcp({ jsonrpc: '2.0', id: 8, method: 'ping' }, rotated.access_token);
+  assert.equal(res.statusCode, 200);
+
+  // The user sees and revokes the connection from the web app.
+  res = await app.inject({ method: 'GET', url: '/api/oauth/connections', headers: asAdmin });
+  assert.equal(res.json().length, 1);
+  await app.inject({ method: 'DELETE', url: `/api/oauth/connections/${clientId}`, headers: asAdmin });
+  res = await mcp({ jsonrpc: '2.0', id: 9, method: 'ping' }, rotated.access_token);
+  assert.equal(res.statusCode, 401);
 
   await app.close();
 });

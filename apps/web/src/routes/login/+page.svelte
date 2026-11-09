@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <script lang="ts">
-  import { goto } from '$app/navigation';
   import type { User } from '@mealler/shared';
   import { post } from '$lib/api';
   import { app, errorMessage, setUser, t } from '$lib/state.svelte';
@@ -16,8 +15,8 @@
     busy = true;
     error = '';
     try {
+      // The layout sends a logged-in user on to ?next= (or Today).
       setUser(await post<User>('/auth/login', { email, password }));
-      await goto('/', { replaceState: true });
     } catch (e) {
       error = errorMessage(e);
     } finally {

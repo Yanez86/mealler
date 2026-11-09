@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { thresholdStatus, sumValues, kcalMismatch } from './nutrients.ts';
 import { isIsoDate, addDays, isoWeekday, slotActiveOn, todayIn, isValidTime, inTimeRange, nowIn } from './dates.ts';
 import { translate, MESSAGES } from './i18n.ts';
+import { isNewerVersion } from './version.ts';
 
 test('thresholdStatus handles optional bounds', () => {
   assert.equal(thresholdStatus(50, null, null), 'none');
@@ -53,4 +54,12 @@ test('translations are complete and interpolate', () => {
   assert.deepEqual(Object.keys(MESSAGES.en).sort(), Object.keys(MESSAGES.it).sort());
   assert.equal(translate('it', 'day.filled', { n: 3, total: 5 }), '3 di 5 compilati');
   assert.equal(translate('en', 'day.kcalLeft', { n: 760 }), '760 left');
+});
+
+test('version comparison', () => {
+  assert.equal(isNewerVersion('0.3.0', '0.2.0'), true);
+  assert.equal(isNewerVersion('0.10.0', '0.9.9'), true);
+  assert.equal(isNewerVersion('0.2.0', '0.2.0'), false);
+  assert.equal(isNewerVersion(null, '0.2.0'), false);
+  assert.equal(isNewerVersion('0.3.0', 'dev'), false);
 });

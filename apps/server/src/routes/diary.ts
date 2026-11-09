@@ -1,24 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import type { FastifyInstance } from 'fastify';
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import {
-  ALL_DAYS,
-  NUTRIENTS,
-  slotActiveOn,
-  sumValues,
-  thresholdStatus,
-  todayIn,
-  type DayResponse,
-  type Nutrient,
-  type NutrientSummary,
-  type Threshold
-} from '@mealler/shared';
+import { ALL_DAYS, NUTRIENTS, todayIn, type DayResponse, type Threshold } from '@mealler/shared';
 import type { AppContext } from '../app.ts';
 import { requireUser } from '../auth.ts';
 import { entries, slots, thresholds } from '../db/schema.ts';
 import { badRequest, notFound } from '../http.ts';
-import { thresholdsOn, toEntry, toSlot, userSlots } from '../services.ts';
+import { buildDay, thresholdsOn, toEntry, toSlot, userSlots } from '../services.ts';
 import {
   zAmount,
   zDate,
@@ -188,29 +177,7 @@ export async function diaryRoutes(app: FastifyInstance, { db }: AppContext) {
   app.get('/day/:date', async (request): Promise<DayResponse> => {
     const user = requireUser(request);
     const { date } = z.object({ date: zDate }).parse(request.params);
-    const dayEntries = db
-      .select()
-      .from(entries)
-      .where(and(eq(entries.userId, user.id), eq(entries.date, date)))
-      .orderBy(asc(entries.createdAt), asc(entries.id))
-      .all()
-      .map(toEntry);
-    const used = new Set(dayEntries.map((e) => e.slotId));
-    const daySlots = userSlots(db, user.id, true)
-      .filter((s) => used.has(s.id) || (!s.archived && slotActiveOn(s.days, date)))
-      .map(toSlot)
-      .map((slot) => {
-        const list = dayEntries.filter((e) => e.slotId === slot.id);
-        return { slot, entries: list, totals: sumValues(list) };
-      });
-    const totals = sumValues(dayEntries);
-    const limits = thresholdsOn(db, user.id, date);
-    const summary = {} as Record<Nutrient, NutrientSummary>;
-    for (const n of NUTRIENTS) {
-      const { min, max } = limits[n];
-      summary[n] = { value: totals[n], min, max, status: thresholdStatus(totals[n], min, max) };
-    }
-    return { date, today: todayIn(user.timezone), slots: daySlots, summary };
+    return buildDay(db, user, date);
   });
 
   // ---------- Thresholds ----------

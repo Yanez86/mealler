@@ -9,25 +9,48 @@
   import { app, setUser, t } from '$lib/state.svelte';
   import Icon from '$lib/Icon.svelte';
   import { flushQueue, net } from '$lib/offline.svelte';
+  import Splash from '$lib/Splash.svelte';
 
   let { children }: { children: Snippet } = $props();
   let ready = $state(false);
+  let splashMessage = $state(t('splash.starting'));
+  const SPLASH_MIN_MS = 700;
 
   const PUBLIC = ['/login', '/setup', '/register'];
   const path = $derived(page.url.pathname);
   const isPublic = $derived(PUBLIC.includes(path));
 
   onMount(async () => {
+    const started = Date.now();
     try {
       app.status = await get<Status>('/status');
     } catch {
       app.status = null;
+      if (!navigator.onLine) splashMessage = t('splash.offline');
     }
+
+    // Version check: if the server runs a newer build than the app cached on this device,
+    // refresh once so the service worker and assets are updated.
+    const serverVersion = app.status?.version;
+    if (serverVersion && serverVersion !== 'dev' && serverVersion !== __APP_VERSION__ && navigator.onLine) {
+      const key = 'mealler-reloaded-for';
+      if (sessionStorage.getItem(key) !== serverVersion) {
+        sessionStorage.setItem(key, serverVersion);
+        splashMessage = t('splash.updating', { v: serverVersion });
+        const registration = await navigator.serviceWorker?.getRegistration().catch(() => undefined);
+        await registration?.update().catch(() => {});
+        location.reload();
+        return;
+      }
+    }
+
     try {
       setUser(await get<User>('/me'));
     } catch {
       setUser(null);
     }
+    const wait = SPLASH_MIN_MS - (Date.now() - started);
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
     ready = true;
   });
 
@@ -41,9 +64,12 @@
     if (app.status?.setupRequired) {
       if (path !== '/setup') goto('/setup', { replaceState: true });
     } else if (!app.user && !isPublic) {
-      goto('/login', { replaceState: true });
+      // Remember where the user was going (e.g. the claude.ai consent screen).
+      const next = path === '/' ? '' : `?next=${encodeURIComponent(path + page.url.search)}`;
+      goto(`/login${next}`, { replaceState: true });
     } else if (app.user && isPublic) {
-      goto('/', { replaceState: true });
+      const next = page.url.searchParams.get('next');
+      goto(next && next.startsWith('/') && !next.startsWith('//') ? next : '/', { replaceState: true });
     }
   });
 
@@ -76,14 +102,10 @@
     </nav>
   {/if}
 {:else}
-  <p class="loading muted" role="status">{t('common.loading')}</p>
+  <Splash message={splashMessage} version={app.status?.version ?? __APP_VERSION__} />
 {/if}
 
 <style>
-  .loading {
-    padding: 48px 16px;
-    text-align: center;
-  }
   .tabbar {
     position: fixed;
     left: 0;

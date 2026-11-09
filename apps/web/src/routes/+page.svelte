@@ -181,6 +181,9 @@
                   <li>
                     <a href="/add?entry={entry.id}">
                       <span class="desc">{entry.description}</span>
+                      {#if entry.source === 'claude_ai' || entry.source === 'in_app'}
+                        <span class="claude"><Icon name="sparkle" size={12} />{t('day.estimate')}</span>
+                      {/if}
                       {#if entry.kcalMismatch}
                         <span class="flag"><Icon name="alert" size={14} />{t('day.mismatch')}</span>
                       {/if}
@@ -355,6 +358,18 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .claude {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    background: var(--accent-soft);
+    color: var(--accent-ink);
   }
   .flag {
     display: inline-flex;

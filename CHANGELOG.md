@@ -5,6 +5,20 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e i
 
 ## [Non rilasciato]
 
+## [0.3.0] - 2026-11-09
+
+### Aggiunto
+- Connettore per claude.ai: endpoint MCP `/mcp` con gli strumenti `list_slots`, `get_day`, `add_entry`, `update_entry`, `delete_entry`, `get_thresholds` e `get_summary`. Claude stima porzioni e valori e li registra nel diario con il dettaglio per alimento.
+- Server di autorizzazione OAuth 2.1 integrato: discovery, registrazione dinamica dei client, PKCE S256 obbligatorio, token che si rinnovano e revoca.
+- Schermata di consenso, pagina Connettore claude.ai con le istruzioni e l'elenco delle app collegate, revocabili.
+- Interruttore in Amministrazione per attivare il connettore (disattivato di default).
+- Le voci registrate da Claude sono segnate come "Stima Claude" nel diario.
+- Splash all'avvio con logo e versione; se l'app sul dispositivo è più vecchia del server si aggiorna da sola.
+- Avviso agli amministratori quando su GitHub c'è una versione più recente (disattivabile con `MEALLER_UPDATE_CHECK=false`).
+
+### Modificato
+- Dopo il login si torna alla pagina richiesta (per esempio la schermata di consenso).
+
 ## [0.2.0] - 2026-11-09
 
 ### Aggiunto

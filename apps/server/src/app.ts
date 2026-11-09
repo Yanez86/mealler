@@ -13,6 +13,8 @@ import { authRoutes } from './routes/auth.ts';
 import { adminRoutes } from './routes/admin.ts';
 import { diaryRoutes } from './routes/diary.ts';
 import { pushRoutes } from './routes/push.ts';
+import { oauthApiRoutes, oauthRoutes } from './oauth.ts';
+import { mcpRoutes } from './mcp.ts';
 import type { PushSender } from './push.ts';
 
 export interface AppContext {
@@ -32,6 +34,11 @@ export async function buildApp(ctx: AppContext, opts: { logger?: boolean } = {})
   await app.register(cookie);
   await app.register(rateLimit, { global: false });
 
+  // OAuth token requests are form-encoded.
+  app.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string' }, (_request, body, done) => {
+    done(null, Object.fromEntries(new URLSearchParams(body as string)));
+  });
+
   app.decorateRequest('user', null);
   app.addHook('onSend', async (_request, reply, payload) => {
     reply.header('X-Content-Type-Options', 'nosniff');
@@ -50,11 +57,14 @@ export async function buildApp(ctx: AppContext, opts: { logger?: boolean } = {})
       await api.register(async (scope) => diaryRoutes(scope, ctx));
       await api.register(async (scope) => adminRoutes(scope, ctx), { prefix: '/admin' });
       await api.register(async (scope) => pushRoutes(scope, ctx), { prefix: '/push' });
+      await api.register(async (scope) => oauthApiRoutes(scope, ctx));
     },
     { prefix: '/api' }
   );
 
   app.get('/healthz', async () => ({ ok: true }));
+  await app.register(async (scope) => oauthRoutes(scope, ctx));
+  await app.register(async (scope) => mcpRoutes(scope, ctx));
 
   const hasWeb = existsSync(join(ctx.config.publicDir, 'index.html'));
   if (hasWeb) {

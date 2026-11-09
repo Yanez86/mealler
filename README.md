@@ -9,7 +9,7 @@ Registri cosa mangi negli slot che decidi tu, tieni d'occhio calorie e macronutr
 
 ## Stato
 
-Versione **0.2.0**: inserimento manuale dei valori, promemoria push e uso offline.
+Versione **0.3.0**: diario con promemoria push, uso offline e connettore per claude.ai.
 
 | Funzione | Stato |
 | --- | --- |
@@ -21,7 +21,7 @@ Versione **0.2.0**: inserimento manuale dei valori, promemoria push e uso offlin
 | Tema chiaro/scuro, italiano e inglese, PWA installabile | ✅ |
 | Promemoria push per gli slot, fascia di silenzio, pausa | ✅ |
 | Consultazione offline e inserimenti in coda | ✅ |
-| Connettore per claude.ai (MCP) | 🔜 milestone 3 |
+| Connettore per claude.ai (MCP + OAuth 2.1) | ✅ |
 | Calcolo con l'API Anthropic, anche da foto | 🔜 milestone 4 |
 | Preferiti, grafici, peso, export | 🔜 milestone 5 |
 
@@ -50,6 +50,15 @@ Poi apri `http://IP-DEL-SERVER:3000`: la prima pagina ti fa creare l'account amm
 | `MEALLER_BASE_URL` | — | Indirizzo pubblico, usato per i link d'invito |
 | `MEALLER_SOURCE_URL` | questo repo | Link al codice sorgente mostrato nell'app (AGPL) |
 | `LOG_LEVEL` | `info` | Livello di log |
+| `MEALLER_UPDATE_CHECK` | `true` | Controlla su GitHub se c'è una versione più recente (solo avviso agli admin) |
+
+## Connettore claude.ai
+
+1. Rendi Mealler raggiungibile da internet in HTTPS (reverse proxy o tunnel) e imposta `MEALLER_BASE_URL`.
+2. Un amministratore attiva il connettore in **Profilo → Amministrazione**.
+3. Ogni utente apre **Profilo → Connettore claude.ai**, copia l'indirizzo `https://…/mcp` e lo aggiunge in claude.ai come connettore personalizzato, lasciando vuoti i campi OAuth.
+
+Mealler fa da server OAuth: nessun servizio esterno, e ogni utente vede solo il proprio diario.
 
 ## Sviluppo
 

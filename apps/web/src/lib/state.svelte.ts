@@ -77,6 +77,10 @@ export function errorMessage(error: unknown): string {
         return t('register.closed');
       case 'thresholdRange':
         return t('thresholds.invalid');
+      case 'connectorDisabled':
+        return t('connector.disabled');
+      case 'invalidOAuthRequest':
+        return t('consent.invalid');
     }
   }
   return t('common.error');
