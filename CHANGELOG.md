@@ -7,6 +7,7 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e i
 
 ### Modificato
 - Il pulsante «Calcola con Claude» nel pasto ora si chiama «Stima», con la stellina.
+- Nel diario il pulsante per le voci senza valori ora dice «Stima le voci senza valori».
 
 ### Corretto
 - Aggiustata l'intestazione nell'app installata su iPhone, che restava sotto la sfocatura in alto.
