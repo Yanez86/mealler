@@ -16,6 +16,7 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e i
 
 ### Corretto
 - Su iPhone le foto scelte per «Tabella valori» e «Foto del piatto» non arrivavano all'AI («Qualcosa è andato storto»): ora vengono aperte in un modo che Safari accetta.
+- Gli errori del calcolo AI arrivano all'app anche dietro Cloudflare (prima diventavano «502 internal») e nel log del server compare il motivo dato da Anthropic.
 
 ## [1.3.0] - 2026-11-09
 

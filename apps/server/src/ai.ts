@@ -325,6 +325,28 @@ function systemPrompt(locale: string, label: boolean): string {
     .join(' ');
 }
 
+/**
+ * One Messages API call. Failures are logged with Anthropic's own reason, since the app only gets a
+ * code. 500 rather than 502: Cloudflare replaces an origin's 502 with its own page, hiding the code.
+ */
+async function callApi(ctx: AiContext, apiKey: string, body: Record<string, unknown>): Promise<AnthropicResponse> {
+  let response: AnthropicResponse;
+  try {
+    response = await ctx.call(apiKey, body);
+  } catch (error) {
+    console.error(`Anthropic API unreachable: ${error instanceof Error ? error.message : String(error)}`);
+    throw new HttpError(500, 'aiFailed');
+  }
+  if (response.status >= 400) {
+    const e = response.body.error;
+    console.error(`Anthropic API ${response.status} with ${String(body.model)}: ${e?.type ?? ''} ${e?.message ?? ''}`.trim());
+    if (response.status === 401 || response.status === 403) throw new HttpError(500, 'aiKeyInvalid');
+    if (response.status === 429 || response.status === 529) throw new HttpError(503, 'aiBusy');
+    throw new HttpError(500, 'aiFailed');
+  }
+  return response;
+}
+
 export interface EstimateInput {
   text: string;
   quantity?: string | null;
@@ -348,22 +370,14 @@ export async function estimateMeal(ctx: AiContext, user: UserRow, input: Estimat
   }
   content.push({ type: 'text', text });
 
-  let response: AnthropicResponse;
-  try {
-    response = await ctx.call(settings.apiKey, {
-      model,
-      max_tokens: 1500,
-      system: systemPrompt(locale, !!(input.label && input.photo)),
-      tools: [TOOL],
-      tool_choice: { type: 'tool', name: TOOL.name },
-      messages: [{ role: 'user', content }]
-    });
-  } catch {
-    throw new HttpError(502, 'aiFailed');
-  }
-  if (response.status === 401 || response.status === 403) throw new HttpError(502, 'aiKeyInvalid');
-  if (response.status === 429 || response.status === 529) throw new HttpError(503, 'aiBusy');
-  if (response.status >= 400) throw new HttpError(502, 'aiFailed');
+  const response = await callApi(ctx, settings.apiKey, {
+    model,
+    max_tokens: 1500,
+    system: systemPrompt(locale, !!(input.label && input.photo)),
+    tools: [TOOL],
+    tool_choice: { type: 'tool', name: TOOL.name },
+    messages: [{ role: 'user', content }]
+  });
 
   const usage = response.body.usage ?? {};
   const cost = recordUsage(ctx.db, user, model, usage.input_tokens ?? 0, usage.output_tokens ?? 0);
@@ -371,7 +385,10 @@ export async function estimateMeal(ctx: AiContext, user: UserRow, input: Estimat
 
   const call = response.body.content?.find((c) => c.type === 'tool_use' && c.name === TOOL.name);
   const parsed = toolOutput.safeParse(call?.input);
-  if (!parsed.success) throw new HttpError(502, 'aiFailed');
+  if (!parsed.success) {
+    console.error(`Anthropic API: unexpected estimate from ${model}: ${JSON.stringify(call?.input ?? response.body.content).slice(0, 500)}`);
+    throw new HttpError(500, 'aiFailed');
+  }
 
   const round = (v: number) => Math.round(v * 10) / 10;
   const items: EstimateItem[] = parsed.data.items.map((i) => ({
@@ -449,42 +466,35 @@ export async function readNutritionLabel(ctx: AiContext, user: UserRow, photo: {
   if (!settings.enabled || !settings.apiKey) throw new HttpError(403, 'aiDisabled');
   checkLimits(ctx.db, user, settings);
   const model = settings.modelPhoto;
-  let response: AnthropicResponse;
-  try {
-    response = await ctx.call(settings.apiKey, {
-      model,
-      max_tokens: 800,
-      system:
-        'You read nutrition facts tables: photos of food packaging, or screenshots from a meal delivery, recipe or shop app or website. ' +
-        'Report values per 100 g (or 100 ml). ' +
-        'If the label only gives per-serving values and the serving weight, convert to per 100 g. ' +
-        'If there is no nutrition table but an ingredient list with quantities, compute the values of each ingredient from standard food composition tables, ' +
-        'add them up, convert to per 100 g of the total, and report the total weight as serving_g. ' +
-        'Energy must be in kcal (convert from kJ by dividing by 4.184 if only kJ is shown). ' +
-        'Always answer by calling the record_label tool.',
-      tools: [LABEL_TOOL],
-      tool_choice: { type: 'tool', name: LABEL_TOOL.name },
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'image', source: { type: 'base64', media_type: photo.mime, data: photo.data } },
-            { type: 'text', text: 'Read this nutrition label.' }
-          ]
-        }
-      ]
-    });
-  } catch {
-    throw new HttpError(502, 'aiFailed');
-  }
-  if (response.status === 401 || response.status === 403) throw new HttpError(502, 'aiKeyInvalid');
-  if (response.status === 429 || response.status === 529) throw new HttpError(503, 'aiBusy');
-  if (response.status >= 400) throw new HttpError(502, 'aiFailed');
+  const response = await callApi(ctx, settings.apiKey, {
+    model,
+    max_tokens: 800,
+    system:
+      'You read nutrition facts tables: photos of food packaging, or screenshots from a meal delivery, recipe or shop app or website. ' +
+      'Report values per 100 g (or 100 ml). ' +
+      'If the label only gives per-serving values and the serving weight, convert to per 100 g. ' +
+      'If there is no nutrition table but an ingredient list with quantities, compute the values of each ingredient from standard food composition tables, ' +
+      'add them up, convert to per 100 g of the total, and report the total weight as serving_g. ' +
+      'Energy must be in kcal (convert from kJ by dividing by 4.184 if only kJ is shown). ' +
+      'Always answer by calling the record_label tool.',
+    tools: [LABEL_TOOL],
+    tool_choice: { type: 'tool', name: LABEL_TOOL.name },
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: photo.mime, data: photo.data } },
+          { type: 'text', text: 'Read this nutrition label.' }
+        ]
+      }
+    ]
+  });
   const usage = response.body.usage ?? {};
   recordUsage(ctx.db, user, model, usage.input_tokens ?? 0, usage.output_tokens ?? 0);
   countDaily(ctx.db, user, 0, (usage.input_tokens ?? 0) + (usage.output_tokens ?? 0));
   const call = response.body.content?.find((c) => c.type === 'tool_use' && c.name === LABEL_TOOL.name);
   const parsed = labelOutput.safeParse(call?.input);
+  if (!parsed.success) console.error(`Anthropic API: unexpected label from ${model}: ${JSON.stringify(call?.input ?? response.body.content).slice(0, 500)}`);
   if (!parsed.success || !parsed.data.readable) throw new HttpError(422, 'labelUnreadable');
   const d = parsed.data;
   const r = (v: number) => Math.round(v * 10) / 10;
