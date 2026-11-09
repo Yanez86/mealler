@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Drizzle table definitions. They mirror migrations/*.sql, which remain the source of truth.
 import { sqliteTable, integer, text, real } from 'drizzle-orm/sqlite-core';
-import { FOOD_CATEGORIES } from '@mealler/shared';
+import { FOOD_CATEGORIES, UNIT_SYSTEMS } from '@mealler/shared';
 
 const now = () => new Date().toISOString();
 
@@ -14,6 +14,7 @@ export const users = sqliteTable('users', {
   locale: text('locale').notNull().default('it'),
   timezone: text('timezone').notNull().default('Europe/Rome'),
   theme: text('theme', { enum: ['system', 'light', 'dark'] }).notNull().default('system'),
+  units: text('units', { enum: UNIT_SYSTEMS }).notNull().default('metric'),
   active: integer('active', { mode: 'boolean' }).notNull().default(true),
   lastSeenVersion: text('last_seen_version'),
   remindersEnabled: integer('reminders_enabled', { mode: 'boolean' }).notNull().default(true),

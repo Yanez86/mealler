@@ -1,11 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { thresholdStatus, sumValues, kcalMismatch } from './nutrients.ts';
+import { thresholdStatus, thresholdTone, sumValues, kcalMismatch } from './nutrients.ts';
 import { isIsoDate, addDays, isoWeekday, slotActiveOn, todayIn, isValidTime, inTimeRange, nowIn } from './dates.ts';
 import { translate, MESSAGES } from './i18n.ts';
 import { isNewerVersion } from './version.ts';
 import { foodCategory, mealCategory, FOOD_CATEGORIES } from './foods.ts';
+import {
+  displayQuantity,
+  formatQuantity,
+  inSystem,
+  kgToLb,
+  lbToKg,
+  normalizeQuantity,
+  parseQuantity,
+  splitFoods,
+  storedQuantity
+} from './quantity.ts';
 
 test('thresholdStatus handles optional bounds', () => {
   assert.equal(thresholdStatus(50, null, null), 'none');
@@ -94,4 +105,68 @@ test('meal category falls back to the item with the most calories', () => {
   assert.equal(mealCategory(['Pranzo al ristorante'], items), 'pasta');
   assert.equal(mealCategory(['Cena', 'Pizza margherita'], null), 'pizza');
   assert.equal(mealCategory(['Cena'], []), 'other');
+});
+
+test('threshold tones: red far from the minimum or over the maximum, yellow close, green inside', () => {
+  assert.equal(thresholdTone(50, null, null), 'none');
+  // Minimum only (fibre 25 g)
+  assert.equal(thresholdTone(10, 25, null), 'bad');
+  assert.equal(thresholdTone(17.5, 25, null), 'near');
+  assert.equal(thresholdTone(30, 25, null), 'good');
+  // Maximum only (2000 kcal)
+  assert.equal(thresholdTone(0, null, 2000), 'good');
+  assert.equal(thresholdTone(1799, null, 2000), 'good');
+  assert.equal(thresholdTone(1800, null, 2000), 'near');
+  assert.equal(thresholdTone(2000, null, 2000), 'near');
+  assert.equal(thresholdTone(2001, null, 2000), 'bad');
+  // Range: the near-the-maximum stretch is at most half the range
+  assert.equal(thresholdTone(1000, 1800, 2000), 'bad');
+  assert.equal(thresholdTone(1500, 1800, 2000), 'near');
+  assert.equal(thresholdTone(1850, 1800, 2000), 'good');
+  assert.equal(thresholdTone(1950, 1800, 2000), 'near');
+  assert.equal(thresholdTone(60, 60, 60), 'good');
+});
+
+test('several foods in one text become one row each', () => {
+  assert.deepEqual(splitFoods('100 g di petto di pollo ai ferri e 100 g di patate e cipolle'), [
+    { name: 'Petto di pollo ai ferri', quantity: { amount: 100, unit: 'g' } },
+    { name: 'Patate e cipolle', quantity: { amount: 100, unit: 'g' } }
+  ]);
+  assert.deepEqual(splitFoods('Latte e biscotti'), [{ name: 'Latte e biscotti', quantity: null }]);
+  assert.deepEqual(
+    splitFoods("un caffè e un'arancia, pane").map((p) => p.name),
+    ['Caffè', 'Arancia', 'Pane']
+  );
+  assert.deepEqual(splitFoods('pollo (150 g)\nriso basmati 80g'), [
+    { name: 'Pollo', quantity: { amount: 150, unit: 'g' } },
+    { name: 'Riso basmati', quantity: { amount: 80, unit: 'g' } }
+  ]);
+  assert.deepEqual(splitFoods('1 1/2 cups of oatmeal and a banana'), [
+    { name: 'Oatmeal', quantity: { amount: 1.5, unit: 'cup' } },
+    { name: 'Banana', quantity: { amount: 1, unit: 'unit' } }
+  ]);
+  assert.deepEqual(splitFoods('3 cucchiai di olio + 1 confezione di cracker').map((p) => p.quantity?.unit), ['tbsp', 'package']);
+  assert.deepEqual(splitFoods('1,5 kg di anguria'), [{ name: 'Anguria', quantity: { amount: 1500, unit: 'g' } }]);
+  assert.deepEqual(splitFoods('pollo, 100 g'), [{ name: 'Pollo', quantity: { amount: 100, unit: 'g' } }]);
+  assert.deepEqual(splitFoods('Pizza 4 stagioni'), [{ name: 'Pizza 4 stagioni', quantity: null }]);
+  assert.deepEqual(splitFoods('gamberi alla griglia'), [{ name: 'Gamberi alla griglia', quantity: null }]);
+});
+
+test('quantities: parsing, metric storage, US display', () => {
+  assert.deepEqual(parseQuantity('2 cucchiai'), { amount: 2, unit: 'tbsp' });
+  assert.deepEqual(parseQuantity('un etto'), { amount: 100, unit: 'g' });
+  assert.deepEqual(parseQuantity('8 fl oz'), { amount: 8, unit: 'floz' });
+  assert.equal(parseQuantity('una porzione'), null);
+  assert.equal(formatQuantity({ amount: 1.5, unit: 'package' }, 'it'), '1,5 confezioni');
+  assert.equal(formatQuantity({ amount: 1, unit: 'tbsp' }, 'en'), '1 tbsp');
+  assert.equal(storedQuantity({ amount: 4, unit: 'oz' }, 'en'), '113 g');
+  assert.equal(normalizeQuantity('1 cup', 'it'), '237 ml');
+  assert.equal(normalizeQuantity('una porzione', 'it'), 'una porzione');
+  assert.equal(displayQuantity('113 g', 'us', 'en'), '4 oz');
+  assert.equal(displayQuantity('237 ml', 'us', 'en'), '8 fl oz');
+  assert.equal(displayQuantity('2 cucchiai', 'us', 'en'), '2 tbsp');
+  assert.equal(displayQuantity('100 g', 'metric', 'it'), '100 g');
+  assert.deepEqual(inSystem({ amount: 1, unit: 'cup' }, 'metric').unit, 'ml');
+  assert.ok(Math.abs(kgToLb(lbToKg(180)) - 180) < 1e-9);
+  assert.equal(Math.round(kgToLb(80) * 10) / 10, 176.4);
 });

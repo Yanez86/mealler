@@ -2,9 +2,9 @@
 <!-- "From the library" in the add-meal screen: find a packaged food, choose the amount, log it. -->
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { mealCategory, type Product, type ProductDraft } from '@mealler/shared';
+  import { G_PER_OZ, mealCategory, type Product, type ProductDraft } from '@mealler/shared';
   import { get, post } from './api';
-  import { errorMessage, formatNumber, t } from './state.svelte';
+  import { app, errorMessage, formatNumber, t } from './state.svelte';
   import BarcodeScanner from './BarcodeScanner.svelte';
   import FoodIcon from './FoodIcon.svelte';
   import Icon from './Icon.svelte';
@@ -15,6 +15,10 @@
   let results = $state<Product[]>([]);
   let selected = $state<Product | null>(null);
   let mode = $state<'grams' | 'servings'>('grams');
+  // With US units the weight is typed in ounces; the library and the diary keep grams.
+  const us = $derived(app.user?.units === 'us');
+  const weightLabel = $derived(us ? t('foods.ounces') : t('foods.grams'));
+  const weightText = (g: number | null) => (g == null ? '' : us ? formatNumber(g / G_PER_OZ, 1) : String(g));
   let amount = $state('');
   let scanning = $state(false);
   let error = $state('');
@@ -60,7 +64,8 @@
   const grams = $derived.by(() => {
     const n = Number(amount.replace(',', '.'));
     if (!selected || !Number.isFinite(n) || n <= 0) return null;
-    return mode === 'servings' && selected.servingG ? n * selected.servingG : n;
+    if (mode === 'servings' && selected.servingG) return n * selected.servingG;
+    return us ? Math.round(n * G_PER_OZ * 10) / 10 : n;
   });
   const preview = $derived.by(() => {
     if (!selected || grams == null) return null;
@@ -108,11 +113,11 @@
           <button class="chip" type="button" aria-pressed={mode === 'servings'} onclick={() => { mode = 'servings'; amount = '1'; }}>
             {t('foods.servings')}{#if selected.servingLabel} · {selected.servingLabel}{/if}
           </button>
-          <button class="chip" type="button" aria-pressed={mode === 'grams'} onclick={() => { mode = 'grams'; amount = String(selected?.servingG ?? ''); }}>{t('foods.grams')}</button>
+          <button class="chip" type="button" aria-pressed={mode === 'grams'} onclick={() => { mode = 'grams'; amount = weightText(selected?.servingG ?? null); }}>{weightLabel}</button>
         </div>
       {/if}
       <div class="field">
-        <label for="lib-amount">{mode === 'servings' ? t('foods.servings') : t('foods.grams')}</label>
+        <label for="lib-amount">{mode === 'servings' ? t('foods.servings') : weightLabel}</label>
         <input id="lib-amount" inputmode="decimal" autocomplete="off" bind:value={amount} />
       </div>
       {#if preview}<p class="muted">{preview}</p>{/if}

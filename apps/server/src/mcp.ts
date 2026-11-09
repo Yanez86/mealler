@@ -9,6 +9,8 @@ import {
   NUTRIENTS,
   addDays,
   isIsoDate,
+  isLocale,
+  normalizeQuantity,
   nowIn,
   sumValues,
   todayIn,
@@ -64,7 +66,7 @@ const itemSchema = {
   type: 'object',
   properties: {
     name: { type: 'string', description: 'Food name, e.g. "Pasta al pomodoro"' },
-    quantity: { type: 'string', description: 'Estimated amount, e.g. "120 g" or "1 cup"' },
+    quantity: { type: 'string', description: 'Estimated amount, preferably in g or ml, e.g. "120 g" or "200 ml"' },
     kcal: nutrientSchema('Energy in kcal'),
     protein: nutrientSchema('Protein in grams'),
     carbs: nutrientSchema('Carbohydrates in grams'),
@@ -156,8 +158,10 @@ const TOOLS: Tool[] = [
     title: 'Log a meal',
     description:
       'Logs what the user ate into a meal slot. Estimate realistic portions and nutritional values yourself ' +
-      '(kcal, protein, carbs, fat, fibre in grams) and pass a per-food breakdown in items. ' +
-      'Totals are computed from items when you omit them. Pick the slot by slot_id or slot_name.',
+      '(kcal, protein, carbs, fat, fibre in grams) and pass one item per food: with two or more items, ' +
+      'each item becomes its own diary entry (named after the item), so the user can check and correct every food. ' +
+      'With a single item or none, one entry is created and totals are computed from items when you omit them. ' +
+      'Pick the slot by slot_id or slot_name.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -166,7 +170,7 @@ const TOOLS: Tool[] = [
         slot_id: { type: 'integer' },
         slot_name: { type: 'string', description: 'Slot name, e.g. "Pranzo"' },
         quantity: { type: 'string' },
-        items: { type: 'array', items: itemSchema, description: 'Per-food breakdown' },
+        items: { type: 'array', items: itemSchema, description: 'One item per food; two or more items become separate entries' },
         kcal: nutrientSchema('Total kcal'),
         protein: nutrientSchema('Total protein, g'),
         carbs: nutrientSchema('Total carbohydrates, g'),
@@ -197,6 +201,53 @@ const TOOLS: Tool[] = [
         .parse(args ?? {});
       const date = dateOrToday(user, a.date);
       const slot = resolveSlot(db, user, a.slot_id, a.slot_name);
+      const locale = isLocale(user.locale) ? user.locale : 'it';
+      if (a.items && a.items.length > 1) {
+        // One diary entry per food, as in the app; the meal's notes go on the first one.
+        const list = a.items;
+        const rows = db.transaction((tx) =>
+          list.map((i, index) =>
+            tx
+              .insert(entries)
+              .values({
+                userId: user.id,
+                slotId: slot.id,
+                date,
+                description: i.name,
+                quantity: normalizeQuantity(i.quantity, locale),
+                kcal: round(i.kcal),
+                protein: round(i.protein),
+                carbs: round(i.carbs),
+                fat: round(i.fat),
+                fiber: round(i.fiber),
+                notes: index === 0 ? a.notes ?? null : null,
+                source: 'claude_ai',
+                calcStatus: 'calculated'
+              })
+              .returning()
+              .get()
+          )
+        );
+        const logged = rows.map(toEntry);
+        return {
+          entry_id: logged[0].id,
+          entry_ids: logged.map((e) => e.id),
+          slot: slot.name,
+          date,
+          entries: logged.map((e) => ({
+            entry_id: e.id,
+            description: e.description,
+            quantity: e.quantity,
+            kcal: e.kcal,
+            protein: e.protein,
+            carbs: e.carbs,
+            fat: e.fat,
+            fiber: e.fiber,
+            kcal_check_failed: e.kcalMismatch
+          })),
+          day: dayForClaude(db, user, date).totals
+        };
+      }
       const fromItems = a.items?.length
         ? sumValues(a.items.map((i) => ({ kcal: i.kcal, protein: i.protein, carbs: i.carbs, fat: i.fat, fiber: i.fiber ?? null })))
         : null;
@@ -208,7 +259,7 @@ const TOOLS: Tool[] = [
           slotId: slot.id,
           date,
           description: a.description,
-          quantity: a.quantity ?? null,
+          quantity: normalizeQuantity(a.quantity ?? a.items?.[0]?.quantity, locale),
           kcal: pick('kcal'),
           protein: pick('protein'),
           carbs: pick('carbs'),
@@ -468,7 +519,10 @@ function instructions(user: UserRow): string {
   return [
     "Mealler is the user's self-hosted food diary.",
     `The user's time zone is ${user.timezone}; it is now ${date} ${time} there. Interpret "today", "yesterday", "this morning" in that zone.`,
-    'When the user says what they ate, estimate portions and nutritional values yourself and call add_entry with a per-food breakdown in items; choose the slot that matches the meal (list_slots shows them).',
+    'When the user says what they ate, estimate portions and nutritional values yourself and call add_entry with one item per food (each food becomes its own diary entry); choose the slot that matches the meal (list_slots shows them).',
+    user.units === 'us'
+      ? 'The user prefers US units (oz, fl oz, cups, lb): talk in those, but the tools take grams and kg, so convert before calling them.'
+      : 'The user uses metric units (g, ml, kg).',
     'Values are estimates: say so briefly, and offer to correct them with update_entry.',
     "Reply in the user's language. Never invent entries the user did not mention."
   ].join(' ');

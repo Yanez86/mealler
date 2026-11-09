@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { LOCALES, addDays, todayIn, type Locale, type Theme, type User } from '@mealler/shared';
+  import { LOCALES, UNIT_SYSTEMS, addDays, todayIn, type Locale, type Theme, type UnitSystem, type User } from '@mealler/shared';
   import { api, patch, post } from '$lib/api';
   import { app, errorMessage, setUser, t } from '$lib/state.svelte';
   import Icon from '$lib/Icon.svelte';
@@ -13,6 +13,7 @@
   let name = $state(user.name);
   let locale = $state<Locale>(user.locale);
   let theme = $state<Theme>(user.theme);
+  let units = $state<UnitSystem>(user.units ?? 'metric');
   let timezone = $state(user.timezone);
   let prefsMsg = $state('');
   let prefsError = $state('');
@@ -38,7 +39,7 @@
     event.preventDefault();
     prefsMsg = prefsError = '';
     try {
-      setUser(await patch<User>('/me', { name, locale, theme, timezone }));
+      setUser(await patch<User>('/me', { name, locale, theme, timezone, units }));
       prefsMsg = t('common.saved');
     } catch (e) {
       prefsError = errorMessage(e);
@@ -121,6 +122,13 @@
         <option value="light">{t('theme.light')}</option>
         <option value="dark">{t('theme.dark')}</option>
       </select>
+    </div>
+    <div class="field">
+      <label for="units">{t('field.units')}</label>
+      <select id="units" aria-describedby="units-help" bind:value={units}>
+        {#each UNIT_SYSTEMS as code (code)}<option value={code}>{t(`units.${code}`)}</option>{/each}
+      </select>
+      <p id="units-help" class="help">{t('units.help')}</p>
     </div>
     <div class="field">
       <label for="tz">{t('field.timezone')}</label>

@@ -23,6 +23,28 @@ export function thresholdStatus(value: number, min: number | null, max: number |
   return 'ok';
 }
 
+/**
+ * Colour of a progress bar: green inside the thresholds, yellow close to them (from 70% of the
+ * minimum, or in the last stretch before the maximum), red far below the minimum or over the maximum.
+ */
+export type ThresholdTone = 'none' | 'good' | 'near' | 'bad';
+
+/** From this share of the minimum a value counts as close to it. */
+export const NEAR_MIN = 0.7;
+/** The last 10% before the maximum (never more than half of the min–max range) counts as close to it. */
+export const NEAR_MAX = 0.1;
+
+export function thresholdTone(value: number, min: number | null, max: number | null): ThresholdTone {
+  if (min == null && max == null) return 'none';
+  if (max != null && value > max) return 'bad';
+  if (min != null && value < min) return value >= min * NEAR_MIN ? 'near' : 'bad';
+  if (max != null) {
+    const room = Math.min(max * NEAR_MAX, min != null ? (max - min) / 2 : Infinity);
+    if (room > 0 && value >= max - room) return 'near';
+  }
+  return 'good';
+}
+
 export function emptyValues(): NutrientValues {
   return { kcal: null, protein: null, carbs: null, fat: null, fiber: null };
 }

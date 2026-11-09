@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { z } from 'zod';
-import { FOOD_CATEGORIES, LOCALES, NUTRIENTS, isIsoDate, isValidTime } from '@mealler/shared';
+import { FOOD_CATEGORIES, LOCALES, NUTRIENTS, UNIT_SYSTEMS, isIsoDate, isValidTime } from '@mealler/shared';
 
 export const zEmail = z.string().trim().toLowerCase().email().max(200);
 export const zPassword = z.string().min(10).max(200);
 export const zName = z.string().trim().min(1).max(100);
 export const zLocale = z.enum(LOCALES);
 export const zTheme = z.enum(['system', 'light', 'dark']);
+export const zUnits = z.enum(UNIT_SYSTEMS);
 export const zTimezone = z
   .string()
   .max(64)

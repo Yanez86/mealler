@@ -2,21 +2,30 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
+  import { onDestroy } from 'svelte';
   import {
+    NUTRIENTS,
     addDays,
+    displayQuantity,
     isIsoDate,
     mealCategory,
+    sumValues,
+    thresholdStatus,
+    thresholdTone,
     todayIn,
     type DayResponse,
+    type Entry,
     type Nutrient,
     type NutrientSummary,
     type ThresholdStatus
   } from '@mealler/shared';
-  import { get, post } from '$lib/api';
+  import { beacon, get, post } from '$lib/api';
   import type { AiStatus } from '@mealler/shared';
   import { app, errorMessage, formatDate, formatNumber, t } from '$lib/state.svelte';
+  import { fill } from '$lib/fill';
   import FoodIcon from '$lib/FoodIcon.svelte';
   import Icon from '$lib/Icon.svelte';
+  import Swipeable from '$lib/Swipeable.svelte';
   import TopBar from '$lib/TopBar.svelte';
   import { net, pendingFor } from '$lib/offline.svelte';
 
@@ -27,8 +36,94 @@
     return d && isIsoDate(d) ? d : today;
   });
 
-  let day = $state<DayResponse | null>(null);
+  let loadedDay = $state<DayResponse | null>(null);
   let error = $state('');
+
+  // ---------- Swipe to delete, with undo ----------
+  // Deleted entries disappear at once; the server is asked only when the undo bar goes away.
+  interface PendingDelete {
+    ids: number[];
+    message: string;
+    timer: ReturnType<typeof setTimeout>;
+  }
+  let pendingDelete = $state<PendingDelete | null>(null);
+
+  /** The day without some entries, with slot totals and the summary computed again. */
+  function withoutEntries(d: DayResponse, ids: number[]): DayResponse {
+    const gone = new Set(ids);
+    const slots = d.slots.map((s) => {
+      const entries = s.entries.filter((e) => !gone.has(e.id));
+      return entries.length === s.entries.length ? s : { ...s, entries, totals: sumValues(entries) };
+    });
+    const totals = sumValues(slots.flatMap((s) => s.entries));
+    const summary = { ...d.summary };
+    for (const n of NUTRIENTS) {
+      const { min, max } = d.summary[n];
+      summary[n] = { value: totals[n], min, max, status: thresholdStatus(totals[n], min, max) };
+    }
+    return { ...d, slots, summary };
+  }
+
+  const day = $derived(loadedDay && pendingDelete ? withoutEntries(loadedDay, pendingDelete.ids) : loadedDay);
+
+  function removeEntries(ids: number[], message: string) {
+    if (!ids.length) return;
+    void commitDelete();
+    pendingDelete = { ids, message, timer: setTimeout(commitDelete, 5000) };
+  }
+
+  async function commitDelete() {
+    const p = pendingDelete;
+    if (!p) return;
+    clearTimeout(p.timer);
+    if (loadedDay) loadedDay = withoutEntries(loadedDay, p.ids);
+    pendingDelete = null;
+    try {
+      await post('/entries/delete', { ids: p.ids });
+    } catch (e) {
+      error = errorMessage(e);
+      // Not deleted (e.g. offline): show the entries again.
+      loadedDay = await get<DayResponse>(`/day/${date}`).catch(() => loadedDay);
+    }
+  }
+
+  function undoDelete() {
+    if (!pendingDelete) return;
+    clearTimeout(pendingDelete.timer);
+    pendingDelete = null;
+  }
+
+  // Leaving the page or the app confirms the deletion.
+  onDestroy(() => void commitDelete());
+  $effect(() => {
+    const hide = () => {
+      const p = pendingDelete;
+      if (document.visibilityState !== 'hidden' || !p) return;
+      clearTimeout(p.timer);
+      if (loadedDay) loadedDay = withoutEntries(loadedDay, p.ids);
+      pendingDelete = null;
+      beacon('/entries/delete', { ids: p.ids });
+    };
+    document.addEventListener('visibilitychange', hide);
+    return () => document.removeEventListener('visibilitychange', hide);
+  });
+
+  function clearSlot(name: string, entries: Entry[]) {
+    removeEntries(
+      entries.map((e) => e.id),
+      t('swipe.slotCleared', { slot: name })
+    );
+  }
+
+  const units = $derived(app.user?.units ?? 'metric');
+  function entryMeta(entry: Entry): string {
+    return [
+      displayQuantity(entry.quantity, units, app.locale),
+      entry.kcal != null ? `${formatNumber(entry.kcal)} kcal` : null
+    ]
+      .filter(Boolean)
+      .join(' · ');
+  }
 
   $effect(() => {
     const d = date;
@@ -36,7 +131,7 @@
     error = '';
     get<DayResponse>(`/day/${d}`)
       .then((res) => {
-        if (d === date) day = res;
+        if (d === date) loadedDay = res;
       })
       .catch((e) => (error = errorMessage(e)));
   });
@@ -49,7 +144,7 @@
     const timer = setInterval(async () => {
       try {
         const res = await get<DayResponse>(`/day/${d}`);
-        if (d === date) day = res;
+        if (d === date) loadedDay = res;
       } catch {
         // offline: try again on the next tick
       }
@@ -73,7 +168,7 @@
     try {
       const { queued } = await post<{ queued: number }>(`/day/${date}/calculate`);
       queuedMessage = t('day.calculating', { n: queued });
-      day = await get<DayResponse>(`/day/${date}`);
+      loadedDay = await get<DayResponse>(`/day/${date}`);
     } catch (e) {
       error = errorMessage(e);
     }
@@ -103,6 +198,8 @@
     if (s.max != null) return t('day.max', { n: f(s.max) });
     return t('day.noThreshold');
   }
+
+  const tone = (s: NutrientSummary) => thresholdTone(s.value, s.min, s.max);
 
   function percent(s: NutrientSummary): number {
     const ref = s.max ?? s.min;
@@ -174,9 +271,9 @@
         {/if}
       </div>
       {#if kcal.max != null || kcal.min != null}
-        <div class="bar thick"><span class="status-{kcal.status}" style="width: {percent(kcal)}%"></span></div>
+        <div class="bar thick"><span class="tone-{tone(kcal)}" use:fill={percent(kcal)}></span></div>
         {#if kcal.status !== 'none' && kcal.status !== 'ok'}
-          <p class="status status-{kcal.status}"><Icon name={statusIcon[kcal.status]} size={14} stroke={2.5} />{t(`day.status.${kcal.status}`)}</p>
+          <p class="status tone-ink-{tone(kcal)}"><Icon name={statusIcon[kcal.status]} size={14} stroke={2.5} />{t(`day.status.${kcal.status}`)}</p>
         {/if}
       {/if}
 
@@ -189,8 +286,8 @@
               <span class="muted small target">{target(s, 'g')}</span>
             </div>
             <span class="value">{formatNumber(s.value, 1)} g</span>
-            <div class="bar"><span class="status-{s.status}" style="width: {percent(s)}%"></span></div>
-            <span class="status status-{s.status}"><Icon name={statusIcon[s.status]} size={14} stroke={2.5} />{t(`day.status.${s.status}`)}</span>
+            <div class="bar"><span class="tone-{tone(s)}" use:fill={percent(s)}></span></div>
+            <span class="status tone-ink-{tone(s)}" class:quiet={s.status === 'none'}><Icon name={statusIcon[s.status]} size={14} stroke={2.5} />{t(`day.status.${s.status}`)}</span>
           </div>
         {/each}
       </div>
@@ -218,6 +315,7 @@
       {#each day.slots as { slot, entries, totals } (slot.id)}
         {@const empty = entries.length === 0}
         {@const due = empty && isDue(slot.time)}
+        <Swipeable label={t('swipe.clearSlot', { slot: slot.name })} disabled={empty} radius="16px" ondelete={() => clearSlot(slot.name, entries)}>
         <div class="slot card" class:due>
           <div class="slot-main">
             <div class="slot-head">
@@ -229,10 +327,20 @@
             {:else}
               <ul>
                 {#each entries as entry (entry.id)}
+                  {@const meta = entryMeta(entry)}
                   <li>
+                    <Swipeable
+                      label={t('swipe.deleteEntry', { name: entry.description })}
+                      background="var(--surface)"
+                      radius="12px"
+                      clip="0px"
+                      ondelete={() => removeEntries([entry.id], t('swipe.entryDeleted', { name: entry.description }))}>
                     <a href="/add?entry={entry.id}">
                       <FoodIcon category={entry.category ?? mealCategory([entry.description], entry.items)} size={36} />
-                      <span class="desc">{entry.description}</span>
+                      <span class="desc">
+                        <span class="name">{entry.description}</span>
+                        {#if meta}<span class="meta">{meta}</span>{/if}
+                      </span>
                       {#if entry.calcStatus === 'pending'}
                         <span class="claude"><Icon name="sparkle" size={12} />{t('ai.pending')}</span>
                       {:else if entry.calcError}
@@ -244,6 +352,7 @@
                         <span class="flag"><Icon name="alert" size={14} />{t('day.mismatch')}</span>
                       {/if}
                     </a>
+                    </Swipeable>
                   </li>
                 {/each}
               </ul>
@@ -257,8 +366,16 @@
             </a>
           {/if}
         </div>
+        </Swipeable>
       {/each}
     </section>
+
+    {#if pendingDelete}
+      <div class="snackbar" role="status">
+        <span>{pendingDelete.message}</span>
+        <button type="button" onclick={undoDelete}>{t('swipe.undo')}</button>
+      </div>
+    {/if}
   {:else if !error}
     <p class="muted" role="status">{t('common.loading')}</p>
   {/if}
@@ -337,29 +454,7 @@
     font-size: 13px;
     font-weight: 600;
   }
-  .bar span.status-ok {
-    background: var(--ok);
-  }
-  .bar span.status-under {
-    background: var(--under);
-  }
-  .bar span.status-over {
-    background: var(--over);
-  }
-  .bar span.status-none {
-    background: var(--text-2);
-  }
-  .status.status-ok {
-    color: var(--ok-ink);
-  }
-  .status.status-under {
-    color: var(--under-ink);
-  }
-  .status.status-over {
-    color: var(--over-ink);
-  }
-  .status.status-none {
-    color: var(--text-2);
+  .status.quiet {
     font-weight: 500;
   }
   .calc-all {
@@ -386,7 +481,7 @@
   }
   .slot.due {
     background: var(--accent-soft);
-    border: 2px dashed var(--accent);
+    border: 2px solid var(--accent);
     padding-right: 12px;
   }
   .slot.due .slot-name {
@@ -429,9 +524,64 @@
   .desc {
     flex: 1;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .desc .name,
+  .desc .meta {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .desc .meta {
+    font-size: 13px;
+    color: var(--text-2);
+  }
+  .snackbar {
+    position: fixed;
+    left: 50%;
+    bottom: calc(max(12px, env(safe-area-inset-bottom)) + 80px);
+    transform: translateX(-50%);
+    width: calc(100% - 32px);
+    max-width: 528px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 6px 6px 16px;
+    border-radius: 14px;
+    background: var(--text);
+    color: var(--bg);
+    font-size: 15px;
+    box-shadow: 0 6px 24px rgb(0 0 0 / 0.2);
+    animation: rise 200ms ease-out;
+    z-index: 10;
+  }
+  .snackbar span {
+    flex: 1;
+    min-width: 0;
+  }
+  .snackbar button {
+    flex: none;
+    min-height: 44px;
+    padding: 0 14px;
+    border: none;
+    border-radius: 10px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translate(-50%, 12px);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .snackbar {
+      animation: none;
+    }
   }
   .claude {
     flex: none;

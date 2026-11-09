@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import type { FastifyInstance } from 'fastify';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { ALL_DAYS, NUTRIENTS, todayIn, type DayResponse, type Threshold } from '@mealler/shared';
 import type { AppContext } from '../app.ts';
@@ -154,28 +154,54 @@ export async function diaryRoutes(app: FastifyInstance, { db, ai }: AppContext) 
     return toEntry(row);
   });
 
-  app.post('/entries', async (request) => {
-    const user = requireUser(request);
-    const body = entryBody.parse(request.body);
-    if (!ownSlot(user.id, body.slotId)) throw badRequest('slot');
-    if (!ownPhoto(user.id, body.photoId)) throw badRequest('photo');
-    const status = body.calculate === true ? aiStatus(db, ai.secrets, user) : null;
-    const background = !!status && status.enabled && !status.capReached && !status.limitReached;
-    const row = db
+  type EntryBody = z.infer<typeof entryBody>;
+
+  function checkEntry(userId: number, body: EntryBody) {
+    if (!ownSlot(userId, body.slotId)) throw badRequest('slot');
+    if (!ownPhoto(userId, body.photoId)) throw badRequest('photo');
+  }
+
+  function insertEntry(dbOrTx: Pick<typeof db, 'insert'>, userId: number, body: EntryBody, background: boolean) {
+    return dbOrTx
       .insert(entries)
       .values({
         source: 'manual',
-        calcStatus: background ? 'pending' : 'manual',
+        calcStatus: background && body.calculate === true ? 'pending' : 'manual',
         ...storedFields(body),
         slotId: body.slotId,
         date: body.date,
         description: body.description,
-        userId: user.id
+        userId
       })
       .returning()
       .get();
+  }
+
+  // Whether entries saved without values can be estimated in the background right now.
+  const canEstimate = (user: Parameters<typeof aiStatus>[2]) => {
+    const status = aiStatus(db, ai.secrets, user);
+    return status.enabled && !status.capReached && !status.limitReached;
+  };
+
+  app.post('/entries', async (request) => {
+    const user = requireUser(request);
+    const body = entryBody.parse(request.body);
+    checkEntry(user.id, body);
+    const background = body.calculate === true && canEstimate(user);
+    const row = insertEntry(db, user.id, body, background);
     if (background) ai.kick();
     return toEntry(row);
+  });
+
+  // A meal with several foods: one entry per food, all saved or none.
+  app.post('/entries/batch', async (request) => {
+    const user = requireUser(request);
+    const { entries: list } = z.object({ entries: z.array(entryBody).min(1).max(30) }).parse(request.body);
+    for (const body of list) checkEntry(user.id, body);
+    const background = list.some((b) => b.calculate === true) && canEstimate(user);
+    const rows = db.transaction((tx) => list.map((body) => insertEntry(tx, user.id, body, background)));
+    if (background) ai.kick();
+    return rows.map(toEntry);
   });
 
   app.patch('/entries/:id', async (request) => {
@@ -200,6 +226,19 @@ export async function diaryRoutes(app: FastifyInstance, { db, ai }: AppContext) 
       .returning()
       .get();
     return toEntry(row!);
+  });
+
+  // Several entries at once, e.g. a whole slot cleared with a swipe.
+  app.post('/entries/delete', async (request) => {
+    const user = requireUser(request);
+    const { ids } = z.object({ ids: z.array(zId).min(1).max(200) }).parse(request.body);
+    const rows = db
+      .delete(entries)
+      .where(and(eq(entries.userId, user.id), inArray(entries.id, ids)))
+      .returning()
+      .all();
+    for (const row of rows) if (row.photoId) deletePhoto(db, user.id, row.photoId);
+    return { deleted: rows.length };
   });
 
   app.delete('/entries/:id', async (request) => {

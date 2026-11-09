@@ -22,7 +22,8 @@ export function listWeights(db: Db, userId: number, from: string, to: string): W
 }
 
 export function saveWeight(db: Db, userId: number, date: string, kg: number, note: string | null): WeightEntry {
-  const value = Math.round(kg * 10) / 10;
+  // Two decimals, so a weight typed in pounds reads back the same (0.01 kg is about 0.02 lb).
+  const value = Math.round(kg * 100) / 100;
   return toWeight(
     db
       .insert(weights)

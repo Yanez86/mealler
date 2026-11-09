@@ -3,5 +3,6 @@ export * from './nutrients.ts';
 export * from './dates.ts';
 export * from './foods.ts';
 export * from './i18n.ts';
+export * from './quantity.ts';
 export * from './types.ts';
 export * from './version.ts';

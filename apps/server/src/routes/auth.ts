@@ -26,7 +26,7 @@ import {
   isRegistrationOpen,
   toUser
 } from '../services.ts';
-import { zDate, zEmail, zLocale, zName, zPassword, zTheme, zTime, zTimezone } from '../validation.ts';
+import { zDate, zEmail, zLocale, zName, zPassword, zTheme, zTime, zTimezone, zUnits } from '../validation.ts';
 
 const strict = { rateLimit: { max: 10, timeWindow: '5 minutes' } };
 
@@ -117,6 +117,7 @@ export async function authRoutes(app: FastifyInstance, { db, config, ai }: AppCo
         locale: zLocale,
         timezone: zTimezone,
         theme: zTheme,
+        units: zUnits,
         remindersEnabled: z.boolean(),
         quietStart: zTime.nullable(),
         quietEnd: zTime.nullable(),

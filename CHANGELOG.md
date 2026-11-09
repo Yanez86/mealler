@@ -3,12 +3,20 @@
 Tutte le modifiche rilevanti di Mealler sono annotate qui.
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il [versionamento semantico](https://semver.org/lang/it/).
 
-## [Non rilasciato]
+## [1.1.3] - 2026-11-09
 
 ### Aggiunto
+- Più alimenti scritti insieme diventano voci separate: «100 g di petto di pollo e 100 g di patate e cipolle» dà due righe, ognuna con la sua quantità, i suoi valori e la sua stima.
+- Le quantità si scelgono con dei tag: grammi, ml, unità, confezione, cucchiaio e cucchiaino.
+- Sistema di misura americano nel Profilo: once, fl oz, tazze e peso in libbre. I dati restano salvati in grammi e chili.
+- Scorrendo verso sinistra uno slot o una voce compare il cestino: lo slot si svuota o la voce si elimina, con «Annulla» per qualche secondo.
+- Nel diario ogni voce mostra quantità e calorie.
 - Un sito di presentazione con il logo, le icone e le schermate dell'app.
 
 ### Modificato
+- Le barre di calorie e macronutrienti si riempiono con un'animazione e cambiano colore: verde dentro la soglia, giallo vicino, rosso lontano dal minimo o oltre il massimo. Gli stessi colori nel grafico di Andamento.
+- Lo slot da compilare ha il bordo continuo invece che tratteggiato.
+- Il connettore claude.ai registra una voce per ogni alimento del pasto.
 - Il pulsante «Calcola con Claude» nel pasto ora si chiama «Stima», con la stellina.
 - Nel diario il pulsante per le voci senza valori ora dice «Stima le voci senza valori».
 

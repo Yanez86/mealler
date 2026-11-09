@@ -9,7 +9,7 @@ Registri cosa mangi negli slot che decidi tu, tieni d'occhio calorie e macronutr
 
 ## Stato
 
-Versione **1.1.2**: diario con promemoria push, uso offline, libreria alimenti condivisa, icone colorate per le categorie di alimenti, connettore per claude.ai e calcolo AI dentro l'app, anche da foto.
+Versione **1.1.3**: diario con promemoria push, uso offline, libreria alimenti condivisa, icone colorate per le categorie di alimenti, una voce per ogni alimento con quantità a tag, sistema metrico o americano, connettore per claude.ai e calcolo AI dentro l'app, anche da foto.
 
 | Funzione | Stato |
 | --- | --- |
@@ -27,6 +27,7 @@ Versione **1.1.2**: diario con promemoria push, uso offline, libreria alimenti c
 | Libreria alimenti condivisa: codice a barre, Open Food Facts, foto dell'etichetta | ✅ |
 | Eliminazione dell'account, intestazioni di sicurezza, guida d'installazione | ✅ |
 | Icone delle categorie di alimenti, riconosciute dal nome o scelte a mano | ✅ |
+| Una voce per alimento, quantità a tag, sistema metrico o americano, swipe per eliminare | ✅ |
 
 ## Installazione con Docker
 
@@ -89,4 +90,4 @@ Il sito di presentazione è in `site/`: `node site/build.mjs` lo crea in `site/d
 
 ## English
 
-Mealler is a self-hosted, multi-user food diary PWA. Log meals into slots you define, track calories and macros against optional min/max thresholds (with LARN reference values), get push reminders, work offline, keep a shared library of packaged foods (barcode, Open Food Facts, label photo), and let Claude estimate nutritional values through a claude.ai connector (MCP + OAuth 2.1) or the Anthropic API, with per-user spending limits. Colored icons show each food's category, guessed from its name or chosen by hand. Version 1.1.2. Install with Docker: see [docs/INSTALL.md](docs/INSTALL.md); security policy in [SECURITY.md](SECURITY.md). Licensed under AGPL-3.0-or-later.
+Mealler is a self-hosted, multi-user food diary PWA. Log meals into slots you define, track calories and macros against optional min/max thresholds (with LARN reference values), get push reminders, work offline, keep a shared library of packaged foods (barcode, Open Food Facts, label photo), and let Claude estimate nutritional values through a claude.ai connector (MCP + OAuth 2.1) or the Anthropic API, with per-user spending limits. Colored icons show each food's category, guessed from its name or chosen by hand. Several foods typed together become separate entries, quantities use unit tags, and metric or US customary units can be chosen. Version 1.1.3. Install with Docker: see [docs/INSTALL.md](docs/INSTALL.md); security policy in [SECURITY.md](SECURITY.md). Licensed under AGPL-3.0-or-later.

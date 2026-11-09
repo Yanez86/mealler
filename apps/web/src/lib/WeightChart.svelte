@@ -1,9 +1,14 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <script lang="ts">
-  import type { WeightEntry } from '@mealler/shared';
-  import { formatDate, formatNumber, t } from './state.svelte';
+  import { weightIn, weightUnit, type WeightEntry } from '@mealler/shared';
+  import { app, formatDate, formatNumber, t } from './state.svelte';
 
-  let { data }: { data: WeightEntry[] } = $props();
+  let { data: stored }: { data: WeightEntry[] } = $props();
+
+  // Stored in kg; drawn in pounds with US units.
+  const units = $derived(app.user?.units ?? 'metric');
+  const unit = $derived(weightUnit(units));
+  const data = $derived(stored.map((d) => ({ ...d, kg: weightIn(d.kg, units) })));
 
   let width = $state(320);
   const height = 170;
@@ -39,7 +44,7 @@
     {/if}
   </svg>
   <ul class="visually-hidden">
-    {#each data as d (d.date)}<li>{t('weight.dayLabel', { d: d.date, kg: formatNumber(d.kg, 1) })}</li>{/each}
+    {#each data as d (d.date)}<li>{t('weight.dayLabel', { d: d.date, kg: formatNumber(d.kg, 1), unit })}</li>{/each}
   </ul>
 </div>
 

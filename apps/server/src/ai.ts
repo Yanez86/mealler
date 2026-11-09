@@ -282,7 +282,7 @@ const TOOL = {
           type: 'object',
           properties: {
             name: { type: 'string' },
-            quantity: { type: 'string', description: 'Estimated amount, e.g. "120 g", "1 cup"' },
+            quantity: { type: 'string', description: 'Estimated amount, in g or ml when possible, e.g. "120 g", "200 ml"' },
             kcal: { type: 'number' },
             protein: { type: 'number', description: 'grams' },
             carbs: { type: 'number', description: 'grams' },

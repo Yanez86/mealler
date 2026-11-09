@@ -2,6 +2,7 @@
 import type { Nutrient, NutrientValues, ThresholdStatus } from './nutrients.ts';
 import type { Locale } from './i18n.ts';
 import type { FoodCategory } from './foods.ts';
+import type { UnitSystem } from './quantity.ts';
 
 export type Role = 'admin' | 'user';
 export type Theme = 'system' | 'light' | 'dark';
@@ -16,6 +17,8 @@ export interface User {
   locale: Locale;
   timezone: string;
   theme: Theme;
+  /** Metric or US customary units for food quantities and body weight; data is stored in metric. */
+  units: UnitSystem;
   active: boolean;
   remindersEnabled: boolean;
   quietStart: string | null;

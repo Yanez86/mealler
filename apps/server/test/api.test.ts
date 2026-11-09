@@ -360,6 +360,7 @@ test('claude.ai connector: OAuth 2.1 with PKCE, MCP tools, isolation, refresh an
   res = await mcp({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '1' } } });
   assert.equal(res.json().result.protocolVersion, '2025-06-18');
   assert.match(res.json().result.instructions, /Europe\/Rome/);
+  assert.match(res.json().result.instructions, /metric/);
   res = await mcp({ jsonrpc: '2.0', method: 'notifications/initialized' });
   assert.equal(res.statusCode, 202);
   res = await mcp({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
@@ -385,7 +386,31 @@ test('claude.ai connector: OAuth 2.1 with PKCE, MCP tools, isolation, refresh an
   });
   const added = res.json().result;
   assert.equal(added.isError, undefined, JSON.stringify(added));
-  assert.equal(added.structuredContent.logged.kcal, 640);
+  // Two foods: two diary entries, each named after its food, with its own values and quantity.
+  const parts = added.structuredContent.entries;
+  assert.equal(parts.length, 2);
+  assert.deepEqual(added.structuredContent.entry_ids, parts.map((p: { entry_id: number }) => p.entry_id));
+  assert.equal(added.structuredContent.entry_id, parts[0].entry_id);
+  assert.deepEqual(parts.map((p: { description: string }) => p.description), ['Pasta al pomodoro', 'Insalata con olio']);
+  assert.deepEqual(parts.map((p: { kcal: number }) => p.kcal), [520, 120]);
+  assert.equal(parts[0].quantity, '120 g');
+  assert.equal(parts[1].fiber, 3);
+  assert.equal(added.structuredContent.day.kcal.value, 640);
+  // A single food (or none) is still one entry; a quantity in cups is stored in millilitres.
+  res = await mcp({
+    jsonrpc: '2.0',
+    id: 30,
+    method: 'tools/call',
+    params: {
+      name: 'add_entry',
+      arguments: { date: '2026-11-08', slot_name: 'Colazione', description: 'Latte', items: [{ name: 'Latte', quantity: '1 cup', kcal: 150, protein: 8, carbs: 12, fat: 8 }] }
+    }
+  });
+  assert.equal(res.json().result.structuredContent.logged.kcal, 150);
+  res = await app.inject({ method: 'GET', url: '/api/day/2026-11-08', headers: asAdmin });
+  assert.equal(res.json().slots[0].entries[0].quantity, '237 ml');
+  assert.equal(res.json().slots[0].entries[0].items.length, 1);
+  await app.inject({ method: 'POST', url: '/api/entries/delete', headers: asAdmin, payload: { ids: [res.json().slots[0].entries[0].id] } });
   res = await mcp({
     jsonrpc: '2.0',
     id: 31,
@@ -592,9 +617,9 @@ test('favorites, suggestions, weights, trends, export and bulk estimates', async
   // Weights.
   res = await app.inject({ method: 'PUT', url: '/api/weights/2026-10-19', headers, payload: { kg: 73.2 } });
   assert.equal(res.statusCode, 200, res.body);
-  await app.inject({ method: 'PUT', url: '/api/weights/2026-11-02', headers, payload: { kg: 72.44 } });
+  await app.inject({ method: 'PUT', url: '/api/weights/2026-11-02', headers, payload: { kg: 72.444 } });
   res = await app.inject({ method: 'GET', url: '/api/weights?from=2026-10-01&to=2026-11-30', headers });
-  assert.deepEqual(res.json().map((w: { kg: number }) => w.kg), [73.2, 72.4]);
+  assert.deepEqual(res.json().map((w: { kg: number }) => w.kg), [73.2, 72.44]);
 
   // Weigh-in reminder: every 2 weeks on Monday at 07:30; last weigh-in 2026-11-02.
   await app.inject({
@@ -837,4 +862,66 @@ test('food category: chosen per entry, favorite and product, carried over, reset
   assert.ok(lines[0].endsWith(',category'));
   assert.ok(lines.some((l) => l.includes('Yogurt greco') && l.endsWith(',dairy')));
   assert.ok(lines.some((l) => l.includes('Bowl del giovedì') && l.endsWith(',pasta')));
+});
+
+test('unit system, meals split into entries, slot cleared at once', async () => {
+  const { app } = await setupApp();
+  let res = await app.inject({ method: 'POST', url: '/api/setup', payload: admin });
+  const headers = { cookie: cookieOf(res) };
+  assert.equal(res.json().units, 'metric');
+  res = await app.inject({ method: 'PATCH', url: '/api/me', headers, payload: { units: 'us' } });
+  assert.equal(res.json().units, 'us');
+  res = await app.inject({ method: 'PATCH', url: '/api/me', headers, payload: { units: 'imperial' } });
+  assert.equal(res.statusCode, 400);
+  res = await app.inject({ method: 'GET', url: '/api/me', headers });
+  assert.equal(res.json().units, 'us');
+
+  // A weight typed in pounds is stored in kg with two decimals, so it reads back as typed.
+  res = await app.inject({ method: 'PUT', url: '/api/weights/2026-11-09', headers, payload: { kg: 180 * 0.45359237 } });
+  assert.equal(res.json().kg, 81.65);
+  assert.equal(Math.round((res.json().kg / 0.45359237) * 10) / 10, 180);
+
+  const slots = (await app.inject({ method: 'GET', url: '/api/slots', headers })).json();
+  const lunch = slots[2].id;
+  // Several foods are saved together, one entry each.
+  res = await app.inject({
+    method: 'POST',
+    url: '/api/entries/batch',
+    headers,
+    payload: {
+      entries: [
+        { slotId: lunch, date: '2026-11-09', description: 'Petto di pollo ai ferri', quantity: '100 g', kcal: 165, protein: 31, carbs: 0, fat: 3.6 },
+        { slotId: lunch, date: '2026-11-09', description: 'Patate e cipolle', quantity: '100 g', notes: null }
+      ]
+    }
+  });
+  assert.equal(res.statusCode, 200, res.body);
+  const created = res.json();
+  assert.equal(created.length, 2);
+  assert.equal(created[1].kcal, null);
+  res = await app.inject({ method: 'GET', url: '/api/day/2026-11-09', headers });
+  assert.deepEqual(res.json().slots[2].entries.map((e: { description: string }) => e.description), ['Petto di pollo ai ferri', 'Patate e cipolle']);
+
+  // All or nothing: one bad slot rejects the whole meal.
+  res = await app.inject({
+    method: 'POST',
+    url: '/api/entries/batch',
+    headers,
+    payload: { entries: [{ slotId: lunch, date: '2026-11-09', description: 'Mela' }, { slotId: 99999, date: '2026-11-09', description: 'Pera' }] }
+  });
+  assert.equal(res.statusCode, 400);
+  res = await app.inject({ method: 'POST', url: '/api/entries/batch', headers, payload: { entries: [] } });
+  assert.equal(res.statusCode, 400);
+
+  // Clearing the slot removes its entries in one call; other users' ids are ignored.
+  const other = (await app.inject({ method: 'POST', url: '/api/entries', headers, payload: { slotId: slots[0].id, date: '2026-11-09', description: 'Caffè' } })).json();
+  res = await app.inject({ method: 'POST', url: '/api/entries/delete', headers, payload: { ids: created.map((e: { id: number }) => e.id) } });
+  assert.deepEqual(res.json(), { deleted: 2 });
+  res = await app.inject({ method: 'GET', url: '/api/day/2026-11-09', headers });
+  assert.equal(res.json().slots[2].entries.length, 0);
+  assert.equal(res.json().slots[0].entries[0].id, other.id);
+  res = await app.inject({ method: 'POST', url: '/api/entries/delete', headers, payload: { ids: [] } });
+  assert.equal(res.statusCode, 400);
+
+  await app.close();
 });

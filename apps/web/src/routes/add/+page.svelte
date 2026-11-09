@@ -1,30 +1,42 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<!-- Add or edit a meal. Each food is a row of its own and is saved as its own diary entry. -->
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import {
-    NUTRIENTS,
     isIsoDate,
-    kcalMismatch,
     mealCategory,
+    splitFoods,
     todayIn,
     type AiStatus,
     type Entry,
     type Estimate,
-    type EstimateItem,
     type Favorite,
-    type FoodCategory,
-    type Nutrient,
-    type Suggestion,
-    type Slot
+    type Slot,
+    type Suggestion
   } from '@mealler/shared';
   import { ApiError, del, get, patch, post } from '$lib/api';
   import { preparePhoto, type PreparedPhoto } from '$lib/image';
   import { enqueueEntry, net } from '$lib/offline.svelte';
-  import { app, errorMessage, formatDate, formatNumber, t } from '$lib/state.svelte';
-  import CategoryPicker from '$lib/CategoryPicker.svelte';
+  import { app, errorMessage, formatDate, t } from '$lib/state.svelte';
+  import {
+    applyEstimate,
+    clearEstimate,
+    hasValues,
+    isEdited,
+    newRow,
+    rowFromItem,
+    rowFromPart,
+    rowQuantity,
+    rowValues,
+    setQuantity,
+    setQuantityText,
+    setValues,
+    type FoodRow
+  } from '$lib/foodRow';
   import FoodIcon from '$lib/FoodIcon.svelte';
+  import FoodRowEditor from '$lib/FoodRowEditor.svelte';
   import Icon from '$lib/Icon.svelte';
   import TopBar from '$lib/TopBar.svelte';
   import LibraryPicker from '$lib/LibraryPicker.svelte';
@@ -32,36 +44,25 @@
   const params = page.url.searchParams;
   const entryId = Number(params.get('entry')) || null;
   const today = todayIn(app.user?.timezone ?? 'UTC');
+  const units = app.user?.units ?? 'metric';
+  const locale = app.locale;
 
   let slots = $state<Slot[]>([]);
   let slotId = $state<number | null>(Number(params.get('slot')) || null);
   let date = $state(isIsoDate(params.get('d') ?? '') ? (params.get('d') as string) : today);
-  let description = $state('');
-  let quantity = $state('');
+  let rows = $state<FoodRow[]>([newRow(units)]);
   let notes = $state('');
-  // null = guessed from the description (and the estimated items).
-  let category = $state<FoodCategory | null>(null);
-  const nutrients: { key: Nutrient; unit: string }[] = [
-    { key: 'kcal', unit: 'kcal' },
-    { key: 'protein', unit: 'g' },
-    { key: 'carbs', unit: 'g' },
-    { key: 'fat', unit: 'g' },
-    { key: 'fiber', unit: 'g' }
-  ];
-  let values = $state<Record<Nutrient, string>>({ kcal: '', protein: '', carbs: '', fat: '', fiber: '' });
   let error = $state('');
+  let splitMessage = $state('');
   let busy = $state(false);
   let loaded = $state(false);
 
-  // In-app estimate (milestone 4)
+  // In-app estimates
   let ai = $state<AiStatus | null>(null);
   let photo = $state<PreparedPhoto | null>(null);
   let existingPhotoId = $state<string | null>(null);
   let photoId = $state<string | null>(null);
-  let estimating = $state(false);
-  let estimate = $state<Estimate | null>(null);
-  let items = $state<EstimateItem[] | null>(null);
-  let estimatedValues = $state<Record<Nutrient, string> | null>(null);
+  let photoEstimating = $state(false);
   let fileInput = $state<HTMLInputElement | null>(null);
 
   // Favorites and frequent meals (new entries only)
@@ -69,42 +70,13 @@
   let suggestions = $state<Suggestion[]>([]);
   let favSaved = $state(false);
 
-  const toNumber = (s: string): number | null => {
-    const trimmed = s.trim().replace(',', '.');
-    if (!trimmed) return null;
-    const n = Number(trimmed);
-    return Number.isFinite(n) && n >= 0 ? n : null;
-  };
-  const toText = (n: number | null | undefined) =>
-    n == null ? '' : String(n).replace('.', app.locale === 'it' ? ',' : '.');
-
-  const parsed = $derived({
-    kcal: toNumber(values.kcal),
-    protein: toNumber(values.protein),
-    carbs: toNumber(values.carbs),
-    fat: toNumber(values.fat),
-    fiber: toNumber(values.fiber)
-  });
-  const mismatch = $derived(kcalMismatch(parsed));
-  const noValues = $derived(NUTRIENTS.every((n) => parsed[n] == null));
   const aiUsable = $derived(!!ai?.enabled && !ai.capReached && !ai.limitReached);
-  const edited = $derived(!!estimatedValues && NUTRIENTS.some((n) => values[n] !== estimatedValues![n]));
-  // The values section is a collapsible panel; its summary line shows the totals when closed.
-  let valuesOpen = $state(false);
-  const valuesSummary = $derived(
-    noValues
-      ? t('entry.valuesEmpty')
-      : [
-          parsed.kcal != null ? `${formatNumber(parsed.kcal)} kcal` : null,
-          parsed.protein != null ? `${t('entry.shortProtein')} ${formatNumber(parsed.protein, 1)} g` : null,
-          parsed.carbs != null ? `${t('entry.shortCarbs')} ${formatNumber(parsed.carbs, 1)} g` : null,
-          parsed.fat != null ? `${t('entry.shortFat')} ${formatNumber(parsed.fat, 1)} g` : null
-        ]
-          .filter(Boolean)
-          .join(' · ')
-  );
+  const canEstimate = $derived(aiUsable && net.online);
+  const estimating = $derived(photoEstimating || rows.some((r) => r.estimating));
+  const named = $derived(rows.filter((r) => r.name.trim()));
+  // New foods without values (the entry being edited keeps its own status).
+  const missingValues = $derived(named.filter((r) => !hasValues(r) && !(entryId && r === rows[0])));
   const back = $derived(date === today ? '/' : `/?d=${date}`);
-  const autoCategory = $derived(mealCategory([description], items));
 
   onMount(async () => {
     try {
@@ -117,13 +89,14 @@
         const entry = await get<Entry>(`/entries/${entryId}`);
         slotId = entry.slotId;
         date = entry.date;
-        description = entry.description;
-        quantity = entry.quantity ?? '';
         notes = entry.notes ?? '';
-        category = entry.category;
-        items = entry.items;
         existingPhotoId = entry.photoId;
-        for (const n of nutrients) values[n.key] = toText(entry[n.key]);
+        const row = rows[0];
+        row.name = entry.description;
+        setQuantityText(row, entry.quantity, units, locale);
+        setValues(row, entry, locale);
+        row.items = entry.items;
+        row.category = entry.category;
         // An entry may belong to an archived slot: keep it selectable.
         if (!all.some((s) => s.id === entry.slotId)) {
           const archived = await get<Slot[]>('/slots?archived=1');
@@ -145,27 +118,76 @@
     loaded = true;
   });
 
-  /** Fills the form from a favorite or a frequent meal: no new estimate needed. */
+  // ---------- Rows ----------
+
+  /** Several foods typed in one row become one row each; a quantity in the text fills the quantity field. */
+  function splitRow(index: number) {
+    const row = rows[index];
+    if (!row) return;
+    const parts = splitFoods(row.name);
+    if (!parts.length) return;
+    if (parts.length === 1) {
+      const [part] = parts;
+      if (part.quantity && !row.amount.trim()) {
+        row.name = part.name;
+        setQuantity(row, part.quantity, units, locale);
+      }
+      return;
+    }
+    // Values estimated for the whole text no longer fit the first food alone.
+    if (row.estimatedValues) clearEstimate(row);
+    const [first, ...rest] = parts;
+    row.name = first.name;
+    if (first.quantity) setQuantity(row, first.quantity, units, locale);
+    rows.splice(index + 1, 0, ...rest.map((p) => rowFromPart(p, units, locale)));
+    splitMessage = t('entry.splitDone', { n: rows.filter((r) => r.name.trim()).length });
+  }
+
+  function splitAll() {
+    for (let i = rows.length - 1; i >= 0; i--) splitRow(i);
+  }
+
+  function addRow() {
+    rows.push(newRow(units));
+    const key = rows[rows.length - 1].key;
+    requestAnimationFrame(() => document.getElementById(`food-${key}`)?.focus());
+  }
+
+  function removeRow(index: number) {
+    rows.splice(index, 1);
+    if (!rows.length) rows.push(newRow(units));
+  }
+
+  // ---------- Favorites ----------
+
+  /** A favorite or a frequent meal fills an empty row, or adds one: no new estimate needed. */
   function useQuick(q: Favorite | Suggestion) {
-    description = q.description;
-    quantity = q.quantity ?? '';
-    for (const n of NUTRIENTS) values[n] = toText(q[n]);
-    items = q.items;
-    category = q.category;
-    estimate = null;
-    estimatedValues = null;
+    let row = rows.find((r) => !r.name.trim() && !hasValues(r));
+    if (!row) {
+      rows.push(newRow(units));
+      row = rows[rows.length - 1];
+    }
+    row.name = q.description;
+    setQuantityText(row, q.quantity, units, locale);
+    setValues(row, q, locale);
+    row.items = q.items;
+    row.category = q.category;
+    row.estimatedValues = null;
+    row.estimate = null;
   }
 
   async function saveFavorite() {
+    const row = named[0];
+    if (!row) return;
     error = '';
     try {
       await post('/favorites', {
-        description,
-        quantity: quantity || null,
-        ...parsed,
-        items,
+        description: row.name.trim(),
+        quantity: rowQuantity(row, locale),
+        ...rowValues(row),
+        items: row.items,
         slotId,
-        category
+        category: row.category
       });
       favSaved = true;
     } catch (e) {
@@ -180,13 +202,57 @@
       .map((s) => ({ key: `s${s.description}`, label: s.description, star: false, value: s as Favorite | Suggestion }))
   ]);
 
+  // ---------- Estimates ----------
+
+  function noteAiError(e: unknown) {
+    error = errorMessage(e);
+    if (e instanceof ApiError && ai) {
+      if (e.code === 'aiCapReached' || e.code === 'aiInstanceCap') ai.capReached = true;
+      if (e.code === 'aiDailyLimit') ai.limitReached = true;
+    }
+  }
+
+  async function estimateRow(row: FoodRow) {
+    if (!row.name.trim()) return;
+    row.estimating = true;
+    error = '';
+    try {
+      const res = await post<{ estimate: Estimate; photoId: string | null }>('/ai/estimate', {
+        description: row.name.trim(),
+        quantity: rowQuantity(row, locale),
+        photo: null
+      });
+      if (ai) ai.requestsToday += 1;
+      applyEstimate(row, res.estimate, locale);
+    } catch (e) {
+      noteAiError(e);
+    } finally {
+      row.estimating = false;
+    }
+  }
+
+  async function estimateRowAt(index: number) {
+    splitRow(index);
+    await estimateRow(rows[index]);
+  }
+
+  /** "Stima": every food without values, one after the other. */
+  async function estimateAll() {
+    splitAll();
+    for (const row of rows) {
+      if (!row.name.trim() || hasValues(row)) continue;
+      if (!aiUsable) break;
+      await estimateRow(row);
+    }
+  }
+
   async function pickPhoto(event: Event) {
     const file = (event.currentTarget as HTMLInputElement).files?.[0];
     if (!file) return;
     error = '';
     try {
       photo = await preparePhoto(file);
-      await runEstimate();
+      await estimatePhoto();
     } catch {
       error = t('common.error');
     } finally {
@@ -194,63 +260,82 @@
     }
   }
 
-  async function runEstimate() {
-    if (!description.trim() && !photo) return;
-    estimating = true;
+  /** A photo of the plate: every food Claude sees becomes a row with its values. */
+  async function estimatePhoto() {
+    if (!photo) return;
+    splitAll();
+    photoEstimating = true;
     error = '';
     try {
+      const context = named.map((r) => [rowQuantity(r, locale), r.name.trim()].filter(Boolean).join(' ')).join(', ');
       const res = await post<{ estimate: Estimate; photoId: string | null }>('/ai/estimate', {
-        description,
-        quantity: quantity || null,
-        photo: photo ? { mime: photo.mime, data: photo.data } : null
+        description: context,
+        quantity: null,
+        photo: { mime: photo.mime, data: photo.data }
       });
-      estimate = res.estimate;
       if (ai) ai.requestsToday += 1;
-      items = res.estimate.items;
       if (res.photoId) photoId = res.photoId;
-      if (!description.trim()) description = res.estimate.description;
-      for (const n of NUTRIENTS) values[n] = toText(res.estimate.totals[n]);
-      estimatedValues = { ...values };
+      const estimate = res.estimate;
+      rows = estimate.items.length
+        ? estimate.items.map((item) => rowFromItem(item, estimate, units, locale))
+        : [newRow(units, estimate.description)];
+      if (rows.length > 1) splitMessage = t('entry.splitDone', { n: rows.length });
     } catch (e) {
-      error = errorMessage(e);
-      if (e instanceof ApiError && ai) {
-        if (e.code === 'aiCapReached' || e.code === 'aiInstanceCap') ai.capReached = true;
-        if (e.code === 'aiDailyLimit') ai.limitReached = true;
-      }
+      noteAiError(e);
     } finally {
-      estimating = false;
+      photoEstimating = false;
     }
+  }
+
+  // ---------- Save ----------
+
+  function bodyFor(row: FoodRow, index: number, isExisting: boolean): Record<string, unknown> & { date: string } {
+    const body: Record<string, unknown> & { date: string } = {
+      slotId,
+      date,
+      description: row.name.trim(),
+      quantity: rowQuantity(row, locale),
+      category: row.category,
+      ...rowValues(row)
+    };
+    // The meal's notes and photo go on its first entry.
+    body.notes = index === 0 ? notes || null : null;
+    if (index === 0 && photoId) body.photoId = photoId;
+    if (row.estimatedValues) {
+      body.items = row.items;
+      body.estimate = isEdited(row) ? 'corrected' : 'calculated';
+    }
+    // Nothing entered and in-app estimates on: save now, Claude fills the values in the background.
+    if (!isExisting && !hasValues(row) && aiUsable) body.calculate = true;
+    return body;
   }
 
   async function save(event: SubmitEvent) {
     event.preventDefault();
     if (!slotId) return;
+    splitAll();
+    const list = rows.filter((r) => r.name.trim());
+    if (!list.length) {
+      error = t('error.validation');
+      return;
+    }
     busy = true;
     error = '';
-    const body: Record<string, unknown> & { date: string } = {
-      slotId,
-      date,
-      description,
-      quantity: quantity || null,
-      notes: notes || null,
-      category,
-      ...parsed
-    };
-    if (estimatedValues) {
-      body.items = items;
-      body.estimate = edited ? 'corrected' : 'calculated';
-    }
-    if (photoId) body.photoId = photoId;
-    // Nothing entered and in-app estimates on: save now, Claude fills the values in the background.
-    if (!entryId && noValues && aiUsable) body.calculate = true;
+    const bodies = list.map((row, i) => bodyFor(row, i, !!entryId && i === 0));
     try {
-      if (entryId) await patch(`/entries/${entryId}`, body);
-      else await post('/entries', body);
+      if (entryId) {
+        await patch(`/entries/${entryId}`, bodies[0]);
+        if (bodies.length > 1) await post('/entries/batch', { entries: bodies.slice(1) });
+      } else if (bodies.length === 1) {
+        await post('/entries', bodies[0]);
+      } else {
+        await post('/entries/batch', { entries: bodies });
+      }
       await goto(back);
     } catch (e) {
       if (!entryId && e instanceof ApiError && e.code === 'offline') {
-        // No connection: keep the entry on the device, it is sent when the network returns.
-        enqueueEntry(body);
+        // No connection: keep the entries on the device, they are sent when the network returns.
+        for (const body of bodies) enqueueEntry(body);
         await goto(date === today ? '/?queued=1' : `/?d=${date}&queued=1`);
       } else {
         error = errorMessage(e);
@@ -315,18 +400,32 @@
         </section>
       {/if}
 
-      <div class="field">
-        <label for="what">{t('entry.what')}</label>
-        <textarea id="what" rows="3" maxlength="1000" aria-describedby="what-help" required={!photo} bind:value={description}></textarea>
+      <section class="what" aria-labelledby="what-title">
+        <h2 id="what-title" class="label">{t('entry.what')}</h2>
         <p id="what-help" class="help">{t('entry.whatHelp')}</p>
-      </div>
+        <div class="rows">
+          {#each rows as row, i (row.key)}
+            <FoodRowEditor
+              bind:row={rows[i]}
+              index={i}
+              {units}
+              removable={rows.length > 1 && !(entryId && i === 0)}
+              {canEstimate}
+              onestimate={() => estimateRowAt(i)}
+              onremove={() => removeRow(i)}
+              onsplit={() => splitRow(i)} />
+          {/each}
+        </div>
+        <button class="btn btn-ghost add-food" type="button" onclick={addRow}><Icon name="plus" size={20} stroke={2.5} />{t('entry.addFood')}</button>
+        {#if splitMessage}<p class="notice" role="status">{splitMessage}</p>{/if}
+      </section>
 
-      {#if aiUsable && net.online}
+      {#if canEstimate}
         <div class="ai-actions">
           <button class="btn" type="button" disabled={estimating} onclick={() => fileInput?.click()}>
             <Icon name="camera" size={20} />{t('ai.photo')}
           </button>
-          <button class="btn btn-primary" type="button" disabled={estimating || (!description.trim() && !photo)} onclick={runEstimate}>
+          <button class="btn btn-primary" type="button" disabled={estimating || !named.length} onclick={estimateAll}>
             <Icon name="sparkle" size={20} />{t('ai.calculate')}
           </button>
           <input bind:this={fileInput} class="visually-hidden" type="file" accept="image/*" capture="environment" tabindex="-1" aria-hidden="true" onchange={pickPhoto} />
@@ -339,6 +438,17 @@
       {#if aiUsable && ai?.dailyRequests}
         <p class="help">{t('ai.remaining', { n: ai.requestsToday, max: ai.dailyRequests })}</p>
       {/if}
+      {#if ai && !ai.enabled}
+        <p class="help">{t('ai.disabled')}</p>
+      {:else if !aiUsable}
+        <p class="help">{t('entry.valuesHelp')}</p>
+      {:else if missingValues.length}
+        <p class="help">{t('ai.laterHint')}</p>
+      {/if}
+
+      {#if photoEstimating}
+        <p class="notice working" role="status"><Icon name="sparkle" size={18} />{t('ai.working')}</p>
+      {/if}
 
       {#if photo || existingPhotoId}
         <figure class="photo">
@@ -349,74 +459,6 @@
         </figure>
       {/if}
 
-      {#if estimating}
-        <p class="notice working" role="status"><Icon name="sparkle" size={18} />{t('ai.working')}</p>
-      {/if}
-
-      {#if items?.length}
-        <section class="card stack estimate" aria-labelledby="est-title">
-          <div class="est-head">
-            <Icon name="sparkle" size={20} />
-            <h2 id="est-title" class="label grow">{t('ai.estimate')}</h2>
-            {#if aiUsable && net.online && (description.trim() || photo)}
-              <button class="btn btn-ghost" type="button" disabled={estimating} onclick={runEstimate}>{t('ai.recalculate')}</button>
-            {/if}
-          </div>
-          <ul>
-            {#each items as item, i (i)}
-              <li>
-                <FoodIcon category={mealCategory([item.name])} size={24} badge={false} />
-                <span class="grow">{item.name}{#if item.quantity} · {item.quantity}{/if}</span>
-                <span class="muted">{formatNumber(item.kcal)} kcal</span>
-              </li>
-            {/each}
-          </ul>
-          {#if estimate}
-            <p class="help">
-              {t(`ai.confidence.${estimate.confidence}`)}{#if estimate.notes} — {estimate.notes}{/if}
-            </p>
-          {/if}
-          <p class="help"><Icon name="alert" size={16} /> {t('ai.editHint')}</p>
-        </section>
-      {/if}
-
-      <CategoryPicker bind:value={category} auto={autoCategory} />
-
-      <div class="field">
-        <label for="quantity">{t('entry.quantity')} <span class="muted small">({t('common.optional')})</span></label>
-        <input id="quantity" maxlength="200" bind:value={quantity} />
-      </div>
-
-      <details class="card values" bind:open={valuesOpen}>
-        <summary>
-          <span class="grow">
-            <span class="label">{t('entry.values')}</span>
-            <span class="muted small summary-line">{valuesSummary}</span>
-          </span>
-          <Icon name="chevron" size={20} />
-        </summary>
-        <div class="stack values-body">
-        {#if ai && !ai.enabled}
-          <p class="help">{t('ai.disabled')}</p>
-        {:else if !aiUsable}
-          <p class="help">{t('entry.valuesHelp')}</p>
-        {:else if !entryId && noValues}
-          <p class="help">{t('ai.laterHint')}</p>
-        {/if}
-        <div class="grid">
-          {#each nutrients as n (n.key)}
-            <div class="field">
-              <label for="v-{n.key}">{t(`nutrient.${n.key}`)} <span class="muted small">({n.unit})</span></label>
-              <input id="v-{n.key}" inputmode="decimal" autocomplete="off" bind:value={values[n.key]} />
-            </div>
-          {/each}
-        </div>
-        </div>
-      </details>
-      {#if mismatch}
-        <p class="warn" role="status"><Icon name="alert" size={18} />{t('entry.mismatch')}</p>
-      {/if}
-
       <div class="field">
         <label for="date">{t('entry.date')}</label>
         <input id="date" type="date" required bind:value={date} />
@@ -424,14 +466,17 @@
 
       <div class="field">
         <label for="notes">{t('entry.notes')} <span class="muted small">({t('common.optional')})</span></label>
-        <textarea id="notes" rows="2" maxlength="2000" bind:value={notes}></textarea>
+        <textarea id="notes" rows="2" maxlength="2000" aria-describedby={named.length > 1 ? 'notes-help' : undefined} bind:value={notes}></textarea>
+        {#if named.length > 1}<p id="notes-help" class="help">{t('entry.notesFirst')}</p>{/if}
       </div>
 
       {#if error}<p class="error" role="alert">{error}</p>{/if}
 
       <div class="footer">
-        <button class="btn btn-primary btn-block" type="submit" disabled={busy || estimating || !slotId}>{t('entry.save')}</button>
-        {#if description.trim() && !noValues}
+        <button class="btn btn-primary btn-block" type="submit" disabled={busy || estimating || !slotId}>
+          {named.length > 1 ? t('entry.saveMany', { n: named.length }) : t('entry.save')}
+        </button>
+        {#if named.length === 1 && hasValues(named[0])}
           <button class="btn btn-block" type="button" disabled={busy || favSaved} onclick={saveFavorite}>
             <Icon name="star" size={20} />{favSaved ? t('fav.saved') : t('fav.save')}
           </button>
@@ -449,56 +494,20 @@
 </main>
 
 <style>
-  .values {
-    padding: 0;
-  }
-  .values summary {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    min-height: 56px;
-    padding: 12px 16px 12px 20px;
-    cursor: pointer;
-    list-style: none;
-  }
-  .values summary::-webkit-details-marker {
-    display: none;
-  }
-  .values summary .grow {
+  .what {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 8px;
     min-width: 0;
   }
-  .summary-line {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .values summary :global(svg) {
-    flex: none;
-    color: var(--text-2);
-    transform: rotate(90deg);
-    transition: transform 150ms;
-  }
-  .values[open] summary :global(svg) {
-    transform: rotate(-90deg);
-  }
-  .values-body {
-    padding: 0 20px 16px;
-  }
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-  }
-  .warn {
+  .rows {
     display: flex;
-    gap: 8px;
-    align-items: flex-start;
-    color: var(--over-ink);
-    font-size: 15px;
-    font-weight: 500;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .add-food {
+    align-self: flex-start;
+    padding: 0 12px;
   }
   .footer {
     display: flex;
@@ -528,32 +537,5 @@
     object-fit: cover;
     border-radius: 16px;
     border: 1px solid var(--border);
-  }
-  .estimate ul {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .estimate li {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    font-size: 15px;
-  }
-  .est-head {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--accent-ink);
-  }
-  .est-head h2 {
-    color: var(--text);
-  }
-  .grow {
-    flex: 1;
   }
 </style>

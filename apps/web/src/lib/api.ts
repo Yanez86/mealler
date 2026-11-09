@@ -32,3 +32,14 @@ export const post = <T>(path: string, body?: unknown) => api<T>('POST', path, bo
 export const patch = <T>(path: string, body: unknown) => api<T>('PATCH', path, body);
 export const put = <T>(path: string, body: unknown) => api<T>('PUT', path, body);
 export const del = <T>(path: string) => api<T>('DELETE', path);
+
+/** A POST that still reaches the server when the page is being hidden or closed. */
+export function beacon(path: string, body: unknown) {
+  void fetch(`/api${path}`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    keepalive: true
+  }).catch(() => {});
+}

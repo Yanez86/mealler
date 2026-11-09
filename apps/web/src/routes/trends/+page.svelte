@@ -115,9 +115,9 @@
             })} />
           <div class="legend small muted">
             <span><span class="sw band"></span>{t('trends.band')}</span>
-            <span><span class="sw" style="background: var(--ok)"></span>{t('day.status.ok')}</span>
-            <span><span class="sw" style="background: var(--under)"></span>{t('day.status.under')}</span>
-            <span><span class="sw" style="background: var(--over)"></span>{t('day.status.over')}</span>
+            <span><span class="sw" style="background: var(--good)"></span>{t('tone.good')}</span>
+            <span><span class="sw" style="background: var(--near)"></span>{t('tone.near')}</span>
+            <span><span class="sw" style="background: var(--bad)"></span>{t('tone.bad')}</span>
           </div>
         </section>
 

@@ -2,7 +2,7 @@
 <!-- Weight tab: last weigh-in, month calendar, reminder settings, chart. -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { addDays, isoWeekday, todayIn, type User, type WeightEntry } from '@mealler/shared';
+  import { addDays, isoWeekday, todayIn, weightFrom, weightIn, weightUnit, type User, type WeightEntry } from '@mealler/shared';
   import { del, get, patch, put } from './api';
   import { app, errorMessage, formatDate, formatNumber, setUser, t } from './state.svelte';
   import Icon from './Icon.svelte';
@@ -10,6 +10,10 @@
 
   const user = $derived(app.user as User);
   const today = $derived(todayIn(user.timezone));
+  // Weights are stored in kg and shown in pounds with US units.
+  const units = $derived(user.units ?? 'metric');
+  const unit = $derived(weightUnit(units));
+  const shown = (kg: number) => weightIn(kg, units);
 
   let month = $state(todayIn(app.user?.timezone ?? 'UTC').slice(0, 7)); // YYYY-MM
   let monthWeights = $state<WeightEntry[]>([]);
@@ -91,7 +95,7 @@
   function openForm(date: string) {
     const existing = byDate.get(date) ?? history.find((w) => w.date === date);
     formDate = date;
-    formKg = existing ? formatNumber(existing.kg, 1) : last ? formatNumber(last.kg, 1) : '';
+    formKg = existing ? formatNumber(shown(existing.kg), 1) : last ? formatNumber(shown(last.kg), 1) : '';
     formNote = existing?.note ?? '';
     editingExisting = !!existing;
     formOpen = true;
@@ -99,8 +103,9 @@
 
   async function saveWeight(event: SubmitEvent) {
     event.preventDefault();
-    const kg = Number(formKg.replace(',', '.'));
-    if (!Number.isFinite(kg)) return;
+    const value = Number(formKg.replace(',', '.'));
+    if (!Number.isFinite(value)) return;
+    const kg = weightFrom(value, units);
     try {
       await put(`/weights/${formDate}`, { kg, note: formNote || null });
       formOpen = false;
@@ -147,12 +152,12 @@
   <div class="grow">
     {#if last}
       <p class="muted small">{t('weight.last', { d: formatDate(last.date, { day: 'numeric', month: 'long' }) })}</p>
-      <p><span class="big">{formatNumber(last.kg, 1)}</span> <span class="muted">kg</span></p>
+      <p><span class="big">{formatNumber(shown(last.kg), 1)}</span> <span class="muted">{unit}</span></p>
       {#if previous}
-        {@const delta = Math.round((last.kg - previous.kg) * 10) / 10}
+        {@const delta = Math.round((shown(last.kg) - shown(previous.kg)) * 10) / 10}
         <p class="muted small change">
           <Icon name={delta < 0 ? 'down' : delta > 0 ? 'up' : 'minus'} size={14} stroke={2.5} />
-          {t('weight.change', { delta: formatNumber(Math.abs(delta), 1), d: formatDate(previous.date, { day: 'numeric', month: 'long' }) })}
+          {t('weight.change', { delta: formatNumber(Math.abs(delta), 1), unit, d: formatDate(previous.date, { day: 'numeric', month: 'long' }) })}
         </p>
       {/if}
     {:else}
@@ -170,7 +175,7 @@
         <input id="w-date" type="date" required max={today} bind:value={formDate} />
       </div>
       <div class="field">
-        <label for="w-kg">{t('weight.kg')}</label>
+        <label for="w-kg">{units === 'us' ? t('weight.lb') : t('weight.kg')}</label>
         <input id="w-kg" inputmode="decimal" required autocomplete="off" bind:value={formKg} />
       </div>
     </div>
@@ -209,7 +214,7 @@
             disabled={cell > today}
             aria-current={cell === today ? 'date' : undefined}
             aria-label={w
-              ? t('weight.dayLabel', { d: formatDate(cell, { day: 'numeric', month: 'long' }), kg: formatNumber(w.kg, 1) })
+              ? t('weight.dayLabel', { d: formatDate(cell, { day: 'numeric', month: 'long' }), kg: formatNumber(shown(w.kg), 1), unit })
               : formatDate(cell, { day: 'numeric', month: 'long' })}
             onclick={() => openForm(cell)}>{Number(cell.slice(8))}</button>
         </div>
