@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { z } from 'zod';
-import { LOCALES, NUTRIENTS, isIsoDate, isValidTime } from '@mealler/shared';
+import { FOOD_CATEGORIES, LOCALES, NUTRIENTS, isIsoDate, isValidTime } from '@mealler/shared';
 
 export const zEmail = z.string().trim().toLowerCase().email().max(200);
 export const zPassword = z.string().min(10).max(200);
@@ -23,6 +23,8 @@ export const zTime = z.string().refine(isValidTime);
 export const zId = z.coerce.number().int().positive();
 export const zDays = z.number().int().min(1).max(127);
 export const zNutrient = z.enum(NUTRIENTS);
+/** A food category chosen by the user; null goes back to the automatic one. */
+export const zFoodCategory = z.enum(FOOD_CATEGORIES).nullable();
 
 /** Optional nutrient amount: null clears it, numbers are rounded to one decimal. */
 export const zAmount = z

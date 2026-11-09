@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+  <!-- Mealler food category: fruit -->
+  <g transform="rotate(-8 32 34)">
+    <path d="M33 19C35 13 37 10 40 7" fill="none" stroke="#14181D" stroke-width="3.5" stroke-linecap="round"/>
+    <path d="M35 15C38 8 47 6 53 9C50 16 42 19 35 15Z" fill="#5BAA4A" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M38 14C42 12 46 11 49 10" fill="none" stroke="#3B7F3A" stroke-width="1.8" stroke-linecap="round"/>
+    <path d="M32 20C25 14 10 16 10 33C10 47 21 58 32 54C43 58 54 47 54 33C54 16 39 14 32 20Z" fill="#E04F3F" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <ellipse cx="20" cy="31" rx="3.6" ry="7" fill="#F28B7D" transform="rotate(18 20 31)"/>
+  </g>
+</svg>

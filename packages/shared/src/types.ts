@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import type { Nutrient, NutrientValues, ThresholdStatus } from './nutrients.ts';
 import type { Locale } from './i18n.ts';
+import type { FoodCategory } from './foods.ts';
 
 export type Role = 'admin' | 'user';
 export type Theme = 'system' | 'light' | 'dark';
@@ -35,6 +36,8 @@ export interface Favorite extends NutrientValues {
   slotId: number | null;
   uses: number;
   items: EstimateItem[] | null;
+  /** Chosen by the user; null = guessed from the name. */
+  category: FoodCategory | null;
 }
 
 /** A frequent meal, derived from the diary (not saved as favorite). */
@@ -43,6 +46,7 @@ export interface Suggestion extends NutrientValues {
   quantity: string | null;
   times: number;
   items: EstimateItem[] | null;
+  category: FoodCategory | null;
 }
 
 export interface WeightEntry {
@@ -104,6 +108,8 @@ export interface Entry extends NutrientValues {
   items: EstimateItem[] | null;
   productId: number | null;
   amountG: number | null;
+  /** Chosen by the user; null = guessed from the description. */
+  category: FoodCategory | null;
 }
 
 export interface EstimateItem {
@@ -200,6 +206,8 @@ export interface Product {
   servingG: number | null;
   servingLabel: string | null;
   source: 'manual' | 'label' | 'openfoodfacts';
+  /** Chosen by the user; null = guessed from the name. */
+  category: FoodCategory | null;
   uses: number;
   canEdit: boolean;
 }

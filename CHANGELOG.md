@@ -5,6 +5,12 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e i
 
 ## [Non rilasciato]
 
+### Aggiunto
+- Icone colorate per 16 categorie di alimenti, disegnate nello stile del logo: frutta, verdura, legumi, pane e cereali, pasta e riso, pizza, carne e salumi, pesce, uova, latte e formaggi, frutta secca, grassi e condimenti, dolci, caffè e tè, bevande, alcolici.
+- La categoria è riconosciuta in automatico dal nome del cibo, in italiano e in inglese (se il nome non basta, conta l'alimento più calorico della stima AI); l'icona compare nel diario, nei preferiti, nella libreria alimenti e nella schermata Aggiungi pasto.
+- Scelta della categoria a mano, nella schermata del pasto e nella scheda di un alimento in libreria; "Automatica" torna al riconoscimento dal nome. I pasti inseriti da un preferito o dalla libreria ereditano la categoria scelta.
+- Il connettore claude.ai accetta la categoria (facoltativa) in add_entry e update_entry; l'export CSV ha la colonna category.
+
 ## [1.0.0] - 2026-11-09
 
 Prima versione stabile.

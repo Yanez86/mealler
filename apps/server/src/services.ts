@@ -75,7 +75,8 @@ export function toEntry(row: typeof entries.$inferSelect): Entry {
     calcError: row.calcError,
     items: parseItems(row.detail),
     productId: row.productId,
-    amountG: row.amountG
+    amountG: row.amountG,
+    category: row.category
   };
 }
 

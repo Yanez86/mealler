@@ -2,10 +2,11 @@
 <!-- "From the library" in the add-meal screen: find a packaged food, choose the amount, log it. -->
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import type { Product, ProductDraft } from '@mealler/shared';
+  import { mealCategory, type Product, type ProductDraft } from '@mealler/shared';
   import { get, post } from './api';
   import { errorMessage, formatNumber, t } from './state.svelte';
   import BarcodeScanner from './BarcodeScanner.svelte';
+  import FoodIcon from './FoodIcon.svelte';
   import Icon from './Icon.svelte';
 
   let { slotId, date, onlogged }: { slotId: number | null; date: string; onlogged: () => void } = $props();
@@ -95,6 +96,7 @@
   {:else if selected}
     <div class="card stack picked">
       <div class="picked-head">
+        <FoodIcon category={selected.category ?? mealCategory([selected.name])} size={44} />
         <div class="grow">
           <p class="name">{selected.name}</p>
           {#if selected.brand}<p class="muted small">{selected.brand}</p>{/if}
@@ -127,6 +129,7 @@
         {#each results as p (p.id)}
           <li>
             <button type="button" onclick={() => choose(p)}>
+              <FoodIcon category={p.category ?? mealCategory([p.name])} size={32} />
               <span class="grow">
                 <span class="name">{p.name}</span>
                 {#if p.brand}<span class="muted small"> · {p.brand}</span>{/if}
@@ -163,7 +166,7 @@
     min-height: 48px;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     padding: 8px;
     border: none;
     background: transparent;
@@ -181,7 +184,7 @@
   }
   .picked-head {
     display: flex;
-    align-items: flex-start;
-    gap: 8px;
+    align-items: center;
+    gap: 12px;
   }
 </style>

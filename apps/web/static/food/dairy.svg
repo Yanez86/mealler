@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+  <!-- Mealler food category: dairy -->
+  <g transform="translate(32 33) scale(0.93) translate(-32 -32)">
+  <g transform="rotate(-8 22 32)">
+    <path d="M15 9H29V15C29 18 35 21 35 28V54C35 57 33 59 30 59H14C11 59 9 57 9 54V28C9 21 15 18 15 15Z" fill="#FFFFFF" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M10.6 34H33.4V44H10.6Z" fill="#CDE8E3"/>
+    <path d="M10.5 34H33.5M10.5 44H33.5" stroke="#14181D" stroke-width="2.2"/>
+    <path d="M14.5 48V53" stroke="#DCE1E6" stroke-width="3" stroke-linecap="round"/>
+    <path d="M14 26C14 23 16 21 18 20" fill="none" stroke="#E3E8ED" stroke-width="3" stroke-linecap="round"/>
+    <path d="M13 9C13 5 15 4 17 4H27C29 4 31 5 31 9C31 11 29 12 27 12H17C15 12 13 11 13 9Z" fill="#0F766E" stroke="#14181D" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+    <ellipse cx="18.5" cy="7" rx="3" ry="1.1" fill="#2A9D8F"/>
+  </g>
+  <g transform="translate(23 22) scale(0.64)">
+    <path d="M6 37L50 13L58 27L58 51L6 51Z" fill="#F6C343" stroke="#14181D" stroke-width="4.7" stroke-linejoin="round"/>
+    <path d="M6 37L50 13L58 27Z" fill="#FBE08A" stroke="#14181D" stroke-width="4.7" stroke-linejoin="round"/>
+    <g fill="#E0A52A" stroke="#14181D" stroke-width="3.6">
+      <circle cx="20" cy="44" r="4"/><circle cx="38" cy="41" r="5"/><circle cx="51" cy="46" r="2.8"/>
+      <ellipse cx="44" cy="22" rx="3.6" ry="2" transform="rotate(-28 44 22)"/>
+    </g>
+  </g>
+  </g>
+</svg>

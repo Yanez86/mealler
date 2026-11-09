@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+  <!-- Mealler food category: vegetables -->
+  <g transform="rotate(-10 32 34)">
+    <path d="M27 38L37 38L38 56Q32 59 26 56Z" fill="#B5DB8C" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M30 46L24 41" fill="none" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <g fill="#14181D" stroke="#14181D" stroke-width="6" stroke-linejoin="round">
+      <circle cx="19" cy="31" r="10"/><circle cx="45" cy="31" r="10"/><circle cx="32" cy="22" r="12"/><circle cx="31" cy="36" r="8"/>
+    </g>
+    <g fill="#4E9E45">
+      <circle cx="19" cy="31" r="10"/><circle cx="45" cy="31" r="10"/><circle cx="32" cy="22" r="12"/><circle cx="31" cy="36" r="8"/>
+    </g>
+    <circle cx="27" cy="17" r="3.5" fill="#8CCB6E"/><circle cx="15" cy="28" r="2.6" fill="#8CCB6E"/><circle cx="42" cy="27" r="2.6" fill="#8CCB6E"/>
+    <path d="M26 30Q32 34 38 30" fill="none" stroke="#2F6E2C" stroke-width="2" stroke-linecap="round"/>
+  </g>
+</svg>

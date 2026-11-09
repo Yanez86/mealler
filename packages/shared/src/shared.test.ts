@@ -5,6 +5,7 @@ import { thresholdStatus, sumValues, kcalMismatch } from './nutrients.ts';
 import { isIsoDate, addDays, isoWeekday, slotActiveOn, todayIn, isValidTime, inTimeRange, nowIn } from './dates.ts';
 import { translate, MESSAGES } from './i18n.ts';
 import { isNewerVersion } from './version.ts';
+import { foodCategory, mealCategory, FOOD_CATEGORIES } from './foods.ts';
 
 test('thresholdStatus handles optional bounds', () => {
   assert.equal(thresholdStatus(50, null, null), 'none');
@@ -62,4 +63,35 @@ test('version comparison', () => {
   assert.equal(isNewerVersion('0.2.0', '0.2.0'), false);
   assert.equal(isNewerVersion(null, '0.2.0'), false);
   assert.equal(isNewerVersion('0.3.0', 'dev'), false);
+});
+
+test('food categories are guessed from the description', () => {
+  assert.equal(foodCategory('Pasta e fagioli'), 'pasta');
+  assert.equal(foodCategory('Caffè e cornetto'), 'coffee');
+  assert.equal(foodCategory("Spremuta d'arancia"), 'drinks');
+  assert.equal(foodCategory('Arancia'), 'fruit');
+  assert.equal(foodCategory('Frutta secca'), 'nuts');
+  assert.equal(foodCategory('Burro di arachidi'), 'nuts');
+  assert.equal(foodCategory('Insalata di riso'), 'pasta');
+  assert.equal(foodCategory('Insalata mista'), 'vegetables');
+  assert.equal(foodCategory('Latte macchiato'), 'coffee');
+  assert.equal(foodCategory('Yogurt greco'), 'dairy');
+  assert.equal(foodCategory('Fagiolini'), 'vegetables');
+  assert.equal(foodCategory('Pesca'), 'fruit');
+  assert.equal(foodCategory('Pesce spada'), 'fish');
+  assert.equal(foodCategory('TIRAMISÙ'), 'sweets');
+  assert.equal(foodCategory('Scrambled eggs'), 'eggs');
+  assert.equal(foodCategory('Pranzo al ristorante'), 'other');
+  assert.equal(foodCategory(''), 'other');
+  for (const c of FOOD_CATEGORIES) assert.ok(translate('it', `food.${c}`) !== `food.${c}`);
+});
+
+test('meal category falls back to the item with the most calories', () => {
+  const items = [
+    { name: 'Insalata', kcal: 40, protein: 1, carbs: 3, fat: 2 },
+    { name: 'Lasagne', kcal: 620, protein: 30, carbs: 50, fat: 30 }
+  ];
+  assert.equal(mealCategory(['Pranzo al ristorante'], items), 'pasta');
+  assert.equal(mealCategory(['Cena', 'Pizza margherita'], null), 'pizza');
+  assert.equal(mealCategory(['Cena'], []), 'other');
 });

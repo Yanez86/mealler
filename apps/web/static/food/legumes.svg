@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+  <!-- Mealler food category: legumes -->
+  <g transform="translate(32 32) scale(0.92) rotate(-24) translate(-32 -32)">
+    <path d="M5 32C14 20 46 18 59 28C50 44 16 46 5 32Z" fill="#7CC36E" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M12 32C22 25 44 24 53 30C44 38 22 39 12 32Z" fill="#D7F0C2" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M18 31a5.5 5.5 0 1 0 11 0a5.5 5.5 0 1 0 -11 0Z" fill="#4E9E45" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M28 31a5.5 5.5 0 1 0 11 0a5.5 5.5 0 1 0 -11 0Z" fill="#4E9E45" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M38 31a5.5 5.5 0 1 0 11 0a5.5 5.5 0 1 0 -11 0Z" fill="#4E9E45" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="22" cy="29" r="1.8" fill="#9AD47F"/><circle cx="32" cy="29" r="1.8" fill="#9AD47F"/><circle cx="42" cy="29" r="1.8" fill="#9AD47F"/>
+    <path d="M5 32C2 30 1 26 3 23" fill="none" stroke="#14181D" stroke-width="3" stroke-linecap="round"/>
+  </g>
+</svg>

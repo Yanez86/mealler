@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+  <!-- Mealler food category: bread -->
+  <g transform="rotate(-18 32 34)">
+    <path d="M7 38C7 25 20 19 33 19C47 19 58 26 57 37C56 45 48 47 32 47C16 47 7 46 7 38Z" fill="#D18B47" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M12 40C20 43 44 43 52 40" fill="none" stroke="#A9672E" stroke-width="2.4" stroke-linecap="round"/>
+    <ellipse cx="22" cy="25.5" rx="7" ry="2.6" fill="#EDB878" transform="rotate(-12 22 25.5)"/>
+    <g stroke="#14181D" stroke-width="2.6" stroke-linejoin="round" fill="#FBE3B5">
+      <rect x="-2.6" y="-6.5" width="5.2" height="13" rx="2.6" transform="translate(21 33) rotate(35)"/>
+      <rect x="-2.6" y="-7.5" width="5.2" height="15" rx="2.6" transform="translate(32 32) rotate(35)"/>
+      <rect x="-2.6" y="-6.5" width="5.2" height="13" rx="2.6" transform="translate(43 32) rotate(35)"/>
+    </g>
+  </g>
+</svg>

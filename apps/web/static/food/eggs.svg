@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+  <!-- Mealler food category: eggs -->
+  <g transform="rotate(-10 32 32)">
+    <path d="M14 20C20 8 36 10 42 14C50 12 59 22 55 32C60 42 50 54 38 51C30 58 14 56 12 44C4 38 6 26 14 20Z" fill="#FFFFFF" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M16 46C22 51 30 50 34 48" fill="none" stroke="#DCE1E6" stroke-width="2.4" stroke-linecap="round"/>
+    <path d="M22 32a11 11 0 1 0 22 0a11 11 0 1 0 -22 0Z" fill="#F5B82E" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <ellipse cx="28" cy="27.5" rx="4" ry="2.6" fill="#FBE08A" transform="rotate(-28 28 27.5)"/>
+  </g>
+</svg>

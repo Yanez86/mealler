@@ -12,7 +12,7 @@ import { getSetting } from '../services.ts';
 import { toEntry } from '../services.ts';
 import { readNutritionLabel } from '../ai.ts';
 import { valuesFor } from '../foods.ts';
-import { zDate, zId } from '../validation.ts';
+import { zDate, zFoodCategory, zId } from '../validation.ts';
 
 export const isOffEnabled = (db: Db) => getSetting(db, 'off_enabled') !== 'false';
 
@@ -30,6 +30,7 @@ export function toProduct(row: typeof products.$inferSelect, user: UserRow): Pro
     servingG: row.servingG,
     servingLabel: row.servingLabel,
     source: row.source,
+    category: row.category,
     uses: row.uses,
     canEdit: user.role === 'admin' || row.createdBy === user.id
   };
@@ -64,7 +65,8 @@ export function logProduct(
       source: 'library',
       calcStatus: 'manual',
       productId: product.id,
-      amountG: input.grams
+      amountG: input.grams,
+      category: product.category
     })
     .returning()
     .get();
@@ -89,7 +91,8 @@ const productBody = z.object({
   fiber: per100.nullable().optional(),
   servingG: z.number().min(0.1).max(5000).nullable().optional(),
   servingLabel: z.string().trim().max(100).nullable().optional(),
-  source: z.enum(['manual', 'label', 'openfoodfacts']).default('manual')
+  source: z.enum(['manual', 'label', 'openfoodfacts']).default('manual'),
+  category: zFoodCategory.optional()
 });
 
 export async function productRoutes(app: FastifyInstance, { db, ai, foods }: AppContext) {
@@ -158,6 +161,7 @@ export async function productRoutes(app: FastifyInstance, { db, ai, foods }: App
         servingG: b.servingG ?? null,
         servingLabel: b.servingLabel || null,
         source: b.source,
+        category: b.category ?? null,
         createdBy: user.id
       })
       .returning()

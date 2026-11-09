@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+  <!-- Mealler food category: sweets -->
+  <g transform="rotate(-12 32 32)">
+    <path fill-rule="evenodd" d="M32 8a24 24 0 1 0 0.01 0ZM32 25a7 7 0 1 1 -0.01 0Z" fill="#E3A35E" stroke="#14181D" stroke-width="3" stroke-linejoin="round"/>
+    <path transform="translate(-1 -1.5) translate(32 32) scale(0.86) translate(-32 -32)" fill-rule="evenodd" d="M32 11C40 10 45 14 49 17C54 21 53 27 54 32C56 38 51 41 49 45C46 50 40 53 34 51C28 53 22 51 18 47C13 44 12 38 11 33C9 27 14 22 16 18C20 13 25 11 32 11ZM32 26a6 6 0 1 0 0.01 0Z" fill="#F27BA5" stroke="#14181D" stroke-width="2.8" stroke-linejoin="round"/>
+    <path d="M19 24C21 20 24 17.5 28 16.5" fill="none" stroke="#F9B9D0" stroke-width="3.2" stroke-linecap="round"/>
+    <g stroke-width="3" stroke-linecap="round">
+      <path d="M24 33L23 37" stroke="#FFF4E0"/><path d="M40 20L44 21" stroke="#F6C343"/><path d="M42 38L44 41" stroke="#4D8FD1"/>
+      <path d="M30 44L34 45" stroke="#2A9D8F"/><path d="M20 41L22 44" stroke="#F6C343"/><path d="M43 30L47 29" stroke="#FFF4E0"/><path d="M31 18L34 17" stroke="#4D8FD1"/>
+    </g>
+  </g>
+</svg>

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Drizzle table definitions. They mirror migrations/*.sql, which remain the source of truth.
 import { sqliteTable, integer, text, real } from 'drizzle-orm/sqlite-core';
+import { FOOD_CATEGORIES } from '@mealler/shared';
 
 const now = () => new Date().toISOString();
 
@@ -97,6 +98,7 @@ export const entries = sqliteTable('entries', {
   calcError: text('calc_error'),
   productId: integer('product_id'),
   amountG: real('amount_g'),
+  category: text('category', { enum: FOOD_CATEGORIES }),
   createdAt: text('created_at').notNull().$defaultFn(now),
   updatedAt: text('updated_at').notNull().$defaultFn(now)
 });
@@ -186,6 +188,7 @@ export const favorites = sqliteTable('favorites', {
   fiber: real('fiber'),
   detail: text('detail'),
   slotId: integer('slot_id'),
+  category: text('category', { enum: FOOD_CATEGORIES }),
   uses: integer('uses').notNull().default(0),
   createdAt: text('created_at').notNull().$defaultFn(now)
 });
@@ -211,6 +214,7 @@ export const products = sqliteTable('products', {
   servingG: real('serving_g'),
   servingLabel: text('serving_label'),
   source: text('source', { enum: ['manual', 'label', 'openfoodfacts'] }).notNull().default('manual'),
+  category: text('category', { enum: FOOD_CATEGORIES }),
   createdBy: integer('created_by'),
   uses: integer('uses').notNull().default(0),
   createdAt: text('created_at').notNull().$defaultFn(now),

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+  <!-- Mealler food category: fats -->
+  <g transform="rotate(-10 32 34)">
+    <path d="M27 6H37V20H27Z" fill="#B0763F" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M24 18H40C40 23 48 26 48 34V52C48 56 45 58 42 58H22C19 58 16 56 16 52V34C16 26 24 23 24 18Z" fill="#D9C548" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M19 34C19 30 22 27 24.5 26" fill="none" stroke="#F0E48C" stroke-width="3" stroke-linecap="round"/>
+    <path d="M20 38H44V50H20Z" fill="#FFF4E0" stroke="#14181D" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M25 46C28 40 34 39 38 41" fill="none" stroke="#14181D" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M27 45a3.6 2.8 -20 1 0 7.2 0a3.6 2.8 -20 1 0 -7.2 0Z" fill="#5F7F24" stroke="#14181D" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M33 42C35 39 39 39 40 40C38 43 35 43 33 42Z" fill="#5BAA4A" stroke="#14181D" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
+  </g>
+</svg>

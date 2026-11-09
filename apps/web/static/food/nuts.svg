@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+  <!-- Mealler food category: nuts -->
+  <g transform="translate(-1.5 0)">
+    <g transform="rotate(30 40 34)"><path d="M40 10C51 18 54 34 50 46C47 54 33 54 30 46C26 34 29 18 40 10Z" fill="#B97A47" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+      <path d="M37 24L38 27M43 30L44 33M36 37L37 40M43 42L44 45" stroke="#8A552C" stroke-width="2.2" stroke-linecap="round"/></g>
+    <g transform="rotate(-24 25 34)"><path d="M25 9C37 17 40 34 36 47C33 56 17 56 14 47C10 34 13 17 25 9Z" fill="#D39461" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+      <ellipse cx="20" cy="27" rx="2.2" ry="7" fill="#EBBE92" transform="rotate(10 20 27)"/>
+      <path d="M27 22L28 25M31 33L32 36M24 38L25 41M30 44L31 47" stroke="#9C6236" stroke-width="2.2" stroke-linecap="round"/></g>
+  </g>
+</svg>
