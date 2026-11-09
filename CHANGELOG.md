@@ -5,6 +5,8 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e i
 
 ## [Non rilasciato]
 
+## [1.1.1] - 2026-11-09
+
 ### Aggiunto
 - Una X per chiudere l'avviso delle novità senza aprirle.
 
