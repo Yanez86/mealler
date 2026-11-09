@@ -18,6 +18,8 @@ jobs:
       - name: Typecheck
         run: pnpm -r --no-bail typecheck
       - name: Test
+        if: ${{ !cancelled() }}
         run: pnpm -r --no-bail test
       - name: Build
+        if: ${{ !cancelled() }}
         run: pnpm -r build
