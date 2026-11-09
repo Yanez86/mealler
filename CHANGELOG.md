@@ -5,6 +5,19 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e i
 
 ## [Non rilasciato]
 
+## [0.2.0] - 2026-11-09
+
+### Aggiunto
+- Promemoria push per gli slot ancora vuoti, con ritardo configurabile per slot (da subito a 2 ore dopo l'orario).
+- Pagina Notifiche: attivazione per dispositivo, notifica di prova, fascia di silenzio, pausa di 7 giorni.
+- Avvisi dedicati quando le notifiche non sono disponibili: connessione senza HTTPS, iPhone senza app installata, permesso negato.
+- Consultazione offline del diario e degli slot dall'ultima versione salvata.
+- Inserimenti fatti offline salvati sul dispositivo e inviati automaticamente al ritorno della rete.
+- Chiavi VAPID generate al primo avvio.
+
+### Modificato
+- All'uscita dall'account il dispositivo smette di ricevere i promemoria e la cache locale viene svuotata.
+
 ## [0.1.0] - 2026-11-09
 
 ### Aggiunto

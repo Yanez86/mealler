@@ -9,7 +9,7 @@ Registri cosa mangi negli slot che decidi tu, tieni d'occhio calorie e macronutr
 
 ## Stato
 
-Versione **0.1.0**: prima versione usabile, con inserimento manuale dei valori.
+Versione **0.2.0**: inserimento manuale dei valori, promemoria push e uso offline.
 
 | Funzione | Stato |
 | --- | --- |
@@ -19,7 +19,8 @@ Versione **0.1.0**: prima versione usabile, con inserimento manuale dei valori.
 | Diario giornaliero con inserimento manuale di kcal e macro | ✅ |
 | Soglie minime e massime facoltative, versionate nel tempo | ✅ |
 | Tema chiaro/scuro, italiano e inglese, PWA installabile | ✅ |
-| Promemoria push per gli slot | 🔜 milestone 2 |
+| Promemoria push per gli slot, fascia di silenzio, pausa | ✅ |
+| Consultazione offline e inserimenti in coda | ✅ |
 | Connettore per claude.ai (MCP) | 🔜 milestone 3 |
 | Calcolo con l'API Anthropic, anche da foto | 🔜 milestone 4 |
 | Preferiti, grafici, peso, export | 🔜 milestone 5 |

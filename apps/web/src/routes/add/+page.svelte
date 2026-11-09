@@ -11,7 +11,8 @@
     type Nutrient,
     type Slot
   } from '@mealler/shared';
-  import { del, get, patch, post } from '$lib/api';
+  import { ApiError, del, get, patch, post } from '$lib/api';
+  import { enqueueEntry } from '$lib/offline.svelte';
   import { app, errorMessage, formatDate, t } from '$lib/state.svelte';
   import Icon from '$lib/Icon.svelte';
   import TopBar from '$lib/TopBar.svelte';
@@ -92,7 +93,13 @@
       else await post('/entries', body);
       await goto(date === today ? '/' : `/?d=${date}`);
     } catch (e) {
-      error = errorMessage(e);
+      if (!entryId && e instanceof ApiError && e.code === 'offline') {
+        // No connection: keep the entry on the device, it is sent when the network returns.
+        enqueueEntry(body);
+        await goto(date === today ? '/?queued=1' : `/?d=${date}&queued=1`);
+      } else {
+        error = errorMessage(e);
+      }
     } finally {
       busy = false;
     }

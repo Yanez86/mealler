@@ -2,16 +2,21 @@
 import { loadConfig } from './config.ts';
 import { migrate, openDatabase } from './db/index.ts';
 import { buildApp } from './app.ts';
+import { createPushSender } from './push.ts';
+import { startReminderScheduler } from './reminders.ts';
 
 const config = loadConfig();
 const { sqlite, db } = openDatabase(config.dataDir);
 const applied = migrate(sqlite, config.migrationsDir);
 
-const app = await buildApp({ db, config });
+const push = createPushSender(db, config);
+const app = await buildApp({ db, config, push });
+const stopReminders = startReminderScheduler(db, push, app.log);
 if (applied.length) app.log.info({ applied }, 'database migrations applied');
 
 const shutdown = async (signal: string) => {
   app.log.info(`received ${signal}, shutting down`);
+  stopReminders();
   await app.close();
   sqlite.close();
   process.exit(0);

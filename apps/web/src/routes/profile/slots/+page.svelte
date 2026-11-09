@@ -13,6 +13,7 @@
   let draft = $state({ name: '', time: '12:00', days: ALL_DAYS });
 
   const weekdays = [1, 2, 3, 4, 5, 6, 7] as const;
+  const delays = [0, 15, 30, 45, 60, 90, 120];
 
   onMount(load);
 
@@ -32,7 +33,13 @@
     error = '';
     if (!slot.days) return (error = t('slots.noDays'));
     try {
-      await patch(`/slots/${slot.id}`, { name: slot.name, time: slot.time, days: slot.days, reminderEnabled: slot.reminderEnabled });
+      await patch(`/slots/${slot.id}`, {
+        name: slot.name,
+        time: slot.time,
+        days: slot.days,
+        reminderEnabled: slot.reminderEnabled,
+        reminderDelayMin: Number(slot.reminderDelayMin)
+      });
       savedId = slot.id;
       setTimeout(() => (savedId = null), 2000);
     } catch (e) {
@@ -112,10 +119,20 @@
           {/each}
         </div>
       </fieldset>
-      <label class="check">
-        <input type="checkbox" bind:checked={slot.reminderEnabled} />
-        <span>{t('slots.reminder')} <span class="muted small">— {t('slots.reminderSoon')}</span></span>
-      </label>
+      <div class="row">
+        <label class="check grow">
+          <input type="checkbox" bind:checked={slot.reminderEnabled} />
+          <span>{t('slots.reminder')}</span>
+        </label>
+        <div class="field">
+          <label class="visually-hidden" for="delay-{slot.id}">{t('slots.delay')}</label>
+          <select id="delay-{slot.id}" disabled={!slot.reminderEnabled} bind:value={slot.reminderDelayMin}>
+            {#each delays as d (d)}
+              <option value={d}>{d === 0 ? t('slots.delayNow') : t('slots.delayMin', { n: d })}</option>
+            {/each}
+          </select>
+        </div>
+      </div>
       <div class="actions">
         <button class="btn btn-primary" type="submit">{savedId === slot.id ? t('common.saved') : t('common.save')}</button>
         <button class="icon-btn" type="button" aria-label={t('slots.moveUp')} disabled={i === 0} onclick={() => move(i, -1)}><Icon name="up" /></button>

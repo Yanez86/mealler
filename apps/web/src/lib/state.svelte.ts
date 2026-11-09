@@ -11,6 +11,8 @@ import {
   type User
 } from '@mealler/shared';
 import { ApiError } from './api';
+import { flushQueue, initOffline } from './offline.svelte';
+import { refreshSubscription } from './push';
 
 export const app = $state<{ status: Status | null; user: User | null; locale: Locale }>({
   status: null,
@@ -30,9 +32,12 @@ export function t(key: MessageKey, params?: MessageParams): string {
 
 export function setUser(user: User | null) {
   app.user = user;
+  initOffline(user?.id ?? null);
   if (user) {
     app.locale = user.locale;
     applyTheme(user.theme);
+    void flushQueue();
+    void refreshSubscription();
   }
   document.documentElement.lang = app.locale;
 }

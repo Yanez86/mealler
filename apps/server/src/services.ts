@@ -25,7 +25,11 @@ export function toUser(row: UserRow): User {
     locale: isLocale(row.locale) ? row.locale : 'it',
     timezone: row.timezone,
     theme: row.theme,
-    active: row.active
+    active: row.active,
+    remindersEnabled: row.remindersEnabled,
+    quietStart: row.quietStart,
+    quietEnd: row.quietEnd,
+    remindersPausedUntil: row.remindersPausedUntil
   };
 }
 

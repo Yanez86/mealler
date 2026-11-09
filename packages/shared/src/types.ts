@@ -16,6 +16,17 @@ export interface User {
   timezone: string;
   theme: Theme;
   active: boolean;
+  remindersEnabled: boolean;
+  quietStart: string | null;
+  quietEnd: string | null;
+  remindersPausedUntil: string | null;
+}
+
+export interface PushPayload {
+  title: string;
+  body: string;
+  url: string;
+  tag: string;
 }
 
 export interface Status {

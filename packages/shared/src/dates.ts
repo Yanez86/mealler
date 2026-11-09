@@ -43,3 +43,29 @@ export function slotActiveOn(daysMask: number, isoDate: string): boolean {
 export function isValidTime(value: string): boolean {
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
 }
+
+/** "HH:MM" → minutes since midnight. */
+export function timeToMinutes(value: string): number {
+  const [h, m] = value.split(':').map(Number);
+  return h * 60 + m;
+}
+
+/** True when `now` falls inside [start, end); ranges may cross midnight (e.g. 22:00–07:00). */
+export function inTimeRange(now: string, start: string | null, end: string | null): boolean {
+  if (!start || !end || start === end) return false;
+  const n = timeToMinutes(now);
+  const s = timeToMinutes(start);
+  const e = timeToMinutes(end);
+  return s < e ? n >= s && n < e : n >= s || n < e;
+}
+
+/** Current date ("YYYY-MM-DD") and time ("HH:MM") in an IANA time zone. */
+export function nowIn(timeZone: string, now: Date = new Date()): { date: string; time: string } {
+  let time: string;
+  try {
+    time = new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(now);
+  } catch {
+    time = now.toISOString().slice(11, 16);
+  }
+  return { date: todayIn(timeZone, now), time };
+}

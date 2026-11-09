@@ -6,6 +6,8 @@
   import { app, errorMessage, setUser, t } from '$lib/state.svelte';
   import Icon from '$lib/Icon.svelte';
   import TopBar from '$lib/TopBar.svelte';
+  import { clearApiCache } from '$lib/offline.svelte';
+  import { unsubscribe } from '$lib/push';
 
   const user = app.user as User;
   let name = $state(user.name);
@@ -52,7 +54,10 @@
   }
 
   async function logout() {
+    // This device should stop receiving this account's reminders.
+    await unsubscribe().catch(() => {});
     await post('/auth/logout').catch(() => {});
+    await clearApiCache();
     setUser(null);
     await goto('/login', { replaceState: true });
   }
@@ -66,6 +71,7 @@
   <nav class="card links" aria-label={t('profile.diary')}>
     <a class="list-row" href="/profile/slots"><span>{t('profile.slots')}</span><Icon name="chevron" /></a>
     <a class="list-row" href="/profile/thresholds"><span>{t('profile.thresholds')}</span><Icon name="chevron" /></a>
+    <a class="list-row" href="/profile/notifications"><span>{t('profile.notifications')}</span><Icon name="chevron" /></a>
     {#if user.role === 'admin'}
       <a class="list-row" href="/admin"><span>{t('profile.admin')}</span><Icon name="chevron" /></a>
     {/if}

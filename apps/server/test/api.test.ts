@@ -5,6 +5,9 @@ import { fileURLToPath } from 'node:url';
 import { buildApp } from '../src/app.ts';
 import { loadConfig } from '../src/config.ts';
 import { migrate, openDatabase } from '../src/db/index.ts';
+import type { PushSender } from '../src/push.ts';
+import { runReminderTick } from '../src/reminders.ts';
+import type { PushPayload } from '@mealler/shared';
 
 async function setupApp() {
   const config = {
@@ -14,8 +17,16 @@ async function setupApp() {
   };
   const { sqlite, db } = openDatabase('', ':memory:');
   migrate(sqlite, config.migrationsDir);
-  const app = await buildApp({ db, config }, { logger: false });
-  return app;
+  const sent: { endpoint: string; payload: PushPayload }[] = [];
+  const push: PushSender = {
+    publicKey: 'test-key',
+    async send(target, payload) {
+      sent.push({ endpoint: target.endpoint, payload });
+      return target.endpoint.includes('gone') ? 'gone' : 'ok';
+    }
+  };
+  const app = await buildApp({ db, config, push }, { logger: false });
+  return { app, db, push, sent };
 }
 
 function cookieOf(res: { headers: Record<string, unknown> }): string {
@@ -27,7 +38,7 @@ function cookieOf(res: { headers: Record<string, unknown> }): string {
 const admin = { name: 'Admin', email: 'Admin@Example.com', password: 'correct horse battery', locale: 'it', timezone: 'Europe/Rome' };
 
 test('setup, login, slots, entries, day view and isolation', async () => {
-  const app = await setupApp();
+  const { app } = await setupApp();
 
   let res = await app.inject({ method: 'GET', url: '/api/status' });
   assert.equal(res.json().setupRequired, true);
@@ -122,6 +133,72 @@ test('setup, login, slots, entries, day view and isolation', async () => {
   const me = (await app.inject({ method: 'GET', url: '/api/me', headers: { cookie: adminCookie } })).json();
   res = await app.inject({ method: 'PATCH', url: `/api/admin/users/${me.id}`, headers: { cookie: adminCookie }, payload: { role: 'user' } });
   assert.equal(res.statusCode, 400);
+
+  await app.close();
+});
+
+test('slot reminders respect time, filled slots, quiet hours and pauses', async () => {
+  const { app, db, push, sent } = await setupApp();
+  let res = await app.inject({ method: 'POST', url: '/api/setup', payload: admin });
+  const cookie = cookieOf(res);
+  const headers = { cookie };
+  const slots = (await app.inject({ method: 'GET', url: '/api/slots', headers })).json();
+  const breakfast = slots[0];
+  // Only breakfast reminds, 15 minutes after 08:00.
+  for (const s of slots.slice(1)) {
+    await app.inject({ method: 'PATCH', url: `/api/slots/${s.id}`, headers, payload: { reminderEnabled: false } });
+  }
+  await app.inject({ method: 'PATCH', url: `/api/slots/${breakfast.id}`, headers, payload: { reminderDelayMin: 15 } });
+
+  // No devices yet: nothing is sent.
+  assert.equal(await runReminderTick(db, push, new Date('2026-11-09T07:20:00Z')), 0);
+
+  res = await app.inject({
+    method: 'POST',
+    url: '/api/push/subscribe',
+    headers,
+    payload: { endpoint: 'https://push.example.com/abc', keys: { p256dh: 'p256dh-key-0123456789', auth: 'auth-key-0123' } }
+  });
+  assert.equal(res.statusCode, 200, res.body);
+
+  // 08:10 in Rome: too early.
+  assert.equal(await runReminderTick(db, push, new Date('2026-11-09T07:10:00Z')), 0);
+  // 08:20 in Rome: due.
+  assert.equal(await runReminderTick(db, push, new Date('2026-11-09T07:20:00Z')), 1);
+  assert.equal(sent.at(-1)?.payload.url, `/add?slot=${breakfast.id}&d=2026-11-09`);
+  // Never twice on the same day.
+  assert.equal(await runReminderTick(db, push, new Date('2026-11-09T07:30:00Z')), 0);
+
+  // A filled slot does not remind.
+  await app.inject({
+    method: 'POST',
+    url: '/api/entries',
+    headers,
+    payload: { slotId: breakfast.id, date: '2026-11-10', description: 'Caffè' }
+  });
+  assert.equal(await runReminderTick(db, push, new Date('2026-11-10T07:20:00Z')), 0);
+
+  // Quiet hours block it, and so does a pause.
+  await app.inject({ method: 'PATCH', url: '/api/me', headers, payload: { quietStart: '08:00', quietEnd: '09:00' } });
+  assert.equal(await runReminderTick(db, push, new Date('2026-11-11T07:20:00Z')), 0);
+  await app.inject({ method: 'PATCH', url: '/api/me', headers, payload: { quietStart: null, quietEnd: null, remindersPausedUntil: '2026-11-12' } });
+  assert.equal(await runReminderTick(db, push, new Date('2026-11-12T07:20:00Z')), 0);
+  assert.equal(await runReminderTick(db, push, new Date('2026-11-13T07:20:00Z')), 1);
+
+  // Too late (more than 3 hours after): skipped.
+  assert.equal(await runReminderTick(db, push, new Date('2026-11-14T11:30:00Z')), 0);
+
+  // Expired subscriptions are removed.
+  await app.inject({
+    method: 'POST',
+    url: '/api/push/subscribe',
+    headers,
+    payload: { endpoint: 'https://push.example.com/gone', keys: { p256dh: 'p256dh-key-0123456789', auth: 'auth-key-0123' } }
+  });
+  res = await app.inject({ method: 'POST', url: '/api/push/test', headers });
+  assert.equal(res.json().delivered, 1);
+  res = await app.inject({ method: 'POST', url: '/api/push/test', headers });
+  assert.equal(sent.filter((s) => s.endpoint.endsWith('/gone')).length, 1);
 
   await app.close();
 });

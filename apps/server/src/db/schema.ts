@@ -15,7 +15,29 @@ export const users = sqliteTable('users', {
   theme: text('theme', { enum: ['system', 'light', 'dark'] }).notNull().default('system'),
   active: integer('active', { mode: 'boolean' }).notNull().default(true),
   lastSeenVersion: text('last_seen_version'),
+  remindersEnabled: integer('reminders_enabled', { mode: 'boolean' }).notNull().default(true),
+  quietStart: text('quiet_start'),
+  quietEnd: text('quiet_end'),
+  remindersPausedUntil: text('reminders_paused_until'),
   createdAt: text('created_at').notNull().$defaultFn(now)
+});
+
+export const pushSubscriptions = sqliteTable('push_subscriptions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull(),
+  endpoint: text('endpoint').notNull(),
+  p256dh: text('p256dh').notNull(),
+  auth: text('auth').notNull(),
+  userAgent: text('user_agent'),
+  createdAt: text('created_at').notNull().$defaultFn(now),
+  lastUsedAt: text('last_used_at')
+});
+
+export const reminderLog = sqliteTable('reminder_log', {
+  userId: integer('user_id').notNull(),
+  slotId: integer('slot_id').notNull(),
+  date: text('date').notNull(),
+  sentAt: text('sent_at').notNull()
 });
 
 export const sessions = sqliteTable('sessions', {

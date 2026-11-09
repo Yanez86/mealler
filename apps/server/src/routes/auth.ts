@@ -22,7 +22,7 @@ import {
   isRegistrationOpen,
   toUser
 } from '../services.ts';
-import { zEmail, zLocale, zName, zPassword, zTheme, zTimezone } from '../validation.ts';
+import { zDate, zEmail, zLocale, zName, zPassword, zTheme, zTime, zTimezone } from '../validation.ts';
 
 const strict = { rateLimit: { max: 10, timeWindow: '5 minutes' } };
 
@@ -107,7 +107,16 @@ export async function authRoutes(app: FastifyInstance, { db, config }: AppContex
   app.patch('/me', async (request) => {
     const user = requireUser(request);
     const body = z
-      .object({ name: zName, locale: zLocale, timezone: zTimezone, theme: zTheme })
+      .object({
+        name: zName,
+        locale: zLocale,
+        timezone: zTimezone,
+        theme: zTheme,
+        remindersEnabled: z.boolean(),
+        quietStart: zTime.nullable(),
+        quietEnd: zTime.nullable(),
+        remindersPausedUntil: zDate.nullable()
+      })
       .partial()
       .parse(request.body);
     const updated = db.update(users).set(body).where(eq(users.id, user.id)).returning().get();

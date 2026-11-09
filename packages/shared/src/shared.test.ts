@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { thresholdStatus, sumValues, kcalMismatch } from './nutrients.ts';
-import { isIsoDate, addDays, isoWeekday, slotActiveOn, todayIn, isValidTime } from './dates.ts';
+import { isIsoDate, addDays, isoWeekday, slotActiveOn, todayIn, isValidTime, inTimeRange, nowIn } from './dates.ts';
 import { translate, MESSAGES } from './i18n.ts';
 
 test('thresholdStatus handles optional bounds', () => {
@@ -38,6 +38,15 @@ test('date helpers', () => {
   assert.equal(todayIn('Europe/Rome', new Date('2026-11-09T23:30:00Z')), '2026-11-10');
   assert.equal(isValidTime('08:30'), true);
   assert.equal(isValidTime('24:00'), false);
+});
+
+test('time ranges and time zones', () => {
+  assert.equal(inTimeRange('23:00', '22:00', '07:00'), true);
+  assert.equal(inTimeRange('06:59', '22:00', '07:00'), true);
+  assert.equal(inTimeRange('07:00', '22:00', '07:00'), false);
+  assert.equal(inTimeRange('13:00', '12:00', '14:00'), true);
+  assert.equal(inTimeRange('13:00', null, '14:00'), false);
+  assert.deepEqual(nowIn('Europe/Rome', new Date('2026-11-09T12:05:00Z')), { date: '2026-11-09', time: '13:05' });
 });
 
 test('translations are complete and interpolate', () => {

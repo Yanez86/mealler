@@ -15,6 +15,7 @@
   import { app, errorMessage, formatDate, formatNumber, t } from '$lib/state.svelte';
   import Icon from '$lib/Icon.svelte';
   import TopBar from '$lib/TopBar.svelte';
+  import { net, pendingFor } from '$lib/offline.svelte';
 
   const timezone = $derived(app.user?.timezone ?? 'UTC');
   const today = $derived(todayIn(timezone));
@@ -28,6 +29,7 @@
 
   $effect(() => {
     const d = date;
+    void net.pending;
     error = '';
     get<DayResponse>(`/day/${d}`)
       .then((res) => {
@@ -96,6 +98,15 @@
 
   {#if date !== today}
     <p style="margin-bottom: 12px"><a href="/">{t('day.goToday')}</a></p>
+  {/if}
+
+  {#if page.url.searchParams.has('queued') && !net.online}
+    <p class="notice" role="status">{t('offline.queued')}</p>
+  {:else if !net.online}
+    <p class="notice" role="status">{t('offline.cached')}</p>
+  {/if}
+  {#if net.pending > 0 && pendingFor(date) > 0}
+    <p class="notice" role="status">{t('offline.pending', { n: pendingFor(date) })}</p>
   {/if}
 
   {#if error}

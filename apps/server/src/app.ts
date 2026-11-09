@@ -12,10 +12,13 @@ import { errorHandler } from './http.ts';
 import { authRoutes } from './routes/auth.ts';
 import { adminRoutes } from './routes/admin.ts';
 import { diaryRoutes } from './routes/diary.ts';
+import { pushRoutes } from './routes/push.ts';
+import type { PushSender } from './push.ts';
 
 export interface AppContext {
   db: Db;
   config: Config;
+  push: PushSender;
 }
 
 export async function buildApp(ctx: AppContext, opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
@@ -46,6 +49,7 @@ export async function buildApp(ctx: AppContext, opts: { logger?: boolean } = {})
       await api.register(async (scope) => authRoutes(scope, ctx));
       await api.register(async (scope) => diaryRoutes(scope, ctx));
       await api.register(async (scope) => adminRoutes(scope, ctx), { prefix: '/admin' });
+      await api.register(async (scope) => pushRoutes(scope, ctx), { prefix: '/push' });
     },
     { prefix: '/api' }
   );

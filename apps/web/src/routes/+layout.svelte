@@ -8,6 +8,7 @@
   import { get } from '$lib/api';
   import { app, setUser, t } from '$lib/state.svelte';
   import Icon from '$lib/Icon.svelte';
+  import { flushQueue, net } from '$lib/offline.svelte';
 
   let { children }: { children: Snippet } = $props();
   let ready = $state(false);
@@ -29,6 +30,11 @@
     }
     ready = true;
   });
+
+  function onNetworkChange() {
+    net.online = navigator.onLine;
+    if (net.online) void flushQueue();
+  }
 
   $effect(() => {
     if (!ready) return;
@@ -53,6 +59,8 @@
 
   const activeTab =$derived(path === '/' || path.startsWith('/add') ? '/' : '/profile');
 </script>
+
+<svelte:window ononline={onNetworkChange} onoffline={onNetworkChange} />
 
 {#if ready && allowed}
   {@render children()}
