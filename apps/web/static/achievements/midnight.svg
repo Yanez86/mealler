@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+  <!-- Mealler achievement: midnight (bronze) -->
+  <g>
+    <path d="M40 8C26 8 14 19 14 33C14 46 25 56 38 56C46 56 52 52 55 46C40 48 30 38 32 24C33 17 36 12 40 8Z" fill="#F6C343" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="26" cy="38" r="3" fill="#E0A82E"/><circle cx="33" cy="47" r="2" fill="#E0A82E"/>
+    <path d="M48 14L50 19L55 20L50 22L48 27L46 22L41 20L46 19Z" fill="#FFFFFF" stroke="#14181D" stroke-width="2" stroke-linejoin="round"/>
+  </g>
+  <g>
+    <path d="M42 38L37 30H44L49 38Z" fill="#E04F3F" stroke="#14181D" stroke-width="2.4" stroke-linejoin="round"/>
+    <path d="M56 38L61 30H54L49 38Z" fill="#0F766E" stroke="#14181D" stroke-width="2.4" stroke-linejoin="round"/>
+    <circle cx="49" cy="50" r="11" fill="#C98A4B" stroke="#14181D" stroke-width="3"/>
+    <circle cx="49" cy="50" r="7.2" fill="none" stroke="#E6B98A" stroke-width="1.6"/>
+    <path d="M49 45L50.8 48.6L54.6 49.1L51.8 51.7L52.5 55.5L49 53.6L45.5 55.5L46.2 51.7L43.4 49.1L47.2 48.6Z" fill="#E6B98A" stroke="#14181D" stroke-width="1.2" stroke-linejoin="round"/></g>
+</svg>

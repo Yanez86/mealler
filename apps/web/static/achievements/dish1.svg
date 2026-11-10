@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+  <!-- Mealler achievement: dish1 (bronze) -->
+  <g>
+    <path d="M22 12C20 9 25 7 22 4M32 12C30 9 35 7 32 4" fill="none" stroke="#14181D" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M4 26H12M46 26H54" stroke="#14181D" stroke-width="5" stroke-linecap="round"/>
+    <path d="M9 22H49V40C49 48 43 54 35 54H23C15 54 9 48 9 40Z" fill="#0F766E" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M9.5 30H48.5V35H9.5Z" fill="#CDE8E3"/>
+    <path d="M6 22C6 18 16 16 29 16C42 16 52 18 52 22Z" fill="#E04F3F" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="29" cy="14" r="3" fill="#E04F3F" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <ellipse cx="16" cy="44" rx="3" ry="1.8" fill="#2A9D8F" transform="rotate(30 16 44)"/>
+  </g>
+  <g>
+    <path d="M42 38L37 30H44L49 38Z" fill="#E04F3F" stroke="#14181D" stroke-width="2.4" stroke-linejoin="round"/>
+    <path d="M56 38L61 30H54L49 38Z" fill="#0F766E" stroke="#14181D" stroke-width="2.4" stroke-linejoin="round"/>
+    <circle cx="49" cy="50" r="11" fill="#C98A4B" stroke="#14181D" stroke-width="3"/>
+    <circle cx="49" cy="50" r="7.2" fill="none" stroke="#E6B98A" stroke-width="1.6"/>
+    <path d="M49 45L50.8 48.6L54.6 49.1L51.8 51.7L52.5 55.5L49 53.6L45.5 55.5L46.2 51.7L43.4 49.1L47.2 48.6Z" fill="#E6B98A" stroke="#14181D" stroke-width="1.2" stroke-linejoin="round"/></g>
+</svg>

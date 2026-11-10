@@ -7,7 +7,7 @@ import { loadConfig } from '../src/config.ts';
 import { migrate, openDatabase } from '../src/db/index.ts';
 import type { PushSender } from '../src/push.ts';
 import { runReminderTick } from '../src/reminders.ts';
-import type { PushPayload } from '@mealler/shared';
+import { addDays, todayIn, type PushPayload } from '@mealler/shared';
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
@@ -1039,4 +1039,47 @@ test('skipped meals, slots for a single day and the month calendar', async () =>
   assert.equal(res.statusCode, 400);
 
   await app.close();
+});
+
+test('achievements: worked out from the diary, kept once unlocked', async () => {
+  const { app } = await setupApp();
+  let res = await app.inject({ method: 'POST', url: '/api/setup', payload: admin });
+  const headers = { cookie: cookieOf(res) };
+  const slots = (await app.inject({ method: 'GET', url: '/api/slots', headers })).json();
+  const today = todayIn('Europe/Rome');
+  const get = async () =>
+    Object.fromEntries(
+      (await app.inject({ method: 'GET', url: '/api/achievements', headers })).json().map((a: { id: string }) => [a.id, a])
+    );
+
+  let all = await get();
+  assert.equal(all.day1.at, null);
+  assert.equal(all.streak7.progress, 0);
+
+  // Three complete days in a row, the last one yesterday; the day before them only half logged.
+  for (const back of [3, 2, 1]) {
+    const date = addDays(today, -back);
+    for (const slot of slots) {
+      await app.inject({ method: 'POST', url: '/api/entries', headers, payload: { slotId: slot.id, date, description: 'Mela', kcal: 80 } });
+    }
+  }
+  await app.inject({ method: 'POST', url: '/api/entries', headers, payload: { slotId: slots[0].id, date: addDays(today, -5), description: 'Pane', kcal: 120 } });
+  await app.inject({ method: 'PUT', url: `/api/weights/${addDays(today, -2)}`, headers, payload: { kg: 72 } });
+  res = await app.inject({ method: 'POST', url: '/api/favorites', headers, payload: { name: 'Mela', description: 'Mela', kcal: 80 } });
+  const fav = res.json();
+
+  all = await get();
+  assert.equal(all.day1.at, addDays(today, -3));
+  assert.equal(all.streak3.at, addDays(today, -1));
+  assert.equal(all.streak7.at, null);
+  assert.equal(all.streak7.progress, 3);
+  assert.equal(all.weight1.at, addDays(today, -2));
+  assert.equal(all.favorite1.at, today);
+  assert.equal(all.breakfast7.progress, 3);
+  assert.equal(all.entries100.progress, 3 * slots.length + 1);
+
+  // Deleting the favorite does not take the achievement back.
+  await app.inject({ method: 'DELETE', url: `/api/favorites/${fav.id}`, headers });
+  all = await get();
+  assert.equal(all.favorite1.at, today);
 });

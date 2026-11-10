@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+  <!-- Mealler achievement: inrange7 (gold) -->
+  <g>
+    <circle cx="29" cy="33" r="22" fill="#FFFFFF" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="29" cy="33" r="14" fill="#7CC36E" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="29" cy="33" r="6" fill="#FFFFFF" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M29 33L50 10" stroke="#14181D" stroke-width="3.4" stroke-linecap="round"/>
+    <path d="M44 8L50 10L52 4M47 13L53 15L55 9" fill="none" stroke="#E04F3F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <g>
+    <path d="M42 38L37 30H44L49 38Z" fill="#E04F3F" stroke="#14181D" stroke-width="2.4" stroke-linejoin="round"/>
+    <path d="M56 38L61 30H54L49 38Z" fill="#0F766E" stroke="#14181D" stroke-width="2.4" stroke-linejoin="round"/>
+    <circle cx="49" cy="50" r="11" fill="#F6C343" stroke="#14181D" stroke-width="3"/>
+    <circle cx="49" cy="50" r="7.2" fill="none" stroke="#FBE08A" stroke-width="1.6"/>
+    <text x="49" y="53.3" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-weight="800" font-size="9" fill="#14181D">7</text></g>
+</svg>

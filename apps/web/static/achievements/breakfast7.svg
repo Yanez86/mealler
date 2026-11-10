@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+  <!-- Mealler achievement: breakfast7 (silver) -->
+  <g>
+    <path d="M22 12C19 9 25 7 22 3M31 12C28 9 34 7 31 3" fill="none" stroke="#14181D" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M42 26C52 24 54 38 42 40" fill="none" stroke="#14181D" stroke-width="6.5" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M42 26C52 24 54 38 42 40" fill="none" stroke="#FFFFFF" stroke-width="2"/>
+    <path d="M10 18H46V30C46 41 39 48 28 48C17 48 10 41 10 30Z" fill="#FFFFFF" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M10.5 26H45.5V31H10.5Z" fill="#CDE8E3"/>
+    <path d="M10 18C10 15 18 14 28 14C38 14 46 15 46 18C46 21 38 22 28 22C18 22 10 21 10 18Z" fill="#8A5530" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M6 54C6 51 16 50 28 50C40 50 50 51 50 54Z" fill="#0F766E" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+  </g>
+  <g>
+    <path d="M42 38L37 30H44L49 38Z" fill="#E04F3F" stroke="#14181D" stroke-width="2.4" stroke-linejoin="round"/>
+    <path d="M56 38L61 30H54L49 38Z" fill="#0F766E" stroke="#14181D" stroke-width="2.4" stroke-linejoin="round"/>
+    <circle cx="49" cy="50" r="11" fill="#AEB8C3" stroke="#14181D" stroke-width="3"/>
+    <circle cx="49" cy="50" r="7.2" fill="none" stroke="#E3E8ED" stroke-width="1.6"/>
+    <text x="49" y="53.3" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-weight="800" font-size="9" fill="#14181D">7</text></g>
+</svg>

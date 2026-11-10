@@ -93,6 +93,7 @@
   <TopBar title={t('profile.title')} subtitle={user.email} />
 
   <nav class="card links" aria-label={t('profile.diary')}>
+    <a class="list-row" href="/profile/achievements"><span>{t('profile.achievements')}</span><Icon name="chevron" /></a>
     <a class="list-row" href="/profile/slots"><span>{t('profile.slots')}</span><Icon name="chevron" /></a>
     <a class="list-row" href="/profile/thresholds"><span>{t('profile.thresholds')}</span><Icon name="chevron" /></a>
     <a class="list-row" href="/profile/notifications"><span>{t('profile.notifications')}</span><Icon name="chevron" /></a>

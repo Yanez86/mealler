@@ -232,3 +232,9 @@ export const products = sqliteTable('products', {
   createdAt: text('created_at').notNull().$defaultFn(now),
   updatedAt: text('updated_at').notNull().$defaultFn(now)
 });
+
+export const achievements = sqliteTable('achievements', {
+  userId: integer('user_id').notNull(),
+  id: text('id').notNull(),
+  at: text('at').notNull()
+});

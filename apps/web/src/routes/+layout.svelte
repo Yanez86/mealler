@@ -10,6 +10,7 @@
   import { releasesSince } from '$lib/changelog';
   import Icon from '$lib/Icon.svelte';
   import NewsPopup from '$lib/NewsPopup.svelte';
+  import AchievementToast from '$lib/AchievementToast.svelte';
   import { flushQueue, net } from '$lib/offline.svelte';
   import Splash from '$lib/Splash.svelte';
 
@@ -147,6 +148,7 @@
   {@render children()}
 
   {#if app.user && !isPublic}
+    <AchievementToast {path} />
     <nav class="tabbar" aria-label={t('nav.main')}>
       {#each tabs as tab (tab.href)}
         <a href={tab.href} aria-current={activeTab === tab.href ? 'page' : undefined}>

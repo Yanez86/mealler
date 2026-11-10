@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+  <!-- Mealler achievement: days100 (silver) -->
+  <g>
+    <path d="M29 4C31 14 46 20 46 36C46 48 38 56 28 56C18 56 11 48 11 38C11 29 17 24 20 18C22 24 24 26 26 26C25 18 26 10 29 4Z" fill="#F7A440" stroke="#14181D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M28 30C30 36 37 38 37 45C37 50 33 53 28 53C23 53 19 50 19 45C19 40 23 38 24 34C25 37 26 38 27 38C27 35 27 33 28 30Z" fill="#F6C343"/>
+    <ellipse cx="18" cy="38" rx="2.6" ry="5" fill="#FBC986" transform="rotate(15 18 38)"/>
+  </g>
+  <g>
+    <path d="M42 38L37 30H44L49 38Z" fill="#E04F3F" stroke="#14181D" stroke-width="2.4" stroke-linejoin="round"/>
+    <path d="M56 38L61 30H54L49 38Z" fill="#0F766E" stroke="#14181D" stroke-width="2.4" stroke-linejoin="round"/>
+    <circle cx="49" cy="50" r="11" fill="#AEB8C3" stroke="#14181D" stroke-width="3"/>
+    <circle cx="49" cy="50" r="7.2" fill="none" stroke="#E3E8ED" stroke-width="1.6"/>
+    <text x="49" y="52.6" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-weight="800" font-size="7.4" fill="#14181D">100</text></g>
+</svg>

@@ -20,6 +20,7 @@ import { badRequest } from '../http.ts';
 import { parseItems, toEntry, toSlot, toUser } from '../services.ts';
 import { zDate } from '../validation.ts';
 import { aiStatus } from '../ai.ts';
+import { userAchievements } from '../achievements.ts';
 
 const MAX_DAYS = 366;
 
@@ -43,6 +44,8 @@ export async function insightRoutes(app: FastifyInstance, { db, ai }: AppContext
   const range = z
     .object({ from: zDate, to: zDate })
     .refine((r) => r.from <= r.to && r.from >= addDays(r.to, -(MAX_DAYS - 1)), { message: 'range' });
+
+  app.get('/achievements', async (request) => userAchievements(db, requireUser(request)));
 
   app.get('/trends', async (request): Promise<TrendsResponse> => {
     const user = requireUser(request);
