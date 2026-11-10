@@ -3,6 +3,17 @@
 Tutte le modifiche rilevanti di Mealler sono annotate qui.
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il [versionamento semantico](https://semver.org/lang/it/).
 
+## [1.4.0] - 2026-11-10
+
+### Aggiunto
+- Traguardi: 23 obiettivi con medaglie, in Profilo → Traguardi. Prime volte (codice a barre, giornata completa, piatto, stima, pesata, etichetta, preferito), serie e totali di giornate complete, pesate e giorni nelle soglie, collezioni e abitudini. Si calcolano dal diario, quindi valgono anche per il passato, e una volta sbloccati restano anche se cancelli i dati. Un avviso annuncia quelli sbloccati oggi.
+- Piatti con i loro ingredienti: «carbonara: 70 g pasta, 50 g guanciale, 30 g pecorino» diventa una sola voce, stimata dagli ingredienti elencati. Anche il connettore claude.ai può registrare un piatto così.
+- Nella schermata del pasto, il «?» accanto al campo apre i consigli per scrivere una buona stima, con l'icona di un diario e una penna.
+
+### Modificato
+- Il nome Mealler è disegnato a tratti, con forchetta e coltello, nella schermata di avvio e nel sito.
+- La regola «scrivi gli alimenti con la quantità» si trova ora tra i consigli del «?», e non compare più la nota «il calcolo con Claude non è attivo».
+
 ## [1.3.1] - 2026-11-09
 
 ### Aggiunto
