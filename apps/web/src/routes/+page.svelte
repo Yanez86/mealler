@@ -13,7 +13,6 @@
     mealCategory,
     sumValues,
     thresholdStatus,
-    thresholdTone,
     todayIn,
     type DayResponse,
     type Entry,
@@ -268,8 +267,6 @@
     return t('day.noThreshold');
   }
 
-  const tone = (s: NutrientSummary) => thresholdTone(s.value, s.min, s.max);
-
   function percent(s: NutrientSummary): number {
     const ref = s.max ?? s.min;
     if (!ref) return 0;
@@ -343,9 +340,9 @@
         {/if}
       </div>
       {#if kcal.max != null || kcal.min != null}
-        <div class="bar thick"><span class="tone-{tone(kcal)}" use:fill={percent(kcal)}></span></div>
+        <div class="bar thick"><span class="status-{kcal.status}" use:fill={percent(kcal)}></span></div>
         {#if kcal.status !== 'none' && kcal.status !== 'ok'}
-          <p class="status tone-ink-{tone(kcal)}"><Icon name={statusIcon[kcal.status]} size={14} stroke={2.5} />{t(`day.status.${kcal.status}`)}</p>
+          <p class="status status-ink-{kcal.status}"><Icon name={statusIcon[kcal.status]} size={14} stroke={2.5} />{t(`day.status.${kcal.status}`)}</p>
         {/if}
       {/if}
 
@@ -358,8 +355,8 @@
               <span class="muted small target">{target(s, 'g')}</span>
             </div>
             <span class="value">{formatNumber(s.value, 1)} g</span>
-            <div class="bar"><span class="tone-{tone(s)}" use:fill={percent(s)}></span></div>
-            <span class="status tone-ink-{tone(s)}" class:quiet={s.status === 'none'}><Icon name={statusIcon[s.status]} size={14} stroke={2.5} />{t(`day.status.${s.status}`)}</span>
+            <div class="bar"><span class="status-{s.status}" use:fill={percent(s)}></span></div>
+            <span class="status status-ink-{s.status}" class:quiet={s.status === 'none'}><Icon name={statusIcon[s.status]} size={14} stroke={2.5} />{t(`day.status.${s.status}`)}</span>
           </div>
         {/each}
       </div>

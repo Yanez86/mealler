@@ -105,19 +105,21 @@
               <p class="muted small right">{t('trends.inRange', { n: inRange, total: withLimits.length })}</p>
             {/if}
           </div>
-          <BarChart
-            data={bars}
-            {unit}
-            label={t('trends.chartLabel', {
-              nutrient: t(`nutrient.${nutrient}`),
-              from: formatDate(trends.from, { day: 'numeric', month: 'long' }),
-              to: formatDate(trends.to, { day: 'numeric', month: 'long' })
-            })} />
+          {#key nutrient}
+            <BarChart
+              data={bars}
+              {unit}
+              label={t('trends.chartLabel', {
+                nutrient: t(`nutrient.${nutrient}`),
+                from: formatDate(trends.from, { day: 'numeric', month: 'long' }),
+                to: formatDate(trends.to, { day: 'numeric', month: 'long' })
+              })} />
+          {/key}
           <div class="legend small muted">
             <span><span class="sw band"></span>{t('trends.band')}</span>
-            <span><span class="sw" style="background: var(--good)"></span>{t('tone.good')}</span>
-            <span><span class="sw" style="background: var(--near)"></span>{t('tone.near')}</span>
-            <span><span class="sw" style="background: var(--bad)"></span>{t('tone.bad')}</span>
+            <span><span class="sw" style="background: var(--ok)"></span>{t('day.status.ok')}</span>
+            <span><span class="sw" style="background: var(--under)"></span>{t('day.status.under')}</span>
+            <span><span class="sw" style="background: var(--over)"></span>{t('day.status.over')}</span>
           </div>
         </section>
 

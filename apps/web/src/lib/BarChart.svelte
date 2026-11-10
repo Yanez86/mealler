@@ -1,6 +1,6 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <!-- Daily bars with the threshold band drawn per day; colour AND a legend explain the status.
-     Same colours as the day view: green inside the thresholds, yellow close, red far or over. -->
+     Same colours as the day view. Bars grow from the baseline when they appear. -->
 <script lang="ts" module>
   export interface BarDatum {
     date: string;
@@ -11,7 +11,7 @@
 </script>
 
 <script lang="ts">
-  import { thresholdTone, type ThresholdTone } from '@mealler/shared';
+  import { thresholdStatus, type ThresholdStatus } from '@mealler/shared';
   import { formatDate, formatNumber } from './state.svelte';
 
   let { data, unit, label }: { data: BarDatum[]; unit: string; label: string } = $props();
@@ -32,11 +32,11 @@
   const ticks = $derived([0, peak / 3, (2 * peak) / 3].map((v) => (v > 20 ? Math.round(v / 10) * 10 : Math.round(v))));
   const labelEvery = $derived(Math.max(1, Math.ceil(data.length / 6)));
 
-  const tone = (d: BarDatum): ThresholdTone => (d.value == null ? 'none' : thresholdTone(d.value, d.min, d.max));
-  const colour: Record<ThresholdTone, string> = {
-    good: 'var(--good)',
-    near: 'var(--near)',
-    bad: 'var(--bad)',
+  const status = (d: BarDatum): ThresholdStatus => (d.value == null ? 'none' : thresholdStatus(d.value, d.min, d.max));
+  const colour: Record<ThresholdStatus, string> = {
+    ok: 'var(--ok)',
+    under: 'var(--under)',
+    over: 'var(--over)',
     none: 'var(--text-2)'
   };
 </script>
@@ -58,7 +58,7 @@
           fill="var(--accent-soft)" />
       {/if}
       {#if d.value != null && d.value > 0}
-        <rect x={x + slot * 0.18} width={slot * 0.64} y={y(d.value)} height={top + plotH - y(d.value)} rx={Math.min(4, slot * 0.2)} fill={colour[tone(d)]} />
+        <rect class="grow" style="animation-delay: {Math.round((i * 450) / data.length)}ms" x={x + slot * 0.18} width={slot * 0.64} y={y(d.value)} height={top + plotH - y(d.value)} rx={Math.min(4, slot * 0.2)} fill={colour[status(d)]} />
       {/if}
       {#if i % labelEvery === 0 || i === data.length - 1}
         <text x={x + slot / 2} y={height - 8} text-anchor="middle" class="axis">{formatDate(d.date, { day: 'numeric', month: data.length > 8 ? 'numeric' : undefined, weekday: data.length <= 8 ? 'narrow' : undefined })}</text>
@@ -81,6 +81,22 @@
   }
   svg {
     display: block;
+  }
+  /* Same easing as the progress bars. */
+  .grow {
+    transform-box: fill-box;
+    transform-origin: bottom;
+    animation: grow 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @keyframes grow {
+    from {
+      transform: scaleY(0);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .grow {
+      animation: none;
+    }
   }
   .axis {
     font-size: 11px;

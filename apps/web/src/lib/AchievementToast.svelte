@@ -40,11 +40,57 @@
     void path;
     void check();
   });
+
+  // Swipe left to dismiss: the toast follows the finger and goes away past a third of its width.
+  let dx = $state(0);
+  let dragging = $state(false);
+  let startX: number | null = null;
+  let moved = false;
+
+  function down(e: PointerEvent) {
+    if (!e.isPrimary) return;
+    startX = e.clientX;
+    moved = false;
+  }
+  function move(e: PointerEvent) {
+    if (startX === null) return;
+    const d = Math.min(0, e.clientX - startX);
+    if (!dragging && d > -8) return;
+    if (!dragging) (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    dragging = moved = true;
+    dx = d;
+  }
+  function up(e: PointerEvent) {
+    if (startX === null) return;
+    startX = null;
+    dragging = false;
+    if (dx < -(e.currentTarget as HTMLElement).offsetWidth / 3) {
+      dx = -window.innerWidth;
+      clearTimeout(timer);
+      timer = setTimeout(() => ((shown = null), (dx = 0)), 200);
+    } else dx = 0;
+  }
+  function click(e: MouseEvent) {
+    // A swipe is not a tap: it does not open the achievements page.
+    if (moved) e.preventDefault();
+    else shown = null;
+  }
 </script>
 
 <div role="status">
 {#if shown}
-  <a class="toast" href="/profile/achievements" onclick={() => (shown = null)}>
+  <a
+    class="toast"
+    class:dragging
+    href="/profile/achievements"
+    style:translate="{dx}px 0"
+    style:opacity={1 + dx / 400}
+    draggable="false"
+    onpointerdown={down}
+    onpointermove={move}
+    onpointerup={up}
+    onpointercancel={up}
+    onclick={click}>
     <span class="pop"><AchievementIcon id={shown} size={56} /></span>
     <span>
       <small>{t('ach.toast')}</small>
@@ -75,6 +121,13 @@
     text-decoration: none;
     box-shadow: 0 14px 32px -16px rgba(20, 24, 29, 0.35);
     animation: drop 0.35s ease-out both;
+    touch-action: pan-y;
+    transition:
+      translate 200ms ease-out,
+      opacity 200ms ease-out;
+  }
+  .toast.dragging {
+    transition: none;
   }
   small {
     display: block;

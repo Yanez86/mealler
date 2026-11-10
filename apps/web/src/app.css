@@ -21,7 +21,7 @@
   --under-ink: #1e40af;
   --over: #b45309;
   --over-ink: #92400e;
-  /* Progress bars against the thresholds: green inside, yellow close, red far or over. */
+  /* Calendar day dots. */
   --good: #16a34a;
   --good-ink: #15803d;
   --near: #ca8a04;
@@ -383,28 +383,28 @@ input[type='time']::-webkit-date-and-time-value {
     background-color 500ms ease;
 }
 
-.bar > span.tone-good {
-  background: var(--good);
+.bar > span.status-ok {
+  background: var(--ok);
 }
-.bar > span.tone-near {
-  background: var(--near);
+.bar > span.status-under {
+  background: var(--under);
 }
-.bar > span.tone-bad {
-  background: var(--bad);
+.bar > span.status-over {
+  background: var(--over);
 }
-.bar > span.tone-none {
+.bar > span.status-none {
   background: var(--text-2);
 }
-.tone-ink-good {
-  color: var(--good-ink);
+.status-ink-ok {
+  color: var(--ok-ink);
 }
-.tone-ink-near {
-  color: var(--near-ink);
+.status-ink-under {
+  color: var(--under-ink);
 }
-.tone-ink-bad {
-  color: var(--bad-ink);
+.status-ink-over {
+  color: var(--over-ink);
 }
-.tone-ink-none {
+.status-ink-none {
   color: var(--text-2);
 }
 

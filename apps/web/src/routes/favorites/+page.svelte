@@ -10,6 +10,7 @@
   import FoodIcon from '$lib/FoodIcon.svelte';
   import Icon from '$lib/Icon.svelte';
   import ProductForm from '$lib/ProductForm.svelte';
+  import Swipeable from '$lib/Swipeable.svelte';
   import { servingKcal, servingText } from '$lib/serving';
   import TopBar from '$lib/TopBar.svelte';
 
@@ -113,16 +114,19 @@
     {:else if favorites}
       <ul class="card list">
         {#each favorites as f (f.id)}
-          <li class="list-row">
-            <FoodIcon category={f.category ?? mealCategory([f.name, f.description], f.items)} size={44} />
-            <div class="grow">
-              <p class="name">{f.name}</p>
-              {#if f.name !== f.description}<p class="muted small">{f.description}</p>{/if}
-              <p class="muted small">
-                {#if f.kcal != null}{formatNumber(f.kcal)} kcal · {/if}{t('fav.uses', { n: f.uses })}
-              </p>
-            </div>
-            <button class="btn btn-ghost" type="button" onclick={() => removeFavorite(f)}>{t('fav.remove')}</button>
+          <li class="fav">
+            <Swipeable label={t('fav.removeLabel', { name: f.name })} background="var(--surface)" ondelete={() => removeFavorite(f)}>
+              <div class="list-row">
+                <FoodIcon category={f.category ?? mealCategory([f.name, f.description], f.items)} size={44} />
+                <div class="grow">
+                  <p class="name">{f.name}</p>
+                  {#if f.name !== f.description}<p class="muted small">{f.description}</p>{/if}
+                  <p class="muted small">
+                    {#if f.kcal != null}{formatNumber(f.kcal)} kcal · {/if}{t('fav.uses', { n: f.uses })}
+                  </p>
+                </div>
+              </div>
+            </Swipeable>
           </li>
         {/each}
       </ul>
@@ -193,6 +197,13 @@
     margin: 0;
     padding-top: 4px;
     padding-bottom: 4px;
+  }
+  /* The divider sits on the item, so it stays put while the row slides. */
+  .fav + .fav {
+    border-top: 1px solid var(--border);
+  }
+  .fav .list-row {
+    border-top: none;
   }
   .grow {
     flex: 1;

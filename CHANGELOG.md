@@ -3,6 +3,14 @@
 Tutte le modifiche rilevanti di Mealler sono annotate qui.
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il [versionamento semantico](https://semver.org/lang/it/).
 
+## [1.4.1] - 2026-11-10
+
+### Modificato
+- Nei Preferiti si elimina un pasto scorrendo la riga verso sinistra e toccando il cestino, come per le voci del diario. Il pulsante «Rimuovi» non c'è più.
+- L'avviso «Traguardo sbloccato» si chiude scorrendolo verso sinistra.
+- In Andamento le barre si alzano dalla base una dopo l'altra quando compare il grafico o cambi nutriente.
+- Le barre di calorie e macronutrienti e il grafico di Andamento tornano ai colori dello stato: verde acqua dentro la soglia, blu sotto, arancione sopra.
+
 ## [1.4.0] - 2026-11-10
 
 ### Aggiunto
