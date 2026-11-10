@@ -453,15 +453,17 @@
           <button class="tips-btn" type="button" popovertarget="tips" aria-label={t('entry.tipsOpen')}>?</button>
         </div>
         <div id="tips" class="tips card" popover aria-labelledby="tips-title">
-          <h3 id="tips-title" class="label">{t('entry.tipsTitle')}</h3>
+          <div class="tips-head">
+            <span class="tips-icon"><img src="/diary.svg" alt="" width="40" height="40" draggable="false" /></span>
+            <h3 id="tips-title" class="label">{t('entry.tipsTitle')}</h3>
+          </div>
           <ul>
-            {#each ['entry.tipDish', 'entry.tipSplit', 'entry.tipRaw', 'entry.tipFat', 'entry.tipPortion', 'entry.tipDetails'] as const as tip (tip)}
+            {#each ['entry.whatHelp', 'entry.tipDish', 'entry.tipSplit', 'entry.tipRaw', 'entry.tipFat', 'entry.tipPortion', 'entry.tipDetails'] as const as tip (tip)}
               <li>{t(tip)}</li>
             {/each}
           </ul>
           <button class="btn btn-ghost" type="button" popovertarget="tips" popovertargetaction="hide">{t('common.close')}</button>
         </div>
-        <p id="what-help" class="help">{t('entry.whatHelp')}</p>
         <div class="rows">
           {#each rows as row, i (row.key)}
             <FoodRowEditor
@@ -500,11 +502,9 @@
       {#if aiUsable && ai?.dailyRequests}
         <p class="help">{t('ai.remaining', { n: ai.requestsToday, max: ai.dailyRequests })}</p>
       {/if}
-      {#if ai && !ai.enabled}
-        <p class="help">{t('ai.disabled')}</p>
-      {:else if !aiUsable}
+      {#if !aiUsable && ai?.enabled !== false}
         <p class="help">{t('entry.valuesHelp')}</p>
-      {:else if missingValues.length}
+      {:else if aiUsable && missingValues.length}
         <p class="help">{t('ai.laterHint')}</p>
       {/if}
 
@@ -585,6 +585,25 @@
     margin: auto;
     padding: 20px;
     color: inherit;
+  }
+  .tips-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  /* Same tinted tile as the food-category icons. */
+  .tips-icon {
+    flex: none;
+    width: 56px;
+    height: 56px;
+    border-radius: 23%;
+    background: color-mix(in srgb, #0f766e 18%, var(--surface));
+    display: grid;
+    place-items: center;
+  }
+  .tips-icon img {
+    display: block;
+    user-select: none;
   }
   .tips::backdrop {
     background: rgb(0 0 0 / 0.4);
