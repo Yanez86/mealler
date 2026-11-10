@@ -152,6 +152,14 @@ test('several foods in one text become one row each', () => {
   assert.deepEqual(splitFoods('gamberi alla griglia'), [{ name: 'Gamberi alla griglia', quantity: null }]);
 });
 
+test('a dish with its ingredients after a colon stays one food', () => {
+  assert.deepEqual(splitFoods('spaghetti alla carbonara: 70 g pasta, 50 g guanciale, 50 g pecorino, 1 uovo'), [
+    { name: 'Spaghetti alla carbonara: 70 g pasta, 50 g guanciale, 50 g pecorino, 1 uovo', quantity: null }
+  ]);
+  assert.deepEqual(splitFoods('Carbonara:\n70 g pasta\n1 uovo'), [{ name: 'Carbonara: 70 g pasta, 1 uovo', quantity: null }]);
+  assert.deepEqual(splitFoods('pollo: 100 g'), [{ name: 'Pollo', quantity: { amount: 100, unit: 'g' } }]);
+});
+
 test('quantities: parsing, metric storage, US display', () => {
   assert.deepEqual(parseQuantity('2 cucchiai'), { amount: 2, unit: 'tbsp' });
   assert.deepEqual(parseQuantity('un etto'), { amount: 100, unit: 'g' });

@@ -275,8 +275,17 @@ const CONJUNCTIONS = new RegExp(
   'i'
 );
 
+// "Carbonara: 70 g pasta, 50 g guanciale, 1 uovo": a dish followed by its ingredients.
+const DISH = /^([^:\n]+):([\s\S]+)$/;
+
 /** Splits a meal into its foods: "100 g di petto di pollo e 100 g di patate e cipolle" gives two foods. */
 export function splitFoods(text: string): FoodPart[] {
+  // A dish stays one food, estimated as a whole; "pollo: 100 g" is a food with its quantity, not a dish.
+  const dish = DISH.exec(text.trim());
+  if (dish && dish[1].trim() && splitFoods(dish[2]).length) {
+    const ingredients = dish[2].trim().split(/\s*\n\s*/).join(', ');
+    return [{ name: capitalize(`${dish[1].trim()}: ${ingredients}`.replace(/[ \t]+/g, ' ')), quantity: null }];
+  }
   const out: FoodPart[] = [];
   for (const chunk of text.split(SEPARATORS)) {
     for (const piece of chunk.split(CONJUNCTIONS)) {

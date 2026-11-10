@@ -448,7 +448,19 @@
       {/if}
 
       <section class="what" aria-labelledby="what-title">
-        <h2 id="what-title" class="label">{t('entry.what')}</h2>
+        <div class="what-head">
+          <h2 id="what-title" class="label">{t('entry.what')}</h2>
+          <button class="tips-btn" type="button" popovertarget="tips" aria-label={t('entry.tipsOpen')}>?</button>
+        </div>
+        <div id="tips" class="tips card" popover aria-labelledby="tips-title">
+          <h3 id="tips-title" class="label">{t('entry.tipsTitle')}</h3>
+          <ul>
+            {#each ['entry.tipDish', 'entry.tipSplit', 'entry.tipRaw', 'entry.tipFat', 'entry.tipPortion', 'entry.tipDetails'] as const as tip (tip)}
+              <li>{t(tip)}</li>
+            {/each}
+          </ul>
+          <button class="btn btn-ghost" type="button" popovertarget="tips" popovertargetaction="hide">{t('common.close')}</button>
+        </div>
         <p id="what-help" class="help">{t('entry.whatHelp')}</p>
         <div class="rows">
           {#each rows as row, i (row.key)}
@@ -549,6 +561,40 @@
     flex-direction: column;
     gap: 8px;
     min-width: 0;
+  }
+  .what-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .tips-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-2);
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .tips {
+    width: min(420px, calc(100vw - 32px));
+    max-height: calc(100dvh - 32px);
+    overflow-y: auto;
+    margin: auto;
+    padding: 20px;
+    color: inherit;
+  }
+  .tips::backdrop {
+    background: rgb(0 0 0 / 0.4);
+  }
+  .tips ul {
+    margin: 12px 0 16px;
+    padding-left: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
   }
   .rows {
     display: flex;

@@ -164,6 +164,8 @@ const TOOLS: Tool[] = [
       '(kcal, protein, carbs, fat, fibre in grams) and pass one item per food: with two or more items, ' +
       'each item becomes its own diary entry (named after the item), so the user can check and correct every food. ' +
       'With a single item or none, one entry is created and totals are computed from items when you omit them. ' +
+      'For a dish whose ingredients the user lists (e.g. "carbonara: 70 g pasta, 50 g guanciale"), set dish: true: ' +
+      'one entry named after the dish is created, with the ingredients as its breakdown. ' +
       'Pick the slot by slot_id or slot_name.',
     inputSchema: {
       type: 'object',
@@ -173,7 +175,8 @@ const TOOLS: Tool[] = [
         slot_id: { type: 'integer' },
         slot_name: { type: 'string', description: 'Slot name, e.g. "Pranzo"' },
         quantity: { type: 'string' },
-        items: { type: 'array', items: itemSchema, description: 'One item per food; two or more items become separate entries' },
+        items: { type: 'array', items: itemSchema, description: 'One item per food; two or more items become separate entries, unless dish is true' },
+        dish: { type: 'boolean', description: 'true when the items are the ingredients of one dish: one entry, items as its breakdown' },
         kcal: nutrientSchema('Total kcal'),
         protein: nutrientSchema('Total protein, g'),
         carbs: nutrientSchema('Total carbohydrates, g'),
@@ -193,6 +196,7 @@ const TOOLS: Tool[] = [
           slot_name: z.string().max(100).optional(),
           quantity: z.string().max(200).optional(),
           items: z.array(item).max(50).optional(),
+          dish: z.boolean().optional(),
           kcal: optionalAmount,
           protein: optionalAmount,
           carbs: optionalAmount,
@@ -205,7 +209,7 @@ const TOOLS: Tool[] = [
       const date = dateOrToday(user, a.date);
       const slot = resolveSlot(db, user, a.slot_id, a.slot_name);
       const locale = isLocale(user.locale) ? user.locale : 'it';
-      if (a.items && a.items.length > 1) {
+      if (a.items && a.items.length > 1 && !a.dish) {
         // One diary entry per food, as in the app; the meal's notes go on the first one.
         const list = a.items;
         const rows = db.transaction((tx) =>
@@ -262,7 +266,8 @@ const TOOLS: Tool[] = [
           slotId: slot.id,
           date,
           description: a.description,
-          quantity: normalizeQuantity(a.quantity ?? a.items?.[0]?.quantity, locale),
+          // A dish's first item is an ingredient, not the portion.
+          quantity: normalizeQuantity(a.quantity ?? (a.dish ? undefined : a.items?.[0]?.quantity), locale),
           kcal: pick('kcal'),
           protein: pick('protein'),
           carbs: pick('carbs'),
@@ -522,7 +527,7 @@ function instructions(user: UserRow): string {
   return [
     "Mealler is the user's self-hosted food diary.",
     `The user's time zone is ${user.timezone}; it is now ${date} ${time} there. Interpret "today", "yesterday", "this morning" in that zone.`,
-    'When the user says what they ate, estimate portions and nutritional values yourself and call add_entry with one item per food (each food becomes its own diary entry); choose the slot that matches the meal (list_slots shows them).',
+    'When the user says what they ate, estimate portions and nutritional values yourself and call add_entry with one item per food (each food becomes its own diary entry); for a dish whose ingredients they list, pass the ingredients as items with dish: true (one entry); choose the slot that matches the meal (list_slots shows them).',
     user.units === 'us'
       ? 'The user prefers US units (oz, fl oz, cups, lb): talk in those, but the tools take grams and kg, so convert before calling them.'
       : 'The user uses metric units (g, ml, kg).',
