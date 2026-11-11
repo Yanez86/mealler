@@ -3,33 +3,38 @@
 Tutte le modifiche rilevanti di Mealler sono annotate qui.
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il [versionamento semantico](https://semver.org/lang/it/).
 
-## [1.5.0] - 2026-11-11
-
-Correzioni nate dalla revisione di sicurezza, usabilità e consumi della 1.4.1 ([docs/AUDIT.md](docs/AUDIT.md)).
-
-### Da sapere prima di aggiornare
-- Dietro un reverse proxy o un tunnel aggiungi `MEALLER_BIND=127.0.0.1` al file `.env`: la porta 3000 non resta più raggiungibile scavalcando il proxy.
-- Mealler crede alle intestazioni `X-Forwarded-*` solo se arrivano da un indirizzo privato o locale. Se il tuo proxy ha un indirizzo pubblico, indicalo in `MEALLER_TRUST_PROXY`, altrimenti Mealler non si accorge di essere in HTTPS.
-- Calcolo con Claude: un'istanza che non ha mai impostato il budget mensile ora ne ha uno di 10 $. Le istanze che lo avevano lasciato vuoto restano senza tetto e l'amministrazione lo segnala.
-- Cambiare password scollega anche le app del connettore claude.ai: vanno autorizzate di nuovo.
-- I limiti giornalieri e mensili del calcolo con Claude si azzerano a mezzanotte UTC, uguale per tutti.
-
-### Aggiunto
-- Password dimenticata: in Amministrazione, «Link nuova password» crea un link monouso valido 24 ore con cui l'utente sceglie la nuova password. Per l'amministratore rimasto fuori: `docker exec mealler node dist/index.js reset-password nome@esempio.it`.
-- Dopo cinque accessi falliti di fila l'account aspetta prima di poter riprovare.
-- Quello che scrivi per un nuovo pasto resta come bozza se esci dalla schermata senza salvare o chiudere.
-- I preferiti si usano dalla loro pagina con un tocco e si possono rinominare; nel form del pasto ci sono tutti.
-- Gli slot archiviati si possono ripristinare da Profilo → Slot.
+## [1.5.1] - 2026-11-11
 
 ### Modificato
-- «Oggi» segue il calendario e il diario si ricarica quando riapri l'app: un pasto registrato da claude.ai o da un altro dispositivo compare subito.
-- Un codice a barre che non è in libreria porta a crearne la scheda e poi di nuovo al pasto, con l'alimento pronto.
-- Le voci scritte offline vengono inviate di nuovo anche quando riapri l'app, mai due volte, e se il server ne rifiuta una l'app lo dice.
-- A sessione scaduta l'app torna alla schermata di accesso invece di mostrare un errore generico.
-- «1.800» vale milleottocento, e un numero scritto male ferma il salvataggio invece di essere letto come vuoto.
-- Eliminare un preferito o una pesata, disattivare un utente, cambiare un ruolo, revocare un invito e scollegare un'app chiedono conferma.
-- I limiti di spesa del calcolo con Claude tengono anche con richieste in parallelo, chiamate andate in timeout e account cancellati.
-- L'immagine Docker usa esattamente le dipendenze del lockfile; i backup di `aggiorna.sh` sono leggibili solo dal loro proprietario.
+- Le novità della versione 1.5.0 sono raccontate in modo più semplice, senza tecnicismi.
+
+## [1.5.0] - 2026-11-11
+
+Correzioni nate dalla revisione di sicurezza, usabilità e consumi della 1.4.1.
+
+### Da sapere prima di aggiornare
+- Se Mealler è raggiungibile da internet tramite un reverse proxy o un tunnel, prima di aggiornare controlla le impostazioni consigliate nella guida di installazione.
+- Il calcolo con Claude ha ora un tetto di spesa mensile predefinito, che l'amministratore può cambiare.
+- Dopo un cambio di password le app collegate da claude.ai vanno autorizzate di nuovo.
+
+### Aggiunto
+- Password dimenticata: l'amministratore può creare un link con cui l'utente sceglie una nuova password.
+- Gli account sono più protetti dai tentativi di accesso ripetuti.
+- Quello che scrivi per un nuovo pasto resta come bozza se esci dalla schermata senza salvare.
+- I preferiti si usano con un tocco dalla loro pagina e si possono rinominare.
+- Gli slot archiviati si possono ripristinare.
+
+### Modificato
+- Le eliminazioni e le altre azioni delicate chiedono conferma.
+- Aggiungere un alimento da un codice a barre che non è in libreria è più scorrevole.
+- Migliorie alla sicurezza e all'installazione.
+
+### Corretto
+- Corretto un problema relativo all'aggiornamento del diario e del giorno mostrato come «Oggi».
+- Corretto un problema relativo all'invio delle voci scritte offline.
+- Corretto un problema relativo alla sessione scaduta.
+- Corretto un problema relativo alla lettura dei numeri nei moduli.
+- Corretto un problema relativo ai limiti di spesa del calcolo con Claude.
 
 ## [1.4.1] - 2026-11-10
 

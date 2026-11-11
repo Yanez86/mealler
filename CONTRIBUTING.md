@@ -7,7 +7,7 @@ Grazie dell'interesse! Alcune regole per mantenere il progetto ordinato.
 - **Database**: ogni modifica allo schema è un nuovo file `apps/server/migrations/NNNN_descrizione.sql`, mai una modifica a una migrazione esistente. Aggiorna anche `apps/server/src/db/schema.ts`.
 - **Dati per utente**: ogni query su dati personali filtra per `user_id`. I test in `apps/server/test` verificano l'isolamento tra utenti: estendili quando aggiungi un endpoint.
 - **Accessibilità**: WCAG 2.2 AA, aree di tocco di almeno 44–48 px, stati mai affidati al solo colore.
-- **Changelog**: annota ogni modifica visibile in `CHANGELOG.md`, sotto "Non rilasciato".
+- **Changelog**: annota ogni modifica visibile in `CHANGELOG.md`, sotto "Non rilasciato". Scrivi per chi usa l'app, non per chi la sviluppa: voci brevi e volutamente generiche, senza dettagli tecnici (niente nomi di variabili, comandi, intestazioni, messaggi d'errore o spiegazioni di come è fatta la correzione). Vale soprattutto per modifiche e correzioni, dove basta un «Corretto un problema relativo a…». I dettagli stanno nei commit e nella documentazione.
 
 Prima di aprire una pull request:
 
