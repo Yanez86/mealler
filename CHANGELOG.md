@@ -3,6 +3,15 @@
 Tutte le modifiche rilevanti di Mealler sono annotate qui.
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il [versionamento semantico](https://semver.org/lang/it/).
 
+## [1.6.4] - 2026-11-11
+
+### Aggiunto
+- In Andamento, toccando una barra si vede il dettaglio di quel giorno: calorie e macronutrienti (o l'acqua), con il pulsante «Apri il giorno» per andare al Diario.
+- In Andamento c'è la scheda «Tendenza», con un grafico a linea per giorno, sul periodo scelto, oppure per mese, con la media di ogni mese negli ultimi 12 mesi. Anche qui si tocca un punto per vederne il valore. Vale per i nutrienti e per l'acqua.
+
+### Corretto
+- Corretto un problema relativo all'impaginazione della media in Andamento, che andava a capo con i nomi più lunghi.
+
 ## [1.6.3] - 2026-11-11
 
 ### Aggiunto

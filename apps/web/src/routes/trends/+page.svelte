@@ -2,10 +2,21 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
-  import { ML_PER_FLOZ, NUTRIENTS, NUTRIENT_UNITS, addDays, thresholdStatus, todayIn, type Nutrient, type TrendsResponse } from '@mealler/shared';
+  import {
+    ML_PER_FLOZ,
+    NUTRIENTS,
+    NUTRIENT_UNITS,
+    addDays,
+    thresholdStatus,
+    todayIn,
+    type Nutrient,
+    type TrendDay,
+    type TrendsResponse
+  } from '@mealler/shared';
   import { get } from '$lib/api';
   import { app, clock, errorMessage, formatDate, formatNumber, t } from '$lib/state.svelte';
-  import BarChart from '$lib/BarChart.svelte';
+  import BarChart, { type BarDatum } from '$lib/BarChart.svelte';
+  import LineChart, { type LinePoint } from '$lib/LineChart.svelte';
   import NutrientIcon from '$lib/NutrientIcon.svelte';
   import TopBar from '$lib/TopBar.svelte';
   import WeightPanel from '$lib/WeightPanel.svelte';
@@ -83,7 +94,149 @@
       ? trends.days.map((d) => ({ date: d.date, value: d.water > 0 ? waterShown(d.water) : null, min: waterShown(goal), max: null }))
       : []
   );
+
+  // ---------- A day picked on a chart ----------
+  // A tap on a bar (or on a point of the daily line) shows that day under the chart tapped.
+  let selected = $state<{ date: string; from: 'bars' | 'line' } | null>(null);
+  const selectedDay = $derived(selected && trends ? (trends.days.find((d) => d.date === selected?.date) ?? null) : null);
+  $effect(() => {
+    void tab;
+    void span;
+    selected = null;
+  });
+  const pickBar = (date: string | null) => (selected = date ? { date, from: 'bars' } : null);
+  const pickPoint = (date: string | null) => (selected = date ? { date, from: 'line' } : null);
+  const dayName = (date: string) => formatDate(date, { weekday: 'long', day: 'numeric', month: 'long' });
+  const dayHref = (date: string) => (date === today ? '/' : `/?d=${date}`);
+  const describeBar = (d: BarDatum) => `${dayName(d.date)}: ${formatNumber(d.value ?? 0, 1)} ${tab === 'water' ? waterUnit : unit}`;
+
+  // ---------- Trend line, by day or by month ----------
+  // The same measure as the bars: the nutrient chosen, or the water.
+  let lineMode = $state<'day' | 'month'>('day');
+  const valueOf = (d: TrendDay): number | null =>
+    tab === 'water' ? (d.water > 0 ? waterShown(d.water) : null) : d.entries > 0 ? d[nutrient] : null;
+  const limitsOf = (d: TrendDay) => (tab === 'water' ? { min: waterShown(goal), max: null } : d.limits[nutrient]);
+  const dayLabel = (date: string, count: number) =>
+    formatDate(date, { day: 'numeric', month: count > 8 ? 'numeric' : undefined, weekday: count <= 8 ? 'narrow' : undefined });
+  const dayPoints = $derived<LinePoint[]>(
+    trends
+      ? trends.days.map((d) => ({ key: d.date, label: dayLabel(d.date, trends?.days.length ?? 0), value: valueOf(d), ...limitsOf(d) }))
+      : []
+  );
+
+  // The last 12 months, this one included: each point is the month's average over the days logged.
+  const months = $derived.by(() => {
+    const out: string[] = [];
+    let [y, m] = today.slice(0, 7).split('-').map(Number);
+    for (let i = 0; i < 12; i++) {
+      out.unshift(`${y}-${String(m).padStart(2, '0')}`);
+      m -= 1;
+      if (m === 0) [y, m] = [y - 1, 12];
+    }
+    return out;
+  });
+  let monthly = $state<TrendsResponse | null>(null);
+  let selectedMonth = $state<string | null>(null);
+  $effect(() => {
+    if (tab === 'weight' || lineMode !== 'month') return;
+    get<TrendsResponse>(`/trends?from=${months[0]}-01&to=${today}`)
+      .then((res) => (monthly = res))
+      .catch((e) => (error = errorMessage(e)));
+  });
+  $effect(() => {
+    void tab;
+    void nutrient;
+    void lineMode;
+    selectedMonth = null;
+  });
+  const monthStats = $derived(
+    months.map((key) => {
+      const days = (monthly?.days ?? []).filter((d) => d.date.startsWith(key) && (tab === 'water' ? d.water > 0 : d.entries > 0));
+      const raw = days.length ? days.reduce((s, d) => s + (tab === 'water' ? d.water : d[nutrient]), 0) / days.length : null;
+      return { key, days: days.length, raw };
+    })
+  );
+  const monthPoints = $derived.by<LinePoint[]>(() => {
+    const last = monthly?.days.at(-1);
+    const band = tab === 'water' ? { min: waterShown(goal), max: null } : (last?.limits[nutrient] ?? { min: null, max: null });
+    return monthStats.map((m) => ({
+      key: m.key,
+      label: formatDate(`${m.key}-01`, { month: 'short' }),
+      value: m.raw == null ? null : tab === 'water' ? waterShown(m.raw) : Math.round(m.raw * 10) / 10,
+      ...band
+    }));
+  });
+  const monthInfo = $derived.by(() => {
+    const m = monthStats.find((x) => x.key === selectedMonth);
+    if (!m || m.raw == null) return null;
+    const value = tab === 'water' ? waterText(m.raw) : `${formatNumber(m.raw, nutrient === 'kcal' ? 0 : 1)} ${unit}`;
+    const month = formatDate(`${m.key}-01`, { month: 'long', year: 'numeric' });
+    return t('trends.monthAverage', { month: month.charAt(0).toUpperCase() + month.slice(1), value, n: m.days });
+  });
+  const lineUnit = $derived(tab === 'water' ? waterUnit : unit);
+  const lineName = $derived(tab === 'water' ? t('water.title') : t(`nutrient.${nutrient}`));
 </script>
+
+{#snippet nutrientDay(d: TrendDay)}
+  <div class="detail" role="status">
+    <p class="detail-title">{dayName(d.date)}</p>
+    <ul class="detail-list">
+      {#each NUTRIENTS as n (n)}
+        {@const st = thresholdStatus(d[n], d.limits[n].min, d.limits[n].max)}
+        <li>
+          <NutrientIcon nutrient={n} size={20} />
+          <span class="grow">{t(`nutrient.${n}`)}</span>
+          <strong class={st === 'none' ? '' : `status-ink-${st}`}>{formatNumber(d[n], n === 'kcal' ? 0 : 1)} {NUTRIENT_UNITS[n]}</strong>
+        </li>
+      {/each}
+    </ul>
+    <a class="btn btn-block" href={dayHref(d.date)}>{t('trends.openDay')}</a>
+  </div>
+{/snippet}
+
+{#snippet waterDay(d: TrendDay)}
+  <div class="detail" role="status">
+    <p class="detail-title">{dayName(d.date)}</p>
+    <p><strong class={d.water >= goal ? 'status-ink-ok' : 'status-ink-under'}>{waterText(d.water)}</strong> <span class="muted">{t('water.of', { goal: waterText(goal) })}</span></p>
+    <a class="btn btn-block" href={dayHref(d.date)}>{t('trends.openDay')}</a>
+  </div>
+{/snippet}
+
+{#snippet trendLine()}
+  <section class="card stack" aria-labelledby="line-title">
+    <div class="line-head">
+      <h2 id="line-title" class="label">{t('trends.line')} · {lineName}</h2>
+      <div class="mini-seg" role="group" aria-label={t('trends.line')}>
+        <button type="button" aria-pressed={lineMode === 'day'} onclick={() => (lineMode = 'day')}>{t('trends.byDay')}</button>
+        <button type="button" aria-pressed={lineMode === 'month'} onclick={() => (lineMode = 'month')}>{t('trends.byMonth')}</button>
+      </div>
+    </div>
+    {#if lineMode === 'day'}
+      <LineChart
+        points={dayPoints}
+        unit={lineUnit}
+        label={t('trends.lineLabel', { nutrient: lineName })}
+        selected={selected?.from === 'line' ? selected.date : null}
+        onselect={pickPoint}
+        describe={(p) => `${dayName(p.key)}: ${formatNumber(p.value ?? 0, 1)} ${lineUnit}`} />
+      {#if selected?.from === 'line' && selectedDay}
+        {@render (tab === 'water' ? waterDay : nutrientDay)(selectedDay)}
+      {/if}
+    {:else if monthly}
+      <LineChart
+        points={monthPoints}
+        unit={lineUnit}
+        label={t('trends.lineLabelMonths', { nutrient: lineName })}
+        selected={selectedMonth}
+        onselect={(key) => (selectedMonth = key)}
+        describe={(p) => `${formatDate(`${p.key}-01`, { month: 'long', year: 'numeric' })}: ${formatNumber(p.value ?? 0, 1)} ${lineUnit}`} />
+      {#if monthInfo}<p class="detail" role="status">{monthInfo}</p>{/if}
+      <p class="help">{tab === 'water' ? t('trends.byMonthHelpWater') : t('trends.byMonthHelp')}</p>
+    {:else}
+      <p class="muted" role="status">{t('common.loading')}</p>
+    {/if}
+  </section>
+{/snippet}
 
 <svelte:head><title>{t('trends.title')} · Mealler</title></svelte:head>
 
@@ -113,16 +266,19 @@
       {:else}
         <section class="card stack" aria-labelledby="water-avg-title">
           <div class="avg">
-            <div>
-              <h2 id="water-avg-title" class="muted small">{t('trends.average')} · {t('water.title')}</h2>
-              <p><span class="big">{waterText(waterAverage ?? 0)}</span></p>
-              <p class="muted small">{t('trends.waterAverageNote', { n: waterDays.length })}</p>
+            <h2 id="water-avg-title" class="muted small">{t('trends.average')} · {t('water.title')}</h2>
+            <div class="avg-row">
+              <p class="avg-value"><span class="big">{waterText(waterAverage ?? 0)}</span></p>
+              <p class="muted small right">{t('trends.waterAtGoal', { n: atGoal, total: waterDays.length })}</p>
             </div>
-            <p class="muted small right">{t('trends.waterAtGoal', { n: atGoal, total: waterDays.length })}</p>
+            <p class="muted small">{t('trends.waterAverageNote', { n: waterDays.length })}</p>
           </div>
           <BarChart
             data={waterBars}
             unit={waterUnit}
+            selected={selected?.from === 'bars' ? selected.date : null}
+            onselect={pickBar}
+            describe={describeBar}
             label={t('trends.chartLabel', {
               nutrient: t('water.title'),
               from: formatDate(trends.from, { day: 'numeric', month: 'long' }),
@@ -133,7 +289,13 @@
             <span><span class="sw" style="background: var(--ok)"></span>{t('water.done')}</span>
             <span><span class="sw" style="background: var(--under)"></span>{t('trends.waterUnder')}</span>
           </div>
+          {#if selected?.from === 'bars' && selectedDay}
+            {@render waterDay(selectedDay)}
+          {:else}
+            <p class="help">{t('trends.tapHint')}</p>
+          {/if}
         </section>
+        {@render trendLine()}
       {/if}
     {:else if !error}
       <p class="muted" role="status">{t('common.loading')}</p>
@@ -158,19 +320,22 @@
       {:else}
         <section class="card stack" aria-labelledby="avg-title">
           <div class="avg">
-            <div>
-              <h2 id="avg-title" class="muted small">{t('trends.average')} · {t(`nutrient.${nutrient}`)}</h2>
-              <p><span class="big">{formatNumber(average ?? 0, nutrient === 'kcal' ? 0 : 1)}</span> <span class="muted">{unit}</span></p>
-              <p class="muted small">{t('trends.averageNote', { n: logged.length })}</p>
+            <h2 id="avg-title" class="muted small">{t('trends.average')} · {t(`nutrient.${nutrient}`)}</h2>
+            <div class="avg-row">
+              <p class="avg-value"><span class="big">{formatNumber(average ?? 0, nutrient === 'kcal' ? 0 : 1)}</span> <span class="muted">{unit}</span></p>
+              {#if withLimits.length}
+                <p class="muted small right">{t('trends.inRange', { n: inRange, total: withLimits.length })}</p>
+              {/if}
             </div>
-            {#if withLimits.length}
-              <p class="muted small right">{t('trends.inRange', { n: inRange, total: withLimits.length })}</p>
-            {/if}
+            <p class="muted small">{t('trends.averageNote', { n: logged.length })}</p>
           </div>
           {#key nutrient}
             <BarChart
               data={bars}
               {unit}
+              selected={selected?.from === 'bars' ? selected.date : null}
+              onselect={pickBar}
+              describe={describeBar}
               label={t('trends.chartLabel', {
                 nutrient: t(`nutrient.${nutrient}`),
                 from: formatDate(trends.from, { day: 'numeric', month: 'long' }),
@@ -183,7 +348,14 @@
             <span><span class="sw" style="background: var(--under)"></span>{t('day.status.under')}</span>
             <span><span class="sw" style="background: var(--over)"></span>{t('day.status.over')}</span>
           </div>
+          {#if selected?.from === 'bars' && selectedDay}
+            {@render nutrientDay(selectedDay)}
+          {:else}
+            <p class="help">{t('trends.tapHint')}</p>
+          {/if}
         </section>
+
+        {@render trendLine()}
 
         {#if split}
           <section class="card stack" aria-labelledby="split-title">
@@ -230,11 +402,81 @@
     color: var(--text);
     font-weight: 700;
   }
+  /* Title on its own line, then the average with the days in range beside it, then the note. */
   .avg {
     display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .avg-row {
+    display: flex;
     justify-content: space-between;
-    align-items: flex-end;
+    align-items: baseline;
     gap: 12px;
+  }
+  .avg-value {
+    flex: none;
+  }
+  .detail {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: var(--surface-2);
+  }
+  .detail-title {
+    font-weight: 700;
+  }
+  .detail-title::first-letter {
+    text-transform: uppercase;
+  }
+  .detail-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .detail-list li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .grow {
+    flex: 1;
+    min-width: 0;
+  }
+  .line-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .mini-seg {
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 20px;
+    background: var(--surface-2);
+  }
+  .mini-seg button {
+    min-height: 36px;
+    padding: 0 12px;
+    border: none;
+    border-radius: 17px;
+    background: transparent;
+    color: var(--text-2);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .mini-seg button[aria-pressed='true'] {
+    background: var(--surface);
+    color: var(--text);
   }
   .big {
     font-size: 28px;
