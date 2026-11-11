@@ -6,7 +6,7 @@
   import { del, get, patch, post, put } from './api';
   import { preparePhoto } from './image';
   import { reveal } from './reveal';
-  import { app, errorMessage, t } from './state.svelte';
+  import { app, errorMessage, parseNumber, t } from './state.svelte';
   import BarcodeScanner from './BarcodeScanner.svelte';
   import CategoryPicker from './CategoryPicker.svelte';
   import Icon from './Icon.svelte';
@@ -28,12 +28,7 @@
   const initialSource = untrack(() => draft?.source);
   const toText = (n: number | null | undefined) =>
     n == null ? '' : String(n).replace('.', app.locale === 'it' ? ',' : '.');
-  const toNumber = (s: string): number | null => {
-    const v = s.trim().replace(',', '.');
-    if (!v) return null;
-    const n = Number(v);
-    return Number.isFinite(n) && n >= 0 ? n : null;
-  };
+  const toNumber = (s: string): number | null => parseNumber(s) ?? null;
 
   let name = $state(start?.name ?? '');
   let brand = $state(start?.brand ?? '');
@@ -143,6 +138,10 @@
       source,
       category
     };
+    if ([kcal, protein, carbs, fat, fiber, servingG].some((v) => parseNumber(v) === undefined)) {
+      error = t('error.number');
+      return;
+    }
     if ([body.kcal, body.protein, body.carbs, body.fat].some((v) => v == null)) {
       error = t('error.validation');
       return;

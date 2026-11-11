@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { thresholdStatus, thresholdTone, sumValues, kcalMismatch } from './nutrients.ts';
+import { thresholdStatus, thresholdTone, sumValues, kcalMismatch, parseNumber } from './nutrients.ts';
 import { isIsoDate, addDays, isoWeekday, slotActiveOn, todayIn, isValidTime, inTimeRange, nowIn } from './dates.ts';
 import { translate, MESSAGES } from './i18n.ts';
 import { isNewerVersion } from './version.ts';
@@ -177,4 +177,20 @@ test('quantities: parsing, metric storage, US display', () => {
   assert.deepEqual(inSystem({ amount: 1, unit: 'cup' }, 'metric').unit, 'ml');
   assert.ok(Math.abs(kgToLb(lbToKg(180)) - 180) < 1e-9);
   assert.equal(Math.round(kgToLb(80) * 10) / 10, 176.4);
+});
+
+test('numbers as typed: decimals, thousands separators, and what is not a number', () => {
+  assert.equal(parseNumber('', 'it'), null);
+  assert.equal(parseNumber(' 12,5 ', 'it'), 12.5);
+  assert.equal(parseNumber('12.5', 'it'), 12.5);
+  assert.equal(parseNumber('0.125', 'it'), 0.125);
+  // 1.800 kcal in Italian is one thousand eight hundred, not 1,8.
+  assert.equal(parseNumber('1.800', 'it'), 1800);
+  assert.equal(parseNumber('1.250,5', 'it'), 1250.5);
+  assert.equal(parseNumber('1,800', 'en'), 1800);
+  assert.equal(parseNumber('1,800.5', 'en'), 1800.5);
+  assert.equal(parseNumber('1.800', 'en'), 1.8);
+  assert.equal(parseNumber('1,5', 'en'), 1.5);
+  // Never read as empty: the form must say so.
+  for (const bad of ['abc', '5$', '10 usd', '-3', '1.2.3', '1,2,3']) assert.equal(parseNumber(bad, 'it'), undefined, bad);
 });

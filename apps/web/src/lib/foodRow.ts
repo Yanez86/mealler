@@ -18,6 +18,7 @@ import {
   type QuantityUnit,
   type UnitSystem
 } from '@mealler/shared';
+import { parseNumber } from './state.svelte';
 
 export interface FoodRow {
   key: string;
@@ -44,12 +45,11 @@ let counter = 0;
 
 const emptyValues = (): Record<Nutrient, string> => ({ kcal: '', protein: '', carbs: '', fat: '', fiber: '' });
 
-export function toNumber(s: string): number | null {
-  const trimmed = s.trim().replace(',', '.');
-  if (!trimmed) return null;
-  const n = Number(trimmed);
-  return Number.isFinite(n) && n >= 0 ? n : null;
-}
+export const toNumber = (s: string): number | null => parseNumber(s) ?? null;
+
+/** True when the quantity or a value of the row holds something that is not a number: saving must stop. */
+export const hasBadNumber = (row: FoodRow) =>
+  [row.amount, ...NUTRIENTS.map((n) => row.values[n])].some((v) => parseNumber(v) === undefined);
 
 export function toText(n: number | null | undefined, locale: Locale): string {
   return n == null ? '' : String(n).replace('.', locale === 'it' ? ',' : '.');

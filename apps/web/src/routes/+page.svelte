@@ -169,13 +169,19 @@
         ).length
       : 0
   );
+  // A second tap while a request is on its way does nothing (estimates, new slot).
+  let working = false;
   async function calculateAll() {
+    if (working) return;
+    working = true;
     try {
       const { queued } = await post<{ queued: number }>(`/day/${date}/calculate`);
       queuedMessage = t('day.calculating', { n: queued });
       loadedDay = await get<DayResponse>(`/day/${date}`);
     } catch (e) {
       error = errorMessage(e);
+    } finally {
+      working = false;
     }
   }
 
@@ -228,6 +234,8 @@
 
   async function addExtraSlot(event: SubmitEvent) {
     event.preventDefault();
+    if (working) return;
+    working = true;
     error = '';
     try {
       await post('/slots', { name: extraName.trim(), time: extraTime, date });
@@ -235,6 +243,8 @@
       await reload();
     } catch (e) {
       error = errorMessage(e);
+    } finally {
+      working = false;
     }
   }
 

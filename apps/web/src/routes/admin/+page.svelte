@@ -38,19 +38,29 @@
     }
   }
 
+  // One action at a time: a second tap while the first is still on its way does nothing.
+  let running = false;
   async function run(action: () => Promise<unknown>) {
+    if (running) return;
+    running = true;
     error = '';
     try {
       await action();
       await load();
     } catch (e) {
       error = errorMessage(e);
+    } finally {
+      running = false;
     }
   }
 
-  const toggleActive = (u: User) => run(() => patch(`/admin/users/${u.id}`, { active: !u.active }));
-  const setRole = (u: User, role: 'admin' | 'user') => run(() => patch(`/admin/users/${u.id}`, { role }));
-  const revoke = (i: Invite) => run(() => del(`/admin/invites/${encodeURIComponent(i.token)}`));
+  const toggleActive = (u: User) =>
+    (!u.active || confirm(t('admin.deactivateConfirm', { name: u.name }))) && run(() => patch(`/admin/users/${u.id}`, { active: !u.active }));
+  function setRole(u: User, select: HTMLSelectElement) {
+    if (confirm(t('admin.roleConfirm', { name: u.name }))) void run(() => patch(`/admin/users/${u.id}`, { role: select.value }));
+    else select.value = u.role;
+  }
+  const revoke = (i: Invite) => confirm(t('admin.revokeConfirm')) && run(() => del(`/admin/invites/${encodeURIComponent(i.token)}`));
   const resetPassword = (u: User) =>
     run(async () => copy({ token: `reset-${u.id}`, url: (await post<{ url: string }>(`/admin/users/${u.id}/reset`)).url }));
   const setRegistration = () => run(() => patch('/admin/settings', { registrationOpen: !registrationOpen }));
@@ -129,7 +139,7 @@
             <p class="muted small">{u.active ? u.email : `${u.email} · ${t('admin.inactive')}`}</p>
           </div>
           <label class="visually-hidden" for="role-{u.id}">{t('admin.role')}</label>
-          <select id="role-{u.id}" class="input role" value={u.role} onchange={(e) => setRole(u, e.currentTarget.value as 'admin' | 'user')}>
+          <select id="role-{u.id}" class="input role" value={u.role} onchange={(e) => setRole(u, e.currentTarget)}>
             <option value="user">{t('admin.role.user')}</option>
             <option value="admin">{t('admin.role.admin')}</option>
           </select>

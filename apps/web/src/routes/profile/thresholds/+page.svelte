@@ -3,7 +3,7 @@
   import { onMount } from 'svelte';
   import { NUTRIENTS, NUTRIENT_UNITS, type Nutrient, type Threshold } from '@mealler/shared';
   import { get, put } from '$lib/api';
-  import { app, errorMessage, t } from '$lib/state.svelte';
+  import { app, errorMessage, parseNumber, t } from '$lib/state.svelte';
   import Icon from '$lib/Icon.svelte';
   import TopBar from '$lib/TopBar.svelte';
 
@@ -19,12 +19,7 @@
   let saved = $state(false);
 
   const toText = (n: number | null) => (n == null ? '' : String(n).replace('.', app.locale === 'it' ? ',' : '.'));
-  const toNumber = (s: string): number | null => {
-    const v = s.trim().replace(',', '.');
-    if (!v) return null;
-    const n = Number(v);
-    return Number.isFinite(n) && n >= 0 ? n : null;
-  };
+  const toNumber = (s: string): number | null => parseNumber(s) ?? null;
 
   onMount(async () => {
     try {
@@ -69,6 +64,10 @@
       min: toNumber(rows[nutrient].min),
       max: toNumber(rows[nutrient].max)
     }));
+    if (NUTRIENTS.some((n) => parseNumber(rows[n].min) === undefined || parseNumber(rows[n].max) === undefined)) {
+      error = t('error.number');
+      return;
+    }
     if (items.some((i) => i.min != null && i.max != null && i.min > i.max)) {
       error = t('thresholds.invalid');
       return;

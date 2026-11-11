@@ -4,7 +4,7 @@
   import { onMount } from 'svelte';
   import { addDays, isoWeekday, todayIn, weightFrom, weightIn, weightUnit, type User, type WeightEntry } from '@mealler/shared';
   import { del, get, patch, put } from './api';
-  import { app, clock, errorMessage, formatDate, formatNumber, setUser, t } from './state.svelte';
+  import { app, clock, errorMessage, formatDate, formatNumber, parseNumber, setUser, t } from './state.svelte';
   import Icon from './Icon.svelte';
   import WeightChart from './WeightChart.svelte';
 
@@ -92,6 +92,7 @@
   });
   const byDate = $derived(new Map(monthWeights.map((w) => [w.date, w])));
 
+  let saving = false;
   function openForm(date: string) {
     const existing = byDate.get(date) ?? history.find((w) => w.date === date);
     formDate = date;
@@ -103,19 +104,25 @@
 
   async function saveWeight(event: SubmitEvent) {
     event.preventDefault();
-    const value = Number(formKg.replace(',', '.'));
-    if (!Number.isFinite(value)) return;
+    const value = parseNumber(formKg);
+    if (value === undefined) error = t('error.number');
+    if (value == null || saving) return;
     const kg = weightFrom(value, units);
+    saving = true;
+    error = '';
     try {
       await put(`/weights/${formDate}`, { kg, note: formNote || null });
       formOpen = false;
       await Promise.all([loadMonth(), loadHistory()]);
     } catch (e) {
       error = errorMessage(e);
+    } finally {
+      saving = false;
     }
   }
 
   async function removeWeight() {
+    if (!confirm(t('weight.deleteConfirm'))) return;
     try {
       await del(`/weights/${formDate}`);
       formOpen = false;

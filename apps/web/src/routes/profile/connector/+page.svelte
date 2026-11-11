@@ -43,6 +43,7 @@
   }
 
   async function revoke(c: Connection) {
+    if (!confirm(t('connector.disconnectConfirm', { name: c.name }))) return;
     try {
       await del(`/oauth/connections/${encodeURIComponent(c.clientId)}`);
       await load();

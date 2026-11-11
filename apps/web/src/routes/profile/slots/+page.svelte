@@ -8,6 +8,7 @@
   import TopBar from '$lib/TopBar.svelte';
 
   let slots = $state<Slot[]>([]);
+  let archived = $state<Slot[]>([]);
   let error = $state('');
   let savedId = $state<number | null>(null);
   let draft = $state({ name: '', time: '12:00', days: ALL_DAYS });
@@ -19,7 +20,18 @@
 
   async function load() {
     try {
-      slots = await get<Slot[]>('/slots');
+      const all = await get<Slot[]>('/slots?archived=1');
+      slots = all.filter((s) => !s.archived);
+      archived = all.filter((s) => s.archived);
+    } catch (e) {
+      error = errorMessage(e);
+    }
+  }
+
+  async function restore(slot: Slot) {
+    try {
+      await patch(`/slots/${slot.id}`, { archived: false });
+      await load();
     } catch (e) {
       error = errorMessage(e);
     }
@@ -69,16 +81,21 @@
     }
   }
 
+  let creating = false;
   async function create(event: SubmitEvent) {
     event.preventDefault();
+    if (creating) return;
     error = '';
     if (!draft.days) return (error = t('slots.noDays'));
+    creating = true;
     try {
       await post('/slots', draft);
       draft = { name: '', time: '12:00', days: ALL_DAYS };
       await load();
     } catch (e) {
       error = errorMessage(e);
+    } finally {
+      creating = false;
     }
   }
 </script>
@@ -169,6 +186,20 @@
     </fieldset>
     <button class="btn btn-primary" type="submit"><Icon name="plus" size={20} />{t('slots.new')}</button>
   </form>
+
+  {#if archived.length}
+    <section class="card" aria-labelledby="archived-title">
+      <h2 id="archived-title" class="section-title">{t('slots.archived')}</h2>
+      <ul style="list-style: none; margin: 0; padding: 0">
+        {#each archived as slot (slot.id)}
+          <li class="list-row">
+            <span class="grow">{slot.time} · {slot.name}</span>
+            <button class="btn btn-ghost" type="button" onclick={() => restore(slot)}>{t('slots.restore')}</button>
+          </li>
+        {/each}
+      </ul>
+    </section>
+  {/if}
 </main>
 
 <style>

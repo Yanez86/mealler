@@ -20,6 +20,8 @@
 
   let query = $state('');
   let results = $state<Product[]>([]);
+  // The text the results on screen answer to: "nothing found" is said only once the answer is in.
+  let answered = $state('');
   let selected = $state<Product | null>(null);
   let mode = $state<'grams' | 'servings'>('grams');
   // With US units the weight is typed in ounces; the library and the diary keep grams.
@@ -41,7 +43,11 @@
     }
     timer = setTimeout(async () => {
       try {
-        results = await get<Product[]>(`/products?q=${encodeURIComponent(q)}`);
+        const found = await get<Product[]>(`/products?q=${encodeURIComponent(q)}`);
+        // An answer to an older text must not replace a newer one.
+        if (q !== query.trim()) return;
+        results = found;
+        answered = q;
       } catch (e) {
         error = errorMessage(e);
       }
@@ -161,7 +167,7 @@
           </li>
         {/each}
       </ul>
-    {:else if query.trim()}
+    {:else if query.trim() && answered === query.trim()}
       <p class="muted small">{t('foods.none')}</p>
     {/if}
   {/if}

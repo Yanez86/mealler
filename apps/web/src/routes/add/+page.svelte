@@ -25,6 +25,7 @@
   import {
     applyEstimate,
     clearEstimate,
+    hasBadNumber,
     hasValues,
     isEdited,
     newRow,
@@ -244,7 +245,8 @@
 
   async function saveFavorite() {
     const row = named[0];
-    if (!row) return;
+    if (!row || busy) return;
+    busy = true;
     error = '';
     try {
       await post('/favorites', {
@@ -258,6 +260,8 @@
       favSaved = true;
     } catch (e) {
       error = errorMessage(e);
+    } finally {
+      busy = false;
     }
   }
 
@@ -431,6 +435,10 @@
     const list = rows.filter((r) => r.name.trim());
     if (!list.length) {
       error = t('error.validation');
+      return;
+    }
+    if (list.some(hasBadNumber)) {
+      error = t('error.number');
       return;
     }
     busy = true;

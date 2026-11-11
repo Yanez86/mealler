@@ -70,3 +70,17 @@ export function kcalMismatch(v: NutrientValues, tolerance = 0.25): boolean {
   if (estimate < 20 && v.kcal < 20) return false;
   return Math.abs(v.kcal - estimate) > Math.max(v.kcal, estimate) * tolerance;
 }
+
+/**
+ * A non-negative number as people type it: "12,5" or "12.5", and with thousands separators as the
+ * language writes them ("1.800" in Italian, "1,800" in English): 1.800 kcal is not 1,8.
+ * null = left empty; undefined = not a number, to be reported rather than read as empty.
+ */
+export function parseNumber(text: string, locale: string): number | null | undefined {
+  let v = text.trim();
+  if (!v) return null;
+  const grouped = locale === 'it' ? /^[1-9]\d{0,2}(\.\d{3})+(,\d+)?$/ : /^[1-9]\d{0,2}(,\d{3})+(\.\d+)?$/;
+  if (grouped.test(v)) v = v.split(locale === 'it' ? '.' : ',').join('');
+  v = v.replace(',', '.');
+  return /^\d+(\.\d+)?$/.test(v) ? Number(v) : undefined;
+}

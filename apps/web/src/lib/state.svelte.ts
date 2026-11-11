@@ -2,6 +2,7 @@
 import {
   DEFAULT_LOCALE,
   isLocale,
+  parseNumber as parseNumberIn,
   translate,
   type Locale,
   type MessageKey,
@@ -137,6 +138,9 @@ export function errorMessage(error: unknown): string {
   if (error instanceof ApiError) return `${t('common.error')} (${error.status} ${error.code})`;
   return error instanceof Error ? `${t('common.error')} (${error.message})` : t('common.error');
 }
+
+/** A number typed in a form, read in the user's language: null when empty, undefined when it is not a number. */
+export const parseNumber = (text: string) => parseNumberIn(text, app.locale);
 
 export function formatNumber(value: number, digits = 0): string {
   return new Intl.NumberFormat(app.locale, { maximumFractionDigits: digits }).format(value);

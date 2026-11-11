@@ -29,6 +29,7 @@
   }
 
   async function removeFavorite(f: Favorite) {
+    if (!confirm(t('fav.removeConfirm', { name: f.name }))) return;
     try {
       await del(`/favorites/${f.id}`);
       await loadFavorites();
