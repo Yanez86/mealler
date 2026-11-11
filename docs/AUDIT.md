@@ -4,6 +4,8 @@ Revisione del codice al commit `40dcc70` (release 1.4.1), fatta leggendo il sorg
 
 Tre parti: [sicurezza](#1-sicurezza), [usabilità](#2-usabilità), [consumi token e limiti](#3-consumi-token-e-rispetto-dei-limiti). In fondo l'[ordine di lavoro consigliato](#4-ordine-di-lavoro-consigliato).
 
+> **Aggiornamento dell'11 novembre 2026.** Le voci sono state ricontrollate sul codice e in buona parte corrette: lo [stato voce per voce](#5-stato-delle-correzioni) è in fondo. Il testo delle sezioni 1-4 resta quello della revisione, cioè descrive la 1.4.1.
+
 Gravità: **Alta** = da sistemare prima della prossima release; **Media** = da pianificare; **Bassa** = rifinitura o difesa in profondità.
 
 ## Sintesi
@@ -303,3 +305,69 @@ In `apps/web/src/lib/AiAdmin.svelte:67-71` un campo non numerico («5$», «10 u
 5. **Usabilità, uso quotidiano**: USA-01 e USA-02 (data e dati aggiornati al ritorno nell'app), USA-04 (coda offline), USA-06 (sessione scaduta), poi USA-03 e USA-05 (codice a barre e preferiti).
 6. **Usabilità, perdita di lavoro**: USA-07/08/09/10 (form «Aggiungi»), USA-21 con TOK-15 (numeri), USA-32/33 (eliminazioni).
 7. **Rifiniture**: SEC-05/06/07/11/12, TOK-09/10, il resto della sezione 2 e le voci di gravità bassa.
+
+---
+
+## 5. Stato delle correzioni
+
+Situazione all'11 novembre 2026, sul ramo `audit-fixes` (sei commit dopo questo documento, non ancora rilasciati).
+
+Come sono state verificate: le voci di sicurezza e sui token sono state rilette una per una sul codice del server prima di toccarlo, e nessuna è risultata infondata. Le correzioni del server hanno test automatici (17 test, tutti verdi) e l'immagine Docker è stata compilata e avviata con lo smoke test della CI. Le correzioni dell'interfaccia superano il controllo dei tipi e la compilazione, ma **non sono state provate in un browser né su un telefono**: vanno provate a mano prima del rilascio.
+
+| Area | Risolte | In parte | Aperte |
+| --- | --- | --- | --- |
+| Sicurezza (21) | 10 | 4 | 7 |
+| Usabilità (51) | 21 | 1 | 29 |
+| Token e limiti (15) | 11 | 1 | 3 |
+
+### Sicurezza
+
+| Voce | Stato | Note |
+| --- | --- | --- |
+| SEC-01 | Risolta | `MEALLER_TRUST_PROXY` elenca gli indirizzi dei proxy fidati (default: privati e locali), più il blocco per account dopo 5 accessi falliti. Non il conteggio degli hop proposto sopra: la versione di Fastify in uso lo ignora di proposito, perché non distingue un proxy da un client diretto. Resta vero che chi raggiunge la porta direttamente da una rete privata può ancora falsificare `X-Forwarded-For`: per questo c'è `MEALLER_BIND`, e `MEALLER_TRUST_PROXY=none` per chi non usa proxy. |
+| SEC-02 | Risolta | `MEALLER_BIND=127.0.0.1`, passo obbligato nella guida. Il default resta `0.0.0.0` perché l'uso in rete locale senza proxy ne ha bisogno. |
+| SEC-03 | In parte | `--frozen-lockfile` in immagine e CI, dipendenze di produzione dal lockfile (`pnpm deploy`). Non fatto: immagine base e action fissate a un digest, tag di versione al posto di `latest` nel compose (lo script di aggiornamento conta su `latest`). |
+| SEC-04 | Risolta | Link monouso dall'amministrazione e comando `reset-password`. |
+| SEC-05 | Risolta | Il cambio password revoca i token OAuth; un refresh token riusato chiude il collegamento. |
+| SEC-06 | Risolta | Accettati solo gli host dei servizi push dei browser. |
+| SEC-07 | Aperta | Cancellare i client senza token rischia di rompere la riconnessione di claude.ai, che riusa il proprio `client_id`: serve prima sapere come si comporta. Schermata di consenso non toccata. |
+| SEC-08 | Risolta | |
+| SEC-09 | Risolta | |
+| SEC-10 | Aperta | Scelta dichiarata. Con SEC-08 `MEALLER_SECRET_KEY` ora funziona davvero; la chiave privata VAPID resta in chiaro nel database. |
+| SEC-11 | Risolta | Form accettati solo dagli endpoint OAuth; modifiche rifiutate se `Sec-Fetch-Site` è `cross-site` o `same-site`. |
+| SEC-12 | In parte | Limiti di frequenza su prodotti, etichette e `/mcp`; foto senza voce cancellate dopo un giorno. Non fatto: quota per utente. |
+| SEC-13 | In parte | Il login impiega lo stesso tempo per indirizzi esistenti e non. `/api/register` risponde ancora `emailTaken`. |
+| SEC-14 | Risolta | |
+| SEC-15, 16, 17, 18, 20 | Aperte | SEC-17: la versione serve all'app prima del login per aggiornarsi. |
+| SEC-19 | In parte | `cap_drop: ALL` e `no-new-privileges`. Non fatto: `read_only`, limiti di memoria. |
+| SEC-21 | Risolta | Il percorso delle foto è ricostruito dalla cartella dati. |
+
+### Usabilità
+
+Risolte: USA-01, 02, 03, 04, 05, 06, 07, 08, 09, 10, 11, 14, 17, 20, 21, 26, 27, 32, 34, 36, 43.
+
+- USA-03: il codice a barre viene ancora cercato due volte (una dalla schermata del pasto, una dalla libreria).
+- USA-08: la bozza vale per i pasti nuovi, non per le modifiche a una voce esistente, e non conserva l'anteprima della foto.
+- USA-32: conferma con finestra di dialogo, non «Annulla» come nel diario.
+
+In parte: USA-30 (il diario ora spiega perché «Stima le voci» non c'è; spesa e tetto restano non mostrati, e il budget dell'istanza esaurito usa ancora il testo del limite personale nel form).
+
+Aperte: USA-12, 13, 15, 16, 18, 19, 22, 23, 24, 25, 28, 29, 31, 33, 35, 37, 38, 39 e tutte le voci di gravità bassa da USA-40 a USA-51 tranne USA-43. Sono in gran parte scelte di interfaccia (grafici, primo avvio, gesti) che conviene decidere guardando l'app, non il codice.
+
+### Token e limiti
+
+| Voce | Stato | Note |
+| --- | --- | --- |
+| TOK-01 | Risolta | Budget dell'istanza di 10 $ al mese finché non se ne sceglie uno, e avviso in amministrazione se manca. Un'istanza che aveva già salvato il modulo con il campo vuoto resta senza tetto: vede l'avviso. |
+| TOK-02 | Risolta | Il caso peggiore delle chiamate in corso conta nei tetti. Resta possibile togliere insieme limite al minuto e limite giornaliero. |
+| TOK-03 | Risolta | Un timeout è registrato al costo massimo della chiamata. Che Anthropic fatturi davvero le richieste interrotte resta da verificare; non c'è distinzione a schermo tra spesa confermata e presunta. |
+| TOK-04 | Risolta | Tabella `ai_spend` indipendente dagli utenti. Con la registrazione aperta un nuovo account ha comunque limiti personali nuovi: lì il controllo è il budget dell'istanza. |
+| TOK-05, 06 | Risolte | Giorni e mesi in UTC per tutti i contatori. |
+| TOK-07 | Risolta | Ordine per anzianità, attesa crescente, 8 tentativi al massimo, richiesta restituita su 429/529, utenti non attivi saltati. |
+| TOK-08 | Risolta | Chiave scelta dal dispositivo, unica per utente. |
+| TOK-09 | Risolta | Testo: 4000 token e sforzo basso; foto: 8000 e medio. Lo sforzo basso sul testo non è stato misurato su stime reali: se la qualità cala, è una riga in `ai.ts`. |
+| TOK-10 | In parte | Un modello senza prezzo è un errore. I prezzi restano nel codice e la soglia dei 100 000 token di Haiku non è gestita. |
+| TOK-11, 12, 13 | Aperte | |
+| TOK-14 | Risolta | |
+| TOK-15 | Risolta | |
+
