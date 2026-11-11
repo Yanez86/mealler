@@ -3,14 +3,13 @@
 // The model answers through a forced tool call, so the output is always structured.
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { and, eq, sql } from 'drizzle-orm';
+import { basename, join } from 'node:path';
+import { and, asc, eq, isNull, lt, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   NUTRIENTS,
   isLocale,
   sumValues,
-  todayIn,
   type AiSettings,
   type AiStatus,
   type Estimate,
@@ -18,7 +17,7 @@ import {
 } from '@mealler/shared';
 import type { UserRow } from './auth.ts';
 import type { Db } from './db/index.ts';
-import { aiUsage, aiUsageDaily, entries, photos } from './db/schema.ts';
+import { aiSpend, aiUsage, aiUsageDaily, entries, photos } from './db/schema.ts';
 import { HttpError } from './http.ts';
 import type { SecretBox } from './secrets.ts';
 import { getSetting, setSetting } from './services.ts';
@@ -34,6 +33,14 @@ const DEFAULT_TEXT_MODEL = 'claude-haiku-5-5';
 const DEFAULT_PHOTO_MODEL = 'claude-sonnet-5-5';
 const DEFAULT_DAILY_REQUESTS = 40;
 const DEFAULT_PER_MINUTE = 6;
+/** Instance budget until the administrator picks one: the API is never left without a dollar ceiling by default. */
+const DEFAULT_INSTANCE_MONTHLY_USD = 10;
+/**
+ * Output ceiling and effort per kind of request: max_tokens is what one call can cost at most.
+ * Thinking is always on with Sonnet 5.5 and Opus 5.5, so the ceilings leave room for it.
+ */
+const TEXT_CALL = { maxTokens: 4000, effort: 'low' };
+const PHOTO_CALL = { maxTokens: 8000, effort: 'medium' };
 const API_URL = 'https://api.anthropic.com/v1/messages';
 const API_VERSION = '2023-06-01';
 
@@ -42,6 +49,7 @@ export interface AnthropicResponse {
   body: {
     content?: { type: string; text?: string }[];
     usage?: { input_tokens?: number; output_tokens?: number };
+    stop_reason?: string | null;
     error?: { type?: string; message?: string };
   };
 }
@@ -100,7 +108,7 @@ export function readAiSettings(db: Db, secrets: SecretBox): AiSettings & { apiKe
     dailyRequests: limit('ai_daily_requests', DEFAULT_DAILY_REQUESTS),
     dailyTokens: limit('ai_daily_tokens', null),
     perMinute: limit('ai_per_minute', DEFAULT_PER_MINUTE),
-    instanceMonthlyUsd: limit('ai_instance_monthly_usd', null),
+    instanceMonthlyUsd: limit('ai_instance_monthly_usd', DEFAULT_INSTANCE_MONTHLY_USD),
     keepPhotos: getSetting(db, 'ai_keep_photos') === 'true',
     models: AI_MODELS
   };
@@ -142,20 +150,22 @@ export function writeAiSettings(db: Db, secrets: SecretBox, body: z.infer<typeof
 
 // ---------- Usage ----------
 
-const monthOf = (user: UserRow) => todayIn(user.timezone).slice(0, 7);
+// Days and months are UTC for everyone: a counter keyed on the user's own time zone resets when they change it.
+const utcDay = () => new Date().toISOString().slice(0, 10);
+const utcMonth = () => utcDay().slice(0, 7);
 
 function today(db: Db, user: UserRow): { requests: number; tokens: number } {
   const row = db
     .select()
     .from(aiUsageDaily)
-    .where(and(eq(aiUsageDaily.userId, user.id), eq(aiUsageDaily.day, todayIn(user.timezone))))
+    .where(and(eq(aiUsageDaily.userId, user.id), eq(aiUsageDaily.day, utcDay())))
     .get();
   return { requests: row?.requests ?? 0, tokens: row?.tokens ?? 0 };
 }
 
 function countDaily(db: Db, user: UserRow, requests: number, tokens: number) {
   db.insert(aiUsageDaily)
-    .values({ userId: user.id, day: todayIn(user.timezone), requests, tokens })
+    .values({ userId: user.id, day: utcDay(), requests, tokens })
     .onConflictDoUpdate({
       target: [aiUsageDaily.userId, aiUsageDaily.day],
       set: { requests: sql`${aiUsageDaily.requests} + ${requests}`, tokens: sql`${aiUsageDaily.tokens} + ${tokens}` }
@@ -163,14 +173,8 @@ function countDaily(db: Db, user: UserRow, requests: number, tokens: number) {
     .run();
 }
 
-function instanceSpentThisMonth(db: Db): number {
-  const month = new Date().toISOString().slice(0, 7);
-  const row = db
-    .select({ cost: sql<number>`coalesce(sum(${aiUsage.costUsd}), 0)` })
-    .from(aiUsage)
-    .where(eq(aiUsage.month, month))
-    .get();
-  return Number(row?.cost ?? 0);
+export function instanceSpentThisMonth(db: Db, month = utcMonth()): number {
+  return db.select().from(aiSpend).where(eq(aiSpend.month, month)).get()?.costUsd ?? 0;
 }
 
 // Short-term burst protection, per user, in memory.
@@ -185,15 +189,32 @@ function tooFast(user: UserRow, perMinute: number | null, now = Date.now()): boo
   return blocked;
 }
 
+// Worst case of the calls still in flight. Spend is only known when the answer arrives, so without
+// this every request started before the first one ends would pass the same check.
+const held = { usd: new Map<number, number>(), tokens: new Map<number, number>(), totalUsd: 0 };
+
+function hold(userId: number, usd: number, tokens: number): () => void {
+  held.usd.set(userId, (held.usd.get(userId) ?? 0) + usd);
+  held.tokens.set(userId, (held.tokens.get(userId) ?? 0) + tokens);
+  held.totalUsd += usd;
+  return () => {
+    held.usd.set(userId, (held.usd.get(userId) ?? 0) - usd);
+    held.tokens.set(userId, (held.tokens.get(userId) ?? 0) - tokens);
+    held.totalUsd -= usd;
+  };
+}
+
 /** Throws when any limit is reached; otherwise counts the attempt before the API call. */
 function checkLimits(db: Db, user: UserRow, s: ReturnType<typeof readAiSettings>) {
-  if (s.monthlyCapUsd != null && spentThisMonth(db, user) >= s.monthlyCapUsd) throw new HttpError(429, 'aiCapReached');
-  if (s.instanceMonthlyUsd != null && instanceSpentThisMonth(db) >= s.instanceMonthlyUsd) {
+  if (s.monthlyCapUsd != null && spentThisMonth(db, user) + (held.usd.get(user.id) ?? 0) >= s.monthlyCapUsd) {
+    throw new HttpError(429, 'aiCapReached');
+  }
+  if (s.instanceMonthlyUsd != null && instanceSpentThisMonth(db) + held.totalUsd >= s.instanceMonthlyUsd) {
     throw new HttpError(429, 'aiInstanceCap');
   }
   const day = today(db, user);
   if (s.dailyRequests != null && day.requests >= s.dailyRequests) throw new HttpError(429, 'aiDailyLimit');
-  if (s.dailyTokens != null && day.tokens >= s.dailyTokens) throw new HttpError(429, 'aiDailyLimit');
+  if (s.dailyTokens != null && day.tokens + (held.tokens.get(user.id) ?? 0) >= s.dailyTokens) throw new HttpError(429, 'aiDailyLimit');
   if (tooFast(user, s.perMinute)) throw new HttpError(429, 'aiTooFast');
   countDaily(db, user, 1, 0);
 }
@@ -202,7 +223,7 @@ export function spentThisMonth(db: Db, user: UserRow): number {
   const row = db
     .select({ cost: sql<number>`coalesce(sum(${aiUsage.costUsd}), 0)` })
     .from(aiUsage)
-    .where(and(eq(aiUsage.userId, user.id), eq(aiUsage.month, monthOf(user))))
+    .where(and(eq(aiUsage.userId, user.id), eq(aiUsage.month, utcMonth())))
     .get();
   return Number(row?.cost ?? 0);
 }
@@ -227,11 +248,19 @@ export function aiStatus(db: Db, secrets: SecretBox, user: UserRow): AiStatus {
   };
 }
 
+function priceOf(model: string) {
+  const price = PRICES[model];
+  // Never count a model at $0: the dollar limits would silently stop working.
+  if (!price) throw new Error(`No price for model ${model}`);
+  return price;
+}
+
 function recordUsage(db: Db, user: UserRow, model: string, input: number, output: number): number {
-  const price = PRICES[model] ?? { input: 0, output: 0 };
+  const price = priceOf(model);
   const cost = (input * price.input + output * price.output) / 1_000_000;
+  const month = utcMonth();
   db.insert(aiUsage)
-    .values({ userId: user.id, month: monthOf(user), model, requests: 1, inputTokens: input, outputTokens: output, costUsd: cost })
+    .values({ userId: user.id, month, model, requests: 1, inputTokens: input, outputTokens: output, costUsd: cost })
     .onConflictDoUpdate({
       target: [aiUsage.userId, aiUsage.month, aiUsage.model],
       set: {
@@ -242,6 +271,11 @@ function recordUsage(db: Db, user: UserRow, model: string, input: number, output
       }
     })
     .run();
+  db.insert(aiSpend)
+    .values({ month, costUsd: cost })
+    .onConflictDoUpdate({ target: aiSpend.month, set: { costUsd: sql`${aiSpend.costUsd} + ${cost}` } })
+    .run();
+  countDaily(db, user, 0, input + output);
   return cost;
 }
 
@@ -328,25 +362,53 @@ function systemPrompt(locale: string, label: boolean): string {
 }
 
 /**
- * One Messages API call. Failures are logged with Anthropic's own reason, since the app only gets a
- * code. 500 rather than 502: Cloudflare replaces an origin's 502 with its own page, hiding the code.
+ * The one path every billed request takes: limits, the call, its accounting.
+ * Failures are logged with Anthropic's own reason, since the app only gets a code.
+ * 500 rather than 502: Cloudflare replaces an origin's 502 with its own page, hiding the code.
  */
-async function callApi(ctx: AiContext, apiKey: string, body: Record<string, unknown>): Promise<AnthropicResponse> {
-  let response: AnthropicResponse;
+async function billedCall(
+  ctx: AiContext,
+  user: UserRow,
+  kind: typeof TEXT_CALL,
+  model: string,
+  body: Record<string, unknown>
+): Promise<{ response: AnthropicResponse; cost: number }> {
+  const settings = readAiSettings(ctx.db, ctx.secrets);
+  if (!settings.enabled || !settings.apiKey) throw new HttpError(403, 'aiDisabled');
+  // Input is a few thousand tokens at most (one resized photo): the output ceiling is the cost that matters.
+  const maxCost = (kind.maxTokens * priceOf(model).output) / 1_000_000;
+  checkLimits(ctx.db, user, settings);
+  const release = hold(user.id, maxCost, kind.maxTokens);
   try {
-    response = await ctx.call(apiKey, body);
-  } catch (error) {
-    console.error(`Anthropic API unreachable: ${error instanceof Error ? error.message : String(error)}`);
-    throw new HttpError(500, 'aiFailed');
+    let response: AnthropicResponse;
+    try {
+      response = await ctx.call(settings.apiKey, { ...body, model, max_tokens: kind.maxTokens });
+    } catch (error) {
+      console.error(`Anthropic API unreachable: ${error instanceof Error ? error.message : String(error)}`);
+      // After a timeout Anthropic was already working on the request and may bill it: count the worst case.
+      if (error instanceof Error && error.name === 'TimeoutError') recordUsage(ctx.db, user, model, 0, kind.maxTokens);
+      throw new HttpError(500, 'aiFailed');
+    }
+    if (response.status >= 400) {
+      const e = response.body.error;
+      console.error(`Anthropic API ${response.status} with ${model}: ${e?.type ?? ''} ${e?.message ?? ''}`.trim());
+      if (response.status === 401 || response.status === 403) throw new HttpError(500, 'aiKeyInvalid');
+      if (response.status === 429 || response.status === 529) {
+        // Nothing was generated: give the daily request back.
+        countDaily(ctx.db, user, -1, 0);
+        throw new HttpError(503, 'aiBusy');
+      }
+      throw new HttpError(500, 'aiFailed');
+    }
+    const usage = response.body.usage ?? {};
+    const cost = recordUsage(ctx.db, user, model, usage.input_tokens ?? 0, usage.output_tokens ?? 0);
+    // Paid for, but there is no answer to read: trying the same request again would end the same way.
+    if (response.body.stop_reason === 'refusal') throw new HttpError(422, 'aiRefused');
+    if (response.body.stop_reason === 'max_tokens') throw new HttpError(500, 'aiTruncated');
+    return { response, cost };
+  } finally {
+    release();
   }
-  if (response.status >= 400) {
-    const e = response.body.error;
-    console.error(`Anthropic API ${response.status} with ${String(body.model)}: ${e?.type ?? ''} ${e?.message ?? ''}`.trim());
-    if (response.status === 401 || response.status === 403) throw new HttpError(500, 'aiKeyInvalid');
-    if (response.status === 429 || response.status === 529) throw new HttpError(503, 'aiBusy');
-    throw new HttpError(500, 'aiFailed');
-  }
-  return response;
 }
 
 /** The JSON object of a structured-output answer (its text block), or undefined. */
@@ -369,9 +431,8 @@ export interface EstimateInput {
 
 export async function estimateMeal(ctx: AiContext, user: UserRow, input: EstimateInput): Promise<Estimate> {
   const settings = readAiSettings(ctx.db, ctx.secrets);
-  if (!settings.enabled || !settings.apiKey) throw new HttpError(403, 'aiDisabled');
-  checkLimits(ctx.db, user, settings);
   const model = input.photo ? settings.modelPhoto : settings.modelText;
+  const kind = input.photo ? PHOTO_CALL : TEXT_CALL;
   const locale = isLocale(user.locale) ? user.locale : 'it';
   const text = [input.text.trim() || (locale === 'it' ? '(vedi foto)' : '(see photo)'), input.quantity ? `Quantity: ${input.quantity}` : '']
     .filter(Boolean)
@@ -382,18 +443,11 @@ export async function estimateMeal(ctx: AiContext, user: UserRow, input: Estimat
   }
   content.push({ type: 'text', text });
 
-  const response = await callApi(ctx, settings.apiKey, {
-    model,
-    // Room for thinking, which is always on with Sonnet 5.5 and Opus 5.5.
-    max_tokens: 8000,
+  const { response, cost } = await billedCall(ctx, user, kind, model, {
     system: systemPrompt(locale, !!(input.label && input.photo)),
-    output_config: { effort: 'medium', format: { type: 'json_schema', schema: ESTIMATE_SCHEMA } },
+    output_config: { effort: kind.effort, format: { type: 'json_schema', schema: ESTIMATE_SCHEMA } },
     messages: [{ role: 'user', content }]
   });
-
-  const usage = response.body.usage ?? {};
-  const cost = recordUsage(ctx.db, user, model, usage.input_tokens ?? 0, usage.output_tokens ?? 0);
-  countDaily(ctx.db, user, 0, (usage.input_tokens ?? 0) + (usage.output_tokens ?? 0));
 
   const parsed = toolOutput.safeParse(jsonAnswer(response));
   if (!parsed.success) {
@@ -470,13 +524,8 @@ export interface LabelValues {
 
 /** Reads a nutrition label photo: values per 100 g (converted from per-serving if needed). */
 export async function readNutritionLabel(ctx: AiContext, user: UserRow, photo: { mime: string; data: string }): Promise<LabelValues> {
-  const settings = readAiSettings(ctx.db, ctx.secrets);
-  if (!settings.enabled || !settings.apiKey) throw new HttpError(403, 'aiDisabled');
-  checkLimits(ctx.db, user, settings);
-  const model = settings.modelPhoto;
-  const response = await callApi(ctx, settings.apiKey, {
-    model,
-    max_tokens: 8000,
+  const model = readAiSettings(ctx.db, ctx.secrets).modelPhoto;
+  const { response } = await billedCall(ctx, user, PHOTO_CALL, model, {
     system:
       'You read nutrition facts tables: photos of food packaging, or screenshots from a meal delivery, recipe or shop app or website. ' +
       'Report values per 100 g (or 100 ml). ' +
@@ -484,7 +533,7 @@ export async function readNutritionLabel(ctx: AiContext, user: UserRow, photo: {
       'If there is no nutrition table but an ingredient list with quantities, compute the values of each ingredient from standard food composition tables, ' +
       'add them up, convert to per 100 g of the total, and report the total weight as serving_g. ' +
       'Energy must be in kcal (convert from kJ by dividing by 4.184 if only kJ is shown).',
-    output_config: { effort: 'medium', format: { type: 'json_schema', schema: LABEL_SCHEMA } },
+    output_config: { effort: PHOTO_CALL.effort, format: { type: 'json_schema', schema: LABEL_SCHEMA } },
     messages: [
       {
         role: 'user',
@@ -495,9 +544,6 @@ export async function readNutritionLabel(ctx: AiContext, user: UserRow, photo: {
       }
     ]
   });
-  const usage = response.body.usage ?? {};
-  recordUsage(ctx.db, user, model, usage.input_tokens ?? 0, usage.output_tokens ?? 0);
-  countDaily(ctx.db, user, 0, (usage.input_tokens ?? 0) + (usage.output_tokens ?? 0));
   const parsed = labelOutput.safeParse(jsonAnswer(response));
   if (!parsed.success) console.error(`Anthropic API: unexpected label from ${model}: ${JSON.stringify(response.body).slice(0, 500)}`);
   if (!parsed.success || !parsed.data.readable) throw new HttpError(422, 'labelUnreadable');
@@ -535,6 +581,10 @@ export async function testApiKey(ctx: AiContext): Promise<'ok' | 'invalid' | 'un
 
 // ---------- Photos ----------
 
+/** Where a photo lives now: rebuilt from the data folder, so a backup restored elsewhere still finds it. */
+export const photoFile = (ctx: Pick<AiContext, 'dataDir'>, row: { userId: number; path: string }) =>
+  join(ctx.dataDir, 'photos', String(row.userId), basename(row.path));
+
 export function savePhoto(ctx: AiContext, user: UserRow, photo: { mime: string; data: string }): string {
   const id = randomUUID();
   const dir = join(ctx.dataDir, 'photos', String(user.id));
@@ -547,22 +597,55 @@ export function savePhoto(ctx: AiContext, user: UserRow, photo: { mime: string; 
   return id;
 }
 
-export function deletePhoto(db: Db, userId: number, photoId: string) {
-  const row = db.select().from(photos).where(and(eq(photos.id, photoId), eq(photos.userId, userId))).get();
+export function deletePhoto(ctx: Pick<AiContext, 'db' | 'dataDir'>, userId: number, photoId: string) {
+  const row = ctx.db.select().from(photos).where(and(eq(photos.id, photoId), eq(photos.userId, userId))).get();
   if (!row) return;
-  rmSync(row.path, { force: true });
-  db.delete(photos).where(eq(photos.id, photoId)).run();
+  rmSync(photoFile(ctx, row), { force: true });
+  ctx.db.delete(photos).where(eq(photos.id, photoId)).run();
+}
+
+/** Photos of estimates that never became an entry (or whose entry got another photo), a day after the upload. */
+export function purgeOrphanPhotos(ctx: Pick<AiContext, 'db' | 'dataDir'>, now = Date.now()): number {
+  const rows = ctx.db
+    .select({ id: photos.id, userId: photos.userId })
+    .from(photos)
+    .leftJoin(entries, eq(entries.photoId, photos.id))
+    .where(and(isNull(entries.id), lt(photos.createdAt, new Date(now - 24 * 60 * 60 * 1000).toISOString())))
+    .all();
+  for (const row of rows) deletePhoto(ctx, row.userId, row.id);
+  return rows.length;
 }
 
 // ---------- Background calculation ----------
 
-/** Estimates entries saved with calc_status = 'pending' (text only). Runs one entry at a time. */
-export async function processPendingEntries(ctx: AiContext, getUser: (id: number) => UserRow | undefined, limit = 5): Promise<number> {
-  const pending = ctx.db.select().from(entries).where(eq(entries.calcStatus, 'pending')).limit(limit).all();
+/** How many times an entry found Anthropic overloaded. In memory: a restart starts the count over. */
+const busyAttempts = new Map<number, number>();
+const MAX_BUSY_ATTEMPTS = 8;
+
+/**
+ * Estimates entries saved with calc_status = 'pending' (text only), oldest first, one at a time.
+ * `busy` means Anthropic is overloaded: the run stops there and the caller should wait before the next.
+ */
+export async function processPendingEntries(
+  ctx: AiContext,
+  getUser: (id: number) => UserRow | undefined,
+  limit = 5
+): Promise<{ done: number; busy: boolean }> {
+  const pending = ctx.db.select().from(entries).where(eq(entries.calcStatus, 'pending')).orderBy(asc(entries.id)).limit(50).all();
+  const toManual = (id: number, code: string) =>
+    ctx.db.update(entries).set({ calcStatus: 'manual', calcError: code, updatedAt: new Date().toISOString() }).where(eq(entries.id, id)).run();
+  // Users who hit their per-minute limit in this run: their other entries wait, everyone else's go on.
+  const waiting = new Set<number>();
   let done = 0;
+  let tried = 0;
   for (const entry of pending) {
+    if (tried >= limit) break;
+    if (waiting.has(entry.userId)) continue;
     const user = getUser(entry.userId);
-    if (!user) continue;
+    if (!user?.active) {
+      toManual(entry.id, 'aiDisabled');
+      continue;
+    }
     try {
       const estimate = await estimateMeal(ctx, user, { text: entry.description, quantity: entry.quantity });
       const values = Object.fromEntries(NUTRIENTS.map((k) => [k, estimate.totals[k]]));
@@ -581,25 +664,43 @@ export async function processPendingEntries(ctx: AiContext, getUser: (id: number
       done++;
     } catch (error) {
       const code = error instanceof HttpError ? error.code : 'aiFailed';
-      // Transient problems are retried on the next run; anything else falls back to manual input.
-      if (code === 'aiBusy' || code === 'aiTooFast') continue;
-      ctx.db
-        .update(entries)
-        .set({ calcStatus: 'manual', calcError: code, updatedAt: new Date().toISOString() })
-        .where(eq(entries.id, entry.id))
-        .run();
+      if (code === 'aiTooFast') {
+        waiting.add(entry.userId);
+        continue;
+      }
+      if (code === 'aiBusy') {
+        const attempts = (busyAttempts.get(entry.id) ?? 0) + 1;
+        if (attempts < MAX_BUSY_ATTEMPTS) {
+          busyAttempts.set(entry.id, attempts);
+          return { done, busy: true };
+        }
+      }
+      // Anything that will not go away by itself falls back to manual input.
+      toManual(entry.id, code);
     }
+    busyAttempts.delete(entry.id);
+    tried++;
   }
-  return done;
+  return { done, busy: false };
 }
 
 export function startPendingWorker(ctx: AiContext, getUser: (id: number) => UserRow | undefined, log: { error(o: unknown, m?: string): void }) {
   let running = false;
+  // While Anthropic is overloaded the wait doubles, from 30 seconds up to 10 minutes.
+  let pause = 0;
+  let notBefore = 0;
+  let purgedAt = 0;
   const run = async () => {
-    if (running) return;
+    if (running || Date.now() < notBefore) return;
     running = true;
     try {
-      await processPendingEntries(ctx, getUser);
+      const { busy } = await processPendingEntries(ctx, getUser);
+      pause = busy ? Math.min(pause ? pause * 2 : 30_000, 600_000) : 0;
+      notBefore = Date.now() + pause;
+      if (Date.now() - purgedAt > 60 * 60 * 1000) {
+        purgedAt = Date.now();
+        purgeOrphanPhotos(ctx);
+      }
     } catch (error) {
       log.error(error, 'pending estimate run failed');
     } finally {

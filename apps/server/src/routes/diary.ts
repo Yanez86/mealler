@@ -134,7 +134,9 @@ export async function diaryRoutes(app: FastifyInstance, { db, ai }: AppContext) 
     estimate: z.enum(['none', 'calculated', 'corrected']).optional(),
     photoId: z.string().uuid().nullable().optional(),
     // Save now, estimate in the background (in-app AI must be enabled).
-    calculate: z.boolean().optional()
+    calculate: z.boolean().optional(),
+    // Sent again with the same id (offline queue, lost answer), an entry is not saved twice.
+    clientId: z.string().uuid().optional()
   });
 
   const ownPhoto = (userId: number, photoId: string | null | undefined) =>
@@ -175,7 +177,11 @@ export async function diaryRoutes(app: FastifyInstance, { db, ai }: AppContext) 
     if (!ownPhoto(userId, body.photoId)) throw badRequest('photo');
   }
 
-  function insertEntry(dbOrTx: Pick<typeof db, 'insert'>, userId: number, body: EntryBody, background: boolean) {
+  function insertEntry(dbOrTx: Pick<typeof db, 'insert' | 'select'>, userId: number, body: EntryBody, background: boolean) {
+    const sent =
+      body.clientId &&
+      dbOrTx.select().from(entries).where(and(eq(entries.userId, userId), eq(entries.clientId, body.clientId))).get();
+    if (sent) return sent;
     return dbOrTx
       .insert(entries)
       .values({
@@ -221,7 +227,7 @@ export async function diaryRoutes(app: FastifyInstance, { db, ai }: AppContext) 
   app.patch('/entries/:id', async (request) => {
     const user = requireUser(request);
     const { id } = z.object({ id: zId }).parse(request.params);
-    const body = entryBody.partial().parse(request.body);
+    const body = entryBody.omit({ clientId: true }).partial().parse(request.body);
     const current = db
       .select()
       .from(entries)
@@ -251,7 +257,7 @@ export async function diaryRoutes(app: FastifyInstance, { db, ai }: AppContext) 
       .where(and(eq(entries.userId, user.id), inArray(entries.id, ids)))
       .returning()
       .all();
-    for (const row of rows) if (row.photoId) deletePhoto(db, user.id, row.photoId);
+    for (const row of rows) if (row.photoId) deletePhoto(ai, user.id, row.photoId);
     return { deleted: rows.length };
   });
 
@@ -263,7 +269,7 @@ export async function diaryRoutes(app: FastifyInstance, { db, ai }: AppContext) 
       .where(and(eq(entries.id, id), eq(entries.userId, user.id)))
       .returning()
       .get();
-    if (row?.photoId) deletePhoto(db, user.id, row.photoId);
+    if (row?.photoId) deletePhoto(ai, user.id, row.photoId);
     return { ok: true };
   });
 

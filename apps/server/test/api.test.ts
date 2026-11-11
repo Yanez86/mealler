@@ -13,7 +13,7 @@ import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
-import { processPendingEntries, type AnthropicCall, type AnthropicResponse } from '../src/ai.ts';
+import { processPendingEntries, purgeOrphanPhotos, type AnthropicCall, type AnthropicResponse } from '../src/ai.ts';
 import { createSecretBox } from '../src/secrets.ts';
 import { users } from '../src/db/schema.ts';
 import { eq } from 'drizzle-orm';
@@ -135,6 +135,18 @@ test('setup, login, slots, entries, day view and isolation', async () => {
   assert.equal(res.statusCode, 401);
   res = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { email: admin.email, password: admin.password } });
   assert.equal(res.statusCode, 200);
+
+  // The same entry sent twice by a device (offline queue, lost answer) is saved once.
+  const once = { slotId: slots[0].id, date: '2026-11-08', description: 'Mela', clientId: '3b241101-e2bb-4255-8caf-4136c566a962' };
+  res = await app.inject({ method: 'POST', url: '/api/entries', headers: { cookie: adminCookie }, payload: once });
+  assert.equal(res.statusCode, 200, res.body);
+  const firstId = res.json().id;
+  res = await app.inject({ method: 'POST', url: '/api/entries', headers: { cookie: adminCookie }, payload: once });
+  assert.equal(res.json().id, firstId);
+  res = await app.inject({ method: 'POST', url: '/api/entries/batch', headers: { cookie: adminCookie }, payload: { entries: [once] } });
+  assert.equal(res.json()[0].id, firstId);
+  res = await app.inject({ method: 'GET', url: '/api/day/2026-11-08', headers: { cookie: adminCookie } });
+  assert.equal(res.json().slots[0].entries.length, 1);
 
   // Add an entry and read the day.
   res = await app.inject({
@@ -537,7 +549,7 @@ test('in-app estimates: settings, encryption, photos, background calculation and
   const pendingId = res.json().id;
   assert.equal(res.json().calcStatus, 'pending');
   const getUser = (id: number) => db.select().from(users).where(eq(users.id, id)).get();
-  assert.equal(await processPendingEntries(ai, getUser), 1);
+  assert.equal((await processPendingEntries(ai, getUser)).done, 1);
   res = await app.inject({ method: 'GET', url: `/api/entries/${pendingId}`, headers: asAdmin });
   assert.equal(res.json().calcStatus, 'calculated');
   assert.equal(res.json().kcal, 150);
@@ -594,6 +606,106 @@ test('estimate limits: daily requests and bursts', async () => {
   await app.inject({ method: 'PATCH', url: '/api/admin/ai', headers, payload: { perMinute: null, instanceMonthlyUsd: 0 } });
   res = await app.inject({ method: 'POST', url: '/api/ai/estimate', headers, payload: { description: 'd' } });
   assert.equal(res.json().error, 'aiInstanceCap');
+
+  await app.close();
+});
+
+test('AI spend: default budget, parallel calls, timeouts, refusals, overload and deleted accounts', async () => {
+  const { app, db, ai, respondNext } = await setupApp();
+  let res = await app.inject({ method: 'POST', url: '/api/setup', payload: admin });
+  const headers = { cookie: cookieOf(res) };
+  const estimate = (h = headers) => app.inject({ method: 'POST', url: '/api/ai/estimate', headers: h, payload: { description: 'mela' } });
+  const spent = async () => (await app.inject({ method: 'GET', url: '/api/ai/status', headers })).json().spentUsd as number;
+
+  // Out of the box the instance has a dollar ceiling.
+  res = await app.inject({ method: 'GET', url: '/api/admin/ai', headers });
+  assert.equal(res.json().instanceMonthlyUsd, 10);
+
+  // A text call can cost at most 4000 tokens × $0.50/M = $0.002: with a $0.003 cap only two fit at once,
+  // although each one ends up costing $0.00025.
+  await app.inject({
+    method: 'PATCH',
+    url: '/api/admin/ai',
+    headers,
+    payload: { enabled: true, apiKey: 'sk-ant-spend-test', keepPhotos: true, perMinute: null, dailyRequests: null, monthlyCapUsd: 0.003 }
+  });
+  const instant = ai.call;
+  ai.call = async (key, body) => {
+    await new Promise((r) => setTimeout(r, 20));
+    return instant(key, body);
+  };
+  const parallel = await Promise.all([1, 2, 3, 4, 5].map(() => estimate()));
+  assert.equal(parallel.filter((r) => r.statusCode === 200).length, 2);
+  assert.equal(parallel.filter((r) => r.json().error === 'aiCapReached').length, 3);
+  assert.equal(await spent(), 0.0005);
+  await app.inject({ method: 'PATCH', url: '/api/admin/ai', headers, payload: { monthlyCapUsd: null } });
+
+  // A call that times out may have been billed: it counts as the worst case.
+  ai.call = async () => {
+    throw Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' });
+  };
+  res = await estimate();
+  assert.equal(res.json().error, 'aiFailed');
+  assert.equal(await spent(), 0.0025);
+  // A request that never left costs nothing.
+  ai.call = async () => {
+    throw new Error('getaddrinfo ENOTFOUND api.anthropic.com');
+  };
+  res = await estimate();
+  assert.equal(res.json().error, 'aiFailed');
+  assert.equal(await spent(), 0.0025);
+  ai.call = instant;
+
+  // Refused or cut short: paid for, and reported as such rather than as a generic failure.
+  respondNext({ status: 200, body: { stop_reason: 'refusal', content: [], usage: { input_tokens: 1000, output_tokens: 0 } } });
+  res = await estimate();
+  assert.equal(res.json().error, 'aiRefused');
+  respondNext({ status: 200, body: { stop_reason: 'max_tokens', content: [], usage: { input_tokens: 1000, output_tokens: 4000 } } });
+  res = await estimate();
+  assert.equal(res.json().error, 'aiTruncated');
+  assert.equal(await spent(), 0.0047);
+
+  // Anthropic overloaded: the request is not counted, and the background run stops and asks to wait.
+  const requests = async () => (await app.inject({ method: 'GET', url: '/api/ai/status', headers })).json().requestsToday as number;
+  const before = await requests();
+  respondNext({ status: 529, body: { error: { type: 'overloaded_error' } } });
+  res = await estimate();
+  assert.equal(res.json().error, 'aiBusy');
+  assert.equal(await requests(), before);
+  const slots = (await app.inject({ method: 'GET', url: '/api/slots', headers })).json();
+  res = await app.inject({ method: 'POST', url: '/api/entries', headers, payload: { slotId: slots[0].id, date: '2026-11-09', description: 'yogurt', calculate: true } });
+  const pendingId = res.json().id;
+  const getUser = (id: number) => db.select().from(users).where(eq(users.id, id)).get();
+  respondNext({ status: 529, body: {} });
+  assert.deepEqual(await processPendingEntries(ai, getUser), { done: 0, busy: true });
+  res = await app.inject({ method: 'GET', url: `/api/entries/${pendingId}`, headers });
+  assert.equal(res.json().calcStatus, 'pending');
+  assert.deepEqual(await processPendingEntries(ai, getUser), { done: 1, busy: false });
+
+  // A photo whose estimate never became an entry is removed after a day.
+  const photo = { mime: 'image/jpeg', data: Buffer.alloc(300, 1).toString('base64') };
+  res = await app.inject({ method: 'POST', url: '/api/ai/estimate', headers, payload: { description: '', photo } });
+  const photoId = res.json().photoId;
+  assert.equal(purgeOrphanPhotos(ai), 0);
+  assert.equal(purgeOrphanPhotos(ai, Date.now() + 25 * 60 * 60 * 1000), 1);
+  res = await app.inject({ method: 'GET', url: `/api/photos/${photoId}`, headers });
+  assert.equal(res.statusCode, 404);
+
+  // Deleting an account does not lower what the instance has spent this month.
+  const total = async () => (await app.inject({ method: 'GET', url: '/api/admin/ai/usage', headers })).json();
+  await app.inject({ method: 'PATCH', url: '/api/admin/settings', headers, payload: { registrationOpen: true } });
+  const bob = { name: 'Bob', email: 'bob@example.com', password: 'another long password', locale: 'it', timezone: 'Pacific/Kiritimati' };
+  res = await app.inject({ method: 'POST', url: '/api/register', payload: bob });
+  const asBob = { cookie: cookieOf(res) };
+  assert.equal((await estimate(asBob)).statusCode, 200);
+  const withBob = await total();
+  assert.ok(withBob.rows.some((r: { name: string }) => r.name === 'Bob'));
+  res = await app.inject({ method: 'DELETE', url: '/api/me', headers: asBob, payload: { password: bob.password } });
+  assert.equal(res.statusCode, 200, res.body);
+  const withoutBob = await total();
+  assert.ok(!withoutBob.rows.some((r: { name: string }) => r.name === 'Bob'));
+  assert.equal(withoutBob.totalUsd, withBob.totalUsd);
+  assert.ok(withoutBob.totalUsd > 0.0047);
 
   await app.close();
 });
@@ -677,7 +789,7 @@ test('favorites, suggestions, weights, trends, export and bulk estimates', async
   res = await app.inject({ method: 'POST', url: '/api/day/2026-11-07/calculate', headers });
   assert.equal(res.json().queued, 2);
   const getUser = (id: number) => db.select().from(users).where(eq(users.id, id)).get();
-  assert.equal(await processPendingEntries(ai, getUser), 2);
+  assert.equal((await processPendingEntries(ai, getUser)).done, 2);
 
   await app.close();
 });

@@ -110,6 +110,8 @@ export const entries = sqliteTable('entries', {
   productId: integer('product_id'),
   amountG: real('amount_g'),
   category: text('category', { enum: FOOD_CATEGORIES }),
+  /** Chosen by the device that created the entry: the same id sent again returns the entry already saved. */
+  clientId: text('client_id'),
   createdAt: text('created_at').notNull().$defaultFn(now),
   updatedAt: text('updated_at').notNull().$defaultFn(now)
 });
@@ -130,6 +132,12 @@ export const aiUsage = sqliteTable('ai_usage', {
   requests: integer('requests').notNull().default(0),
   inputTokens: integer('input_tokens').notNull().default(0),
   outputTokens: integer('output_tokens').notNull().default(0),
+  costUsd: real('cost_usd').notNull().default(0)
+});
+
+/** Instance-wide spend per UTC month: not tied to a user, so deleting an account does not lower it. */
+export const aiSpend = sqliteTable('ai_spend', {
+  month: text('month').primaryKey(),
   costUsd: real('cost_usd').notNull().default(0)
 });
 

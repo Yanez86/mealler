@@ -145,7 +145,7 @@ export async function insightRoutes(app: FastifyInstance, { db, ai }: AppContext
   });
 
   /** Queues every entry of a day that has no values for a background estimate. */
-  app.post('/day/:date/calculate', async (request) => {
+  app.post('/day/:date/calculate', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request) => {
     const user = requireUser(request);
     const { date } = z.object({ date: zDate }).parse(request.params);
     const status = aiStatus(db, ai.secrets, user);

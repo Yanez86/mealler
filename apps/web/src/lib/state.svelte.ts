@@ -85,6 +85,10 @@ export function errorMessage(error: unknown): string {
         return t('error.aiBusy');
       case 'aiFailed':
         return t('error.aiFailed');
+      case 'aiRefused':
+        return t('error.aiRefused');
+      case 'aiTruncated':
+        return t('error.aiTruncated');
       case 'aiCapReached':
         return t('ai.capReached');
       case 'aiDailyLimit':

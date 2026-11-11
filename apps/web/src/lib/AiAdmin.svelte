@@ -21,13 +21,13 @@
   let cap = $state('');
   let limits = $state({ dailyRequests: '', dailyTokens: '', perMinute: '', instanceMonthlyUsd: '' });
   let usage = $state<UsageRow[]>([]);
+  let total = $state(0);
   let message = $state('');
   let error = $state('');
   let busy = $state(false);
 
   const usd = (v: number) =>
     new Intl.NumberFormat(app.locale, { style: 'currency', currency: 'USD', maximumFractionDigits: v < 1 ? 4 : 2 }).format(v);
-  const total = $derived(usage.reduce((s, r) => s + r.costUsd, 0));
 
   onMount(load);
 
@@ -42,7 +42,8 @@
         perMinute: text(settings.perMinute),
         instanceMonthlyUsd: text(settings.instanceMonthlyUsd)
       };
-      usage = (await get<{ rows: UsageRow[] }>('/admin/ai/usage')).rows;
+      // The total is the instance's own count: it includes accounts deleted during the month.
+      ({ rows: usage, totalUsd: total } = await get<{ rows: UsageRow[]; totalUsd: number }>('/admin/ai/usage'));
     } catch (e) {
       error = errorMessage(e);
     }
@@ -64,10 +65,12 @@
   async function saveForm(event: SubmitEvent) {
     event.preventDefault();
     if (!settings) return;
+    // Empty means "no limit". Anything that is not a plain number is refused, never read as empty:
+    // "5$" or "1.000" must not remove or shrink a limit behind a "Saved".
     const num = (s: string, int = false) => {
-      if (!s.trim()) return null;
-      const n = Number(s.replace(',', '.'));
-      return Number.isFinite(n) ? (int ? Math.round(n) : n) : null;
+      const v = s.trim().replace(',', '.');
+      if (!v) return null;
+      return (int ? /^\d+$/ : /^\d+(\.\d{1,2})?$/).test(v) ? Number(v) : undefined;
     };
     const body: Record<string, unknown> = {
       modelText: settings.modelText,
@@ -78,6 +81,11 @@
       perMinute: num(limits.perMinute, true),
       instanceMonthlyUsd: num(limits.instanceMonthlyUsd)
     };
+    if (Object.values(body).includes(undefined)) {
+      message = '';
+      error = t('admin.aiInvalidNumber');
+      return;
+    }
     if (apiKey.trim()) body.apiKey = apiKey.trim();
     await save(body);
     apiKey = '';
@@ -168,6 +176,7 @@
 
     {#if error}<p class="error" role="alert">{error}</p>{/if}
     {#if message}<p class="notice" role="status">{message}</p>{/if}
+    {#if settings.enabled && settings.instanceMonthlyUsd == null}<p class="error" role="alert">{t('admin.aiNoBudget')}</p>{/if}
 
     <h3 class="label">{t('admin.aiUsage')}</h3>
     {#if usage.length}
@@ -182,6 +191,8 @@
           </li>
         {/each}
       </ul>
+    {/if}
+    {#if total > 0}
       <p class="small"><strong>{t('admin.aiTotal', { usd: usd(total) })}</strong></p>
     {:else}
       <p class="muted">{t('admin.aiUsageNone')}</p>

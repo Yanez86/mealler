@@ -36,9 +36,12 @@ export function initOffline(currentUserId: number | null) {
   net.pending = read().length;
 }
 
+/** An id for a new entry: the server saves an entry once, however many times it receives it. */
+export const newClientId = (): string | undefined => crypto.randomUUID?.();
+
 export function enqueueEntry(body: QueuedEntry['body']) {
   const list = read();
-  list.push({ id: crypto.randomUUID(), createdAt: new Date().toISOString(), body });
+  list.push({ id: String(body.clientId ?? Math.random()), createdAt: new Date().toISOString(), body });
   write(list);
 }
 

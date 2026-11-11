@@ -20,7 +20,7 @@
   import { ApiError, del, get, patch, post } from '$lib/api';
   import { preparePhoto, type PreparedPhoto } from '$lib/image';
   import { reveal } from '$lib/reveal';
-  import { enqueueEntry, net } from '$lib/offline.svelte';
+  import { enqueueEntry, net, newClientId } from '$lib/offline.svelte';
   import { app, errorMessage, formatDate, t } from '$lib/state.svelte';
   import {
     applyEstimate,
@@ -354,6 +354,7 @@
     }
     // Nothing entered and in-app estimates on: save now, Claude fills the values in the background.
     if (!isExisting && !hasValues(row) && aiUsable) body.calculate = true;
+    if (!isExisting) body.clientId = newClientId();
     return body;
   }
 

@@ -8,7 +8,17 @@ import type { AppContext } from '../app.ts';
 import { requireAdmin, requireUser } from '../auth.ts';
 import { aiUsage, photos, users } from '../db/schema.ts';
 import { notFound } from '../http.ts';
-import { aiSettingsBody, aiStatus, estimateMeal, readAiSettings, savePhoto, testApiKey, writeAiSettings } from '../ai.ts';
+import {
+  aiSettingsBody,
+  aiStatus,
+  estimateMeal,
+  instanceSpentThisMonth,
+  photoFile,
+  readAiSettings,
+  savePhoto,
+  testApiKey,
+  writeAiSettings
+} from '../ai.ts';
 
 const MAX_PHOTO_BASE64 = 8 * 1024 * 1024;
 
@@ -46,9 +56,10 @@ export async function aiRoutes(app: FastifyInstance, { db, ai }: AppContext) {
     const user = requireUser(request);
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
     const row = db.select().from(photos).where(and(eq(photos.id, id), eq(photos.userId, user.id))).get();
-    if (!row || !existsSync(row.path)) throw notFound();
+    const file = row && photoFile(ai, row);
+    if (!row || !file || !existsSync(file)) throw notFound();
     reply.header('Cache-Control', 'private, max-age=86400');
-    return reply.type(row.mime).send(createReadStream(row.path));
+    return reply.type(row.mime).send(createReadStream(file));
   });
 
   // ---------- Administration ----------
@@ -94,6 +105,7 @@ export async function aiRoutes(app: FastifyInstance, { db, ai }: AppContext) {
       .where(eq(aiUsage.month, target))
       .orderBy(asc(users.name))
       .all();
-    return { month: target, rows };
+    // The total comes from the instance ledger: it still counts accounts deleted since.
+    return { month: target, rows, totalUsd: instanceSpentThisMonth(db, target) };
   });
 }
