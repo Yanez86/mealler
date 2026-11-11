@@ -3,6 +3,11 @@
 Tutte le modifiche rilevanti di Mealler sono annotate qui.
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il [versionamento semantico](https://semver.org/lang/it/).
 
+## [1.6.5] - 2026-11-11
+
+### Modificato
+- In Andamento la barra o il punto che tocchi mostra il suo valore in un'etichetta, al posto del bordo; le altre barre e gli altri punti si attenuano.
+
 ## [1.6.4] - 2026-11-11
 
 ### Aggiunto

@@ -1,6 +1,7 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <!-- A line over days or months, with the threshold band behind it. A missing value leaves a gap
-     instead of dropping to zero. Points are coloured like the bars; a point is a button that selects it. -->
+     instead of dropping to zero. Points are coloured like the bars; a point is a button that selects it:
+     the others fade and its value shows above it. -->
 <script lang="ts" module>
   export interface LinePoint {
     key: string;
@@ -15,6 +16,7 @@
 <script lang="ts">
   import { thresholdStatus, type ThresholdStatus } from '@mealler/shared';
   import { formatNumber } from './state.svelte';
+  import ValueTag from './ValueTag.svelte';
 
   let {
     points,
@@ -36,7 +38,8 @@
   const height = 190;
   const left = 40;
   const bottom = 26;
-  const top = 12;
+  // Room above the highest point for the value of the one chosen.
+  const top = 26;
 
   const peak = $derived(Math.max(1, ...points.map((p) => Math.max(p.value ?? 0, p.max ?? 0, p.min ?? 0))) * 1.12);
   const plotW = $derived(Math.max(10, width - left - 8));
@@ -99,13 +102,17 @@
         <circle
           cx={x(i)}
           cy={y(p.value)}
-          r={selected === p.key ? 7 : points.length > 40 ? 2.5 : 4}
+          r={selected === p.key ? 6 : points.length > 40 ? 2.5 : 4}
           fill={colour[status(p)]}
-          class:faded={selected != null && selected !== p.key}
-          class:chosen={selected === p.key} />
+          class:faded={selected != null && selected !== p.key} />
       {/if}
       {#if i % labelEvery === 0 || i === points.length - 1}
         <text x={x(i)} y={height - 8} text-anchor="middle" class="axis">{p.label}</text>
+      {/if}
+    {/each}
+    {#each points as p, i (p.key)}
+      {#if selected === p.key && p.value != null}
+        <ValueTag x={x(i)} y={y(p.value) - 4} text={formatNumber(p.value, p.value >= 100 ? 0 : 1)} minX={left} maxX={width - 8} />
       {/if}
     {/each}
     {#if onselect}
@@ -157,10 +164,6 @@
   circle {
     stroke: var(--surface);
     stroke-width: 1.5;
-  }
-  .chosen {
-    stroke: var(--text);
-    stroke-width: 2.5;
   }
   .faded {
     opacity: 0.4;

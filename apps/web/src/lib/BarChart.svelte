@@ -1,7 +1,8 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <!-- Daily bars with the threshold band drawn per day; colour AND a legend explain the status.
      Same colours as the day view. Bars grow from the baseline when they appear. A day with a value is a
-     button: tapping it selects it (the other bars fade) and tapping it again lets it go. -->
+     button: tapping it selects it (the other bars fade and its value shows above it) and tapping it
+     again lets it go. -->
 <script lang="ts" module>
   export interface BarDatum {
     date: string;
@@ -14,6 +15,7 @@
 <script lang="ts">
   import { thresholdStatus, type ThresholdStatus } from '@mealler/shared';
   import { formatDate, formatNumber } from './state.svelte';
+  import ValueTag from './ValueTag.svelte';
 
   let {
     data,
@@ -46,7 +48,8 @@
   const height = 200;
   const left = 40;
   const bottom = 26;
-  const top = 10;
+  // Room above the tallest bar for the value of the one chosen.
+  const top = 24;
 
   const peak = $derived(
     Math.max(1, ...data.map((d) => Math.max(d.value ?? 0, d.max ?? 0, d.min ?? 0))) * 1.12
@@ -94,12 +97,14 @@
           height={top + plotH - y(d.value)}
           rx={Math.min(4, slot * 0.2)}
           fill={colour[status(d)]} />
-        {#if selected === d.date}
-          <rect class="ring" x={x + slot * 0.18 - 3} width={slot * 0.64 + 6} y={y(d.value) - 3} height={top + plotH - y(d.value) + 3} rx={Math.min(6, slot * 0.25)} />
-        {/if}
       {/if}
       {#if i % labelEvery === 0 || i === data.length - 1}
         <text x={x + slot / 2} y={height - 8} text-anchor="middle" class="axis">{formatDate(d.date, { day: 'numeric', month: data.length > 8 ? 'numeric' : undefined, weekday: data.length <= 8 ? 'narrow' : undefined })}</text>
+      {/if}
+    {/each}
+    {#each data as d, i (d.date)}
+      {#if selected === d.date && d.value != null}
+        <ValueTag x={left + i * slot + slot / 2} y={y(d.value)} text={formatNumber(d.value, d.value >= 100 ? 0 : 1)} minX={left} maxX={width - 4} />
       {/if}
     {/each}
     {#if onselect}
@@ -165,11 +170,6 @@
   .faded {
     opacity: 0.3;
     transition: opacity 200ms;
-  }
-  .ring {
-    fill: none;
-    stroke: var(--text);
-    stroke-width: 2;
   }
   .hit {
     fill: transparent;
