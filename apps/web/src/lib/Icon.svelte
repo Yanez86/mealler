@@ -27,14 +27,19 @@
     gift: 'M4 11h16v9H4zM2 7h20v4H2zM12 7v13M12 7c-2-4-6-4-6-1.5S10 7 12 7zM12 7c2-4 6-4 6-1.5S14 7 12 7z'
   } as const;
 
-  let { name, size = 24, stroke = 2 }: { name: keyof typeof paths; size?: number; stroke?: number } = $props();
+  let {
+    name,
+    size = 24,
+    stroke = 2,
+    filled = false
+  }: { name: keyof typeof paths; size?: number; stroke?: number; filled?: boolean } = $props();
 </script>
 
 <svg
   width={size}
   height={size}
   viewBox="0 0 24 24"
-  fill="none"
+  fill={filled ? 'currentColor' : 'none'}
   stroke="currentColor"
   stroke-width={stroke}
   stroke-linecap="round"

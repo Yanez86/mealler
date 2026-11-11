@@ -35,6 +35,19 @@ export interface User {
   waterGoalMl: number;
   /** What one tap on "+ Glass" adds, in ml. */
   waterGlassMl: number;
+  /** "Remember to drink" after this many hours without water, between start and end. */
+  waterReminderEnabled: boolean;
+  waterReminderHours: number;
+  waterReminderStart: string;
+  waterReminderEnd: string;
+}
+
+/** A key for the iPhone shortcut that adds water. The key itself is shown only once, when made. */
+export interface ShortcutKey {
+  id: number;
+  name: string;
+  createdAt: string;
+  lastUsedAt: string | null;
 }
 
 /** One food of a favorite meal: it becomes its own diary entry when the favorite is used. */
@@ -262,6 +275,8 @@ export interface Product {
   labelUrl: string | null;
   uses: number;
   canEdit: boolean;
+  /** Starred by the user who asks: it is among their favorite foods. */
+  starred: boolean;
 }
 
 /** Product data proposed by a barcode lookup or a label photo, to be confirmed by the user. */

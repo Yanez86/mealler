@@ -1459,3 +1459,132 @@ test('favorite meals of several foods: made, edited, used as one entry per food'
   res = await app.inject({ method: 'PUT', url: '/api/favorites/9999', headers, payload: { name: 'X', foods: [{ description: 'Y' }] } });
   assert.equal(res.statusCode, 404);
 });
+
+test('library stars: personal, listed as favorite foods, gone with the product', async () => {
+  const { app } = await setupApp();
+  let res = await app.inject({ method: 'POST', url: '/api/setup', payload: admin });
+  const headers = { cookie: cookieOf(res) };
+  await app.inject({ method: 'POST', url: '/api/admin/users', headers, payload: { name: 'Bea', email: 'bea@example.com', password: 'correct horse battery', role: 'user' } });
+  res = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { email: 'bea@example.com', password: 'correct horse battery' } });
+  const bea = { cookie: cookieOf(res) };
+
+  res = await app.inject({ method: 'POST', url: '/api/products', headers, payload: { name: 'Galletti', brand: 'Mulino Bianco', kcal: 487, protein: 7, carbs: 70, fat: 18 } });
+  const galletti = res.json();
+  assert.equal(galletti.starred, false);
+  res = await app.inject({ method: 'POST', url: '/api/products', headers, payload: { name: 'Fusilli', kcal: 356, protein: 12, carbs: 70, fat: 1.5 } });
+  const fusilli = res.json();
+
+  res = await app.inject({ method: 'PUT', url: `/api/products/${galletti.id}/star`, headers });
+  assert.equal(res.json().starred, true);
+  // Twice is the same as once.
+  await app.inject({ method: 'PUT', url: `/api/products/${galletti.id}/star`, headers });
+  res = await app.inject({ method: 'GET', url: '/api/products?starred=1', headers });
+  assert.deepEqual(res.json().map((p: { name: string }) => p.name), ['Galletti']);
+  res = await app.inject({ method: 'GET', url: '/api/products?q=', headers });
+  assert.deepEqual(
+    res.json().map((p: { name: string; starred: boolean }) => [p.name, p.starred]).sort(),
+    [['Fusilli', false], ['Galletti', true]]
+  );
+
+  // The library is shared, the stars are not.
+  res = await app.inject({ method: 'GET', url: '/api/products?starred=1', headers: bea });
+  assert.deepEqual(res.json(), []);
+  res = await app.inject({ method: 'GET', url: `/api/products/${galletti.id}`, headers: bea });
+  assert.equal(res.json().starred, false);
+
+  res = await app.inject({ method: 'DELETE', url: `/api/products/${galletti.id}/star`, headers });
+  assert.equal(res.json().starred, false);
+  await app.inject({ method: 'PUT', url: `/api/products/${fusilli.id}/star`, headers });
+  await app.inject({ method: 'DELETE', url: `/api/products/${fusilli.id}`, headers });
+  res = await app.inject({ method: 'GET', url: '/api/products?starred=1', headers });
+  assert.deepEqual(res.json(), []);
+  res = await app.inject({ method: 'PUT', url: '/api/products/9999/star', headers });
+  assert.equal(res.statusCode, 404);
+});
+
+test('shortcut keys: made once, add water for their user only, revoked', async () => {
+  const { app } = await setupApp();
+  let res = await app.inject({ method: 'POST', url: '/api/setup', payload: admin });
+  const headers = { cookie: cookieOf(res) };
+  const today = todayIn('Europe/Rome');
+
+  res = await app.inject({ method: 'POST', url: '/api/shortcut-keys', headers, payload: { name: 'iPhone' } });
+  assert.equal(res.statusCode, 200, res.body);
+  const key = res.json();
+  assert.match(key.token, /^mlr_[\w-]{20,}$/);
+  // The list never shows the key again.
+  res = await app.inject({ method: 'GET', url: '/api/shortcut-keys', headers });
+  assert.equal(res.json().length, 1);
+  assert.equal(res.json()[0].token, undefined);
+  assert.equal(res.json()[0].lastUsedAt, null);
+
+  const bearer = { authorization: `Bearer ${key.token}` };
+  // No body, an empty JSON body, then an amount: plain text for the notification.
+  res = await app.inject({ method: 'POST', url: '/api/shortcut/water', headers: bearer });
+  assert.equal(res.statusCode, 200, res.body);
+  assert.match(String(res.headers['content-type']), /^text\/plain/);
+  assert.equal(res.body, 'Acqua: 250 ml di 2 l');
+  res = await app.inject({ method: 'POST', url: '/api/shortcut/water', headers: { ...bearer, 'content-type': 'application/json' }, payload: '' });
+  assert.equal(res.body, 'Acqua: 500 ml di 2 l');
+  res = await app.inject({ method: 'POST', url: '/api/shortcut/water', headers: bearer, payload: { ml: 750 } });
+  assert.equal(res.body, 'Acqua: 1,25 l di 2 l');
+  res = await app.inject({ method: 'POST', url: '/api/shortcut/water', headers: bearer, payload: { ml: 99999 } });
+  assert.equal(res.statusCode, 400);
+  res = await app.inject({ method: 'GET', url: `/api/day/${today}`, headers });
+  assert.equal(res.json().water, 1250);
+  res = await app.inject({ method: 'GET', url: '/api/shortcut-keys', headers });
+  assert.notEqual(res.json()[0].lastUsedAt, null);
+
+  // The key opens nothing else, and a wrong one opens nothing.
+  res = await app.inject({ method: 'GET', url: `/api/day/${today}`, headers: bearer });
+  assert.equal(res.statusCode, 401);
+  res = await app.inject({ method: 'POST', url: '/api/shortcut/water', headers: { authorization: 'Bearer mlr_nope' } });
+  assert.equal(res.statusCode, 401);
+  assert.match(res.body, /Profilo → Comandi Rapidi/);
+
+  res = await app.inject({ method: 'DELETE', url: `/api/shortcut-keys/${key.id}`, headers });
+  assert.equal(res.statusCode, 200);
+  res = await app.inject({ method: 'POST', url: '/api/shortcut/water', headers: bearer });
+  assert.equal(res.statusCode, 401);
+  res = await app.inject({ method: 'DELETE', url: `/api/shortcut-keys/${key.id}`, headers });
+  assert.equal(res.statusCode, 404);
+});
+
+test('water reminders: in the window, after hours without water, not once the goal is reached', async () => {
+  const { app, db, push, sent } = await setupApp();
+  let res = await app.inject({ method: 'POST', url: '/api/setup', payload: admin });
+  const headers = { cookie: cookieOf(res) };
+  const slots = (await app.inject({ method: 'GET', url: '/api/slots', headers })).json();
+  for (const s of slots) await app.inject({ method: 'PATCH', url: `/api/slots/${s.id}`, headers, payload: { reminderEnabled: false } });
+  await app.inject({
+    method: 'POST',
+    url: '/api/push/subscribe',
+    headers,
+    payload: { endpoint: 'https://fcm.googleapis.com/fcm/send/water', keys: { p256dh: 'p256dh-key-0123456789', auth: 'auth-key-0123' } }
+  });
+  // Off until turned on; the window must make sense.
+  assert.equal(await runReminderTick(db, push, new Date('2026-11-09T10:00:00Z')), 0);
+  res = await app.inject({ method: 'PATCH', url: '/api/me', headers, payload: { waterReminderStart: '21:00', waterReminderEnd: '09:00' } });
+  assert.equal(res.statusCode, 400);
+  res = await app.inject({ method: 'PATCH', url: '/api/me', headers, payload: { waterReminderEnabled: true, waterReminderHours: 2, waterReminderStart: '09:00', waterReminderEnd: '21:00' } });
+  assert.equal(res.json().waterReminderEnabled, true);
+
+  // Rome is UTC+1 in November. 10:30: only an hour and a half into the window.
+  assert.equal(await runReminderTick(db, push, new Date('2026-11-09T09:30:00Z')), 0);
+  // 11:00: two hours without water → reminder, with today's amount.
+  assert.equal(await runReminderTick(db, push, new Date('2026-11-09T10:00:00Z')), 1);
+  assert.equal(sent.at(-1)?.payload.title, 'Ricordati di bere');
+  assert.equal(sent.at(-1)?.payload.body, 'Oggi 0 ml di 2 l. Tocca per segnare un bicchiere.');
+  // Not again right after.
+  assert.equal(await runReminderTick(db, push, new Date('2026-11-09T10:30:00Z')), 0);
+  // A glass at 12:30 moves the next one to 14:30.
+  await app.inject({ method: 'POST', url: '/api/water', headers, payload: { date: '2026-11-09', ml: 500 } });
+  const { water } = await import('../src/db/schema.ts');
+  db.update(water).set({ createdAt: '2026-11-09T11:30:00.000Z' }).run();
+  assert.equal(await runReminderTick(db, push, new Date('2026-11-09T13:00:00Z')), 0);
+  assert.equal(await runReminderTick(db, push, new Date('2026-11-09T13:30:00Z')), 1);
+  // Goal reached: no more reminders that day. After 21:00: none either.
+  await app.inject({ method: 'POST', url: '/api/water', headers, payload: { date: '2026-11-09', ml: 1500 } });
+  assert.equal(await runReminderTick(db, push, new Date('2026-11-09T17:00:00Z')), 0);
+  assert.equal(await runReminderTick(db, push, new Date('2026-11-10T20:30:00Z')), 0);
+});

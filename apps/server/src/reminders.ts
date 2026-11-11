@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Slot reminders: shortly after a slot's time, if the slot is still empty, notify the user's devices.
-import { and, eq, sql } from 'drizzle-orm';
+// Reminders: shortly after a slot's time, if the slot is still empty, notify the user's devices; on
+// the weigh-in day; and to drink, after some hours without water.
+import { and, eq, max, sql } from 'drizzle-orm';
 import {
+  formatWater,
   inTimeRange,
   isLocale,
   isoWeekday,
@@ -11,9 +13,10 @@ import {
   translate
 } from '@mealler/shared';
 import type { Db } from './db/index.ts';
-import { entries, pushSubscriptions, reminderLog, slotSkips, slots, users } from './db/schema.ts';
+import { entries, pushSubscriptions, reminderLog, slotSkips, slots, users, water } from './db/schema.ts';
 import { pushToUser, type PushSender } from './push.ts';
 import { lastWeight } from './routes/weight.ts';
+import { waterOn } from './services.ts';
 
 const daysBetween = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
 
@@ -52,6 +55,40 @@ export async function runReminderTick(db: Db, sender: PushSender, now: Date = ne
           });
           if (delivered > 0) {
             db.update(users).set({ weightReminderLastSent: date }).where(eq(users.id, user.id)).run();
+            sent++;
+          }
+        }
+      }
+    }
+
+    // Water: between start and end, after N hours with no glass (and no reminder), until the goal.
+    if (user.waterEnabled && user.waterReminderEnabled) {
+      const start = timeToMinutes(user.waterReminderStart);
+      const end = timeToMinutes(user.waterReminderEnd);
+      if (minutes >= start && minutes < end) {
+        const every = user.waterReminderHours * 3_600_000;
+        const windowStart = now.getTime() - (minutes - start) * 60_000;
+        const lastDrink = db
+          .select({ at: max(water.createdAt) })
+          .from(water)
+          .where(and(eq(water.userId, user.id), eq(water.date, date)))
+          .get()?.at;
+        const quietSince = Math.max(
+          windowStart,
+          lastDrink ? Date.parse(lastDrink) : 0,
+          user.waterReminderLastSent ? Date.parse(user.waterReminderLastSent) : 0
+        );
+        const drunk = waterOn(db, user.id, date);
+        if (now.getTime() - quietSince >= every && drunk < user.waterGoalMl) {
+          const units = user.units === 'us' ? 'us' : 'metric';
+          const delivered = await pushToUser(db, sender, user.id, {
+            title: translate(locale, 'push.waterTitle'),
+            body: translate(locale, 'push.waterBody', { amount: formatWater(drunk, units, locale), goal: formatWater(user.waterGoalMl, units, locale) }),
+            url: '/',
+            tag: `water-${date}`
+          });
+          if (delivered > 0) {
+            db.update(users).set({ waterReminderLastSent: now.toISOString() }).where(eq(users.id, user.id)).run();
             sent++;
           }
         }

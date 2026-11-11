@@ -2,13 +2,13 @@
 import type { FastifyInstance } from 'fastify';
 import { createReadStream, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Product, ProductDraft } from '@mealler/shared';
 import type { AppContext } from '../app.ts';
 import { requireUser, type UserRow } from '../auth.ts';
 import type { Db } from '../db/index.ts';
-import { entries, products, slots } from '../db/schema.ts';
+import { entries, productStars, products, slots } from '../db/schema.ts';
 import { badRequest, conflict, forbidden, notFound } from '../http.ts';
 import { getSetting } from '../services.ts';
 import { toEntry } from '../services.ts';
@@ -18,7 +18,12 @@ import { zDate, zFoodCategory, zId } from '../validation.ts';
 
 export const isOffEnabled = (db: Db) => getSetting(db, 'off_enabled') !== 'false';
 
-export function toProduct(row: typeof products.$inferSelect, user: UserRow): Product {
+/** The library foods a user starred (their favorite foods from the library). */
+export function starsOf(db: Db, userId: number): Set<number> {
+  return new Set(db.select({ id: productStars.productId }).from(productStars).where(eq(productStars.userId, userId)).all().map((r) => r.id));
+}
+
+export function toProduct(row: typeof products.$inferSelect, user: UserRow, stars: Set<number>): Product {
   return {
     id: row.id,
     name: row.name,
@@ -35,7 +40,8 @@ export function toProduct(row: typeof products.$inferSelect, user: UserRow): Pro
     category: row.category,
     labelUrl: row.labelMime ? `/api/products/${row.id}/label?v=${encodeURIComponent(row.updatedAt)}` : null,
     uses: row.uses,
-    canEdit: user.role === 'admin' || row.createdBy === user.id
+    canEdit: user.role === 'admin' || row.createdBy === user.id,
+    starred: stars.has(row.id)
   };
 }
 
@@ -116,8 +122,37 @@ export async function productRoutes(app: FastifyInstance, { db, ai, foods }: App
 
   app.get('/products', async (request) => {
     const user = requireUser(request);
-    const { q } = z.object({ q: z.string().max(100).default('') }).parse(request.query);
-    return searchProducts(db, q).map((r) => toProduct(r, user));
+    const { q, starred } = z.object({ q: z.string().max(100).default(''), starred: z.enum(['1']).optional() }).parse(request.query);
+    const stars = starsOf(db, user.id);
+    if (starred) {
+      // Every starred food, by name: they are the user's favorite foods from the library.
+      if (!stars.size) return [];
+      return db
+        .select()
+        .from(products)
+        .where(inArray(products.id, [...stars]))
+        .orderBy(products.name)
+        .all()
+        .map((r) => toProduct(r, user, stars));
+    }
+    return searchProducts(db, q).map((r) => toProduct(r, user, stars));
+  });
+
+  app.put('/products/:id/star', async (request) => {
+    const user = requireUser(request);
+    const { id } = z.object({ id: zId }).parse(request.params);
+    const row = get(id);
+    if (!row) throw notFound();
+    db.insert(productStars).values({ userId: user.id, productId: id }).onConflictDoNothing().run();
+    return toProduct(row, user, starsOf(db, user.id));
+  });
+
+  app.delete('/products/:id/star', async (request) => {
+    const user = requireUser(request);
+    const { id } = z.object({ id: zId }).parse(request.params);
+    db.delete(productStars).where(and(eq(productStars.userId, user.id), eq(productStars.productId, id))).run();
+    const row = get(id);
+    return row ? toProduct(row, user, starsOf(db, user.id)) : { ok: true };
   });
 
   app.get('/products/:id', async (request) => {
@@ -125,7 +160,7 @@ export async function productRoutes(app: FastifyInstance, { db, ai, foods }: App
     const { id } = z.object({ id: zId }).parse(request.params);
     const row = get(id);
     if (!row) throw notFound();
-    return toProduct(row, user);
+    return toProduct(row, user, starsOf(db, user.id));
   });
 
   /** Barcode: the library first, then (if allowed) Open Food Facts as a draft to confirm. */
@@ -133,7 +168,7 @@ export async function productRoutes(app: FastifyInstance, { db, ai, foods }: App
     const user = requireUser(request);
     const { code } = z.object({ code: z.string().regex(/^\d{8,14}$/) }).parse(request.params);
     const row = db.select().from(products).where(eq(products.barcode, code)).get();
-    if (row) return { product: toProduct(row, user), draft: null };
+    if (row) return { product: toProduct(row, user, starsOf(db, user.id)), draft: null };
     if (!isOffEnabled(db)) return { product: null, draft: null };
     return { product: null, draft: await foods.lookup(code) };
   });
@@ -168,7 +203,7 @@ export async function productRoutes(app: FastifyInstance, { db, ai, foods }: App
       })
       .returning()
       .get();
-    return toProduct(row, user);
+    return toProduct(row, user, starsOf(db, user.id));
   });
 
   app.patch('/products/:id', async (request) => {
@@ -187,7 +222,7 @@ export async function productRoutes(app: FastifyInstance, { db, ai, foods }: App
       .where(eq(products.id, id))
       .returning()
       .get();
-    return toProduct(updated, user);
+    return toProduct(updated, user, starsOf(db, user.id));
   });
 
   app.delete('/products/:id', async (request) => {
@@ -226,7 +261,7 @@ export async function productRoutes(app: FastifyInstance, { db, ai, foods }: App
       .where(eq(products.id, id))
       .returning()
       .get();
-    return toProduct(updated, user);
+    return toProduct(updated, user, starsOf(db, user.id));
   });
 
   app.post('/products/:id/log', async (request) => {

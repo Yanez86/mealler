@@ -17,6 +17,10 @@
   let error = $state('');
   let quietStart = $state(app.user?.quietStart ?? '');
   let quietEnd = $state(app.user?.quietEnd ?? '');
+  let waterOn = $state(app.user?.waterReminderEnabled ?? false);
+  let waterHours = $state(app.user?.waterReminderHours ?? 2);
+  let waterStart = $state(app.user?.waterReminderStart ?? '09:00');
+  let waterEnd = $state(app.user?.waterReminderEnd ?? '21:00');
 
   onMount(async () => {
     support = pushSupport();
@@ -63,6 +67,15 @@
 
   const today = $derived(todayIn(user.timezone));
   const paused = $derived(!!user.remindersPausedUntil && user.remindersPausedUntil >= today);
+
+  function saveWater(event: SubmitEvent) {
+    event.preventDefault();
+    if (!waterStart || !waterEnd || waterStart >= waterEnd) {
+      error = t('notif.waterRange');
+      return;
+    }
+    void update({ waterReminderEnabled: waterOn, waterReminderHours: Number(waterHours), waterReminderStart: waterStart, waterReminderEnd: waterEnd });
+  }
 
   function saveQuiet(event: SubmitEvent) {
     event.preventDefault();
@@ -111,6 +124,32 @@
       <span>{t('notif.reminders')}<br /><span class="muted small">{t('notif.remindersHelp')}</span></span>
     </label>
   </section>
+
+  <form class="card stack" onsubmit={saveWater} aria-labelledby="water-rem-title">
+    <h2 id="water-rem-title" class="section-title">{t('notif.water')}</h2>
+    <label class="check">
+      <input type="checkbox" bind:checked={waterOn} />
+      <span>{t('notif.waterOn')}<br /><span class="muted small">{t('notif.waterHelp')}</span></span>
+    </label>
+    <div class="field">
+      <label for="w-every">{t('notif.waterEvery')}</label>
+      <select id="w-every" class="input" bind:value={waterHours}>
+        {#each [1, 2, 3, 4, 5, 6] as h (h)}<option value={h}>{h === 1 ? t('notif.hour') : t('notif.hours', { n: h })}</option>{/each}
+      </select>
+    </div>
+    <div class="pair">
+      <div class="field">
+        <label for="w-start">{t('notif.quietFrom')}</label>
+        <input id="w-start" type="time" bind:value={waterStart} />
+      </div>
+      <div class="field">
+        <label for="w-end">{t('notif.quietTo')}</label>
+        <input id="w-end" type="time" bind:value={waterEnd} />
+      </div>
+    </div>
+    {#if !user.waterEnabled}<p class="help">{t('notif.waterHidden')}</p>{/if}
+    <button class="btn" type="submit" disabled={busy}>{t('common.save')}</button>
+  </form>
 
   <form class="card stack" onsubmit={saveQuiet}>
     <h2 class="section-title">{t('notif.quiet')}</h2>

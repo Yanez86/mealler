@@ -48,7 +48,11 @@ export function toUser(row: UserRow): User {
     weightReminderTime: row.weightReminderTime,
     waterEnabled: row.waterEnabled,
     waterGoalMl: row.waterGoalMl,
-    waterGlassMl: row.waterGlassMl
+    waterGlassMl: row.waterGlassMl,
+    waterReminderEnabled: row.waterReminderEnabled,
+    waterReminderHours: row.waterReminderHours,
+    waterReminderStart: row.waterReminderStart,
+    waterReminderEnd: row.waterReminderEnd
   };
 }
 

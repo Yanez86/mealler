@@ -9,7 +9,7 @@ Registri cosa mangi negli slot che decidi tu, tieni d'occhio calorie e macronutr
 
 ## Stato
 
-Versione **1.6.0**: diario con promemoria push, uso offline, libreria alimenti condivisa con la foto della tabella nutrizionale, icone colorate per le categorie di alimenti, una voce per ogni alimento con quantità a tag, sistema metrico o americano, calendario dei giorni completi, pasti saltati e slot in più per un giorno, connettore per claude.ai e calcolo AI dentro l'app, anche da foto, piatti con i loro ingredienti, traguardi con medaglie, l'acqua bevuta nel giorno e pasti preferiti di più alimenti.
+Versione **1.6.1**: diario con promemoria push, uso offline, libreria alimenti condivisa con la foto della tabella nutrizionale, icone colorate per le categorie di alimenti, una voce per ogni alimento con quantità a tag, sistema metrico o americano, calendario dei giorni completi, pasti saltati e slot in più per un giorno, connettore per claude.ai e calcolo AI dentro l'app, anche da foto, piatti con i loro ingredienti, traguardi con medaglie, l'acqua bevuta nel giorno, anche dallo schermo bloccato di iPhone, con i promemoria per bere, e preferiti divisi tra pasti e alimenti.
 
 | Funzione | Stato |
 | --- | --- |
@@ -33,6 +33,8 @@ Versione **1.6.0**: diario con promemoria push, uso offline, libreria alimenti c
 | Traguardi con medaglie, calcolati dal diario | ✅ |
 | Acqua bevuta con obiettivo giornaliero, andamento e traguardi | ✅ |
 | Pasti preferiti di più alimenti, creati e modificati dai Preferiti | ✅ |
+| Alimenti preferiti, tuoi o della libreria con la stella | ✅ |
+| Acqua da Comandi Rapidi di iPhone e da Android, promemoria per bere | ✅ |
 
 ## Installazione con Docker
 
@@ -97,4 +99,4 @@ Il sito di presentazione è in `site/`: `node site/build.mjs` lo crea in `site/d
 
 ## English
 
-Mealler is a self-hosted, multi-user food diary PWA. Log meals into slots you define, track calories and macros against optional min/max thresholds (with LARN reference values), get push reminders, work offline, keep a shared library of packaged foods (barcode, Open Food Facts, label photo kept with each food), and let Claude estimate nutritional values through a claude.ai connector (MCP + OAuth 2.1) or the Anthropic API, with per-user spending limits. Colored icons show each food's category, guessed from its name or chosen by hand. Several foods typed together become separate entries, quantities use unit tags, and metric or US customary units can be chosen. A month calendar shows complete days, meals can be marked as skipped and extra slots added for a single day. A dish typed with its ingredients becomes one entry, and achievements with medals reward firsts, streaks and totals. Water drunk is logged with one tap against a daily goal, and favorite meals can hold several foods. Version 1.6.0. Install with Docker: see [docs/INSTALL.md](docs/INSTALL.md); security policy in [SECURITY.md](SECURITY.md). Licensed under AGPL-3.0-or-later.
+Mealler is a self-hosted, multi-user food diary PWA. Log meals into slots you define, track calories and macros against optional min/max thresholds (with LARN reference values), get push reminders, work offline, keep a shared library of packaged foods (barcode, Open Food Facts, label photo kept with each food), and let Claude estimate nutritional values through a claude.ai connector (MCP + OAuth 2.1) or the Anthropic API, with per-user spending limits. Colored icons show each food's category, guessed from its name or chosen by hand. Several foods typed together become separate entries, quantities use unit tags, and metric or US customary units can be chosen. A month calendar shows complete days, meals can be marked as skipped and extra slots added for a single day. A dish typed with its ingredients becomes one entry, and achievements with medals reward firsts, streaks and totals. Water drunk is logged with one tap against a daily goal, from an iPhone shortcut too, with reminders to drink; favorites are meals or single foods, and library foods can be starred. Version 1.6.1. Install with Docker: see [docs/INSTALL.md](docs/INSTALL.md); security policy in [SECURITY.md](SECURITY.md). Licensed under AGPL-3.0-or-later.

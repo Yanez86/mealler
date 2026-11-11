@@ -176,9 +176,14 @@ export async function authRoutes(app: FastifyInstance, { db, config, ai }: AppCo
         weightReminderTime: zTime,
         waterEnabled: z.boolean(),
         waterGoalMl: z.number().int().min(200).max(10000),
-        waterGlassMl: z.number().int().min(20).max(2000)
+        waterGlassMl: z.number().int().min(20).max(2000),
+        waterReminderEnabled: z.boolean(),
+        waterReminderHours: z.number().int().min(1).max(6),
+        waterReminderStart: zTime,
+        waterReminderEnd: zTime
       })
       .partial()
+      .refine((b) => !b.waterReminderStart || !b.waterReminderEnd || b.waterReminderStart < b.waterReminderEnd, { message: 'range' })
       .parse(request.body);
     const updated = db.update(users).set(body).where(eq(users.id, user.id)).returning().get();
     return toUser(updated);

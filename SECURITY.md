@@ -16,6 +16,7 @@ Non aprire una issue pubblica. Usa **Security → Report a vulnerability** del r
 - **Isolamento**: ogni richiesta del diario è filtrata sull'utente; nemmeno l'amministratore legge i diari degli altri.
 - **Intestazioni HTTP**: Content-Security-Policy restrittiva (solo script dell'app, con hash degli script inline), `frame-ancestors 'none'`, `X-Frame-Options`, `Permissions-Policy` (fotocamera solo per l'app, niente microfono e posizione), `Referrer-Policy`, HSTS in HTTPS.
 - **Connettore claude.ai**: OAuth 2.1 con PKCE S256, consenso esplicito, refresh token a rotazione (un token usato due volte chiude il collegamento), revoca dal profilo; disattivato finché un amministratore non lo accende.
+- **Chiavi dei Comandi Rapidi** (Profilo → Comandi Rapidi): mostrate una sola volta e salvate solo come hash; servono solo ad aggiungere acqua alla giornata del proprio utente, e si revocano dal profilo.
 - **Chiave API Anthropic** cifrata nel database con AES-256-GCM; la chiave di cifratura sta in `secret.key` o in `MEALLER_SECRET_KEY`, mai nel database. Non viene mai mostrata agli utenti.
 - **Limiti di spesa AI** per utente e per istanza: l'istanza ha un budget mensile di 10 $ finché l'amministratore non ne sceglie un altro, i limiti contano anche le richieste ancora in corso e la spesa resta registrata quando un account viene cancellato.
 - **Notifiche push** inviate solo ai servizi push dei browser (Google, Mozilla, Apple, Microsoft), mai a un indirizzo scelto dall'utente.

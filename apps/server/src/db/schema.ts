@@ -29,6 +29,11 @@ export const users = sqliteTable('users', {
   waterEnabled: integer('water_enabled', { mode: 'boolean' }).notNull().default(true),
   waterGoalMl: integer('water_goal_ml').notNull().default(2000),
   waterGlassMl: integer('water_glass_ml').notNull().default(250),
+  waterReminderEnabled: integer('water_reminder_enabled', { mode: 'boolean' }).notNull().default(false),
+  waterReminderHours: integer('water_reminder_hours').notNull().default(2),
+  waterReminderStart: text('water_reminder_start').notNull().default('09:00'),
+  waterReminderEnd: text('water_reminder_end').notNull().default('21:00'),
+  waterReminderLastSent: text('water_reminder_last_sent'),
   createdAt: text('created_at').notNull().$defaultFn(now)
 });
 
@@ -229,6 +234,21 @@ export const water = sqliteTable('water', {
   date: text('date').notNull(),
   ml: integer('ml').notNull(),
   createdAt: text('created_at').notNull().$defaultFn(now)
+});
+
+export const productStars = sqliteTable('product_stars', {
+  userId: integer('user_id').notNull(),
+  productId: integer('product_id').notNull(),
+  createdAt: text('created_at').notNull().$defaultFn(now)
+});
+
+export const shortcutKeys = sqliteTable('shortcut_keys', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull(),
+  name: text('name').notNull(),
+  tokenHash: text('token_hash').notNull(),
+  createdAt: text('created_at').notNull().$defaultFn(now),
+  lastUsedAt: text('last_used_at')
 });
 
 export const weights = sqliteTable('weights', {

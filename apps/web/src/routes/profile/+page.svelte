@@ -98,6 +98,7 @@
     <a class="list-row" href="/profile/thresholds"><span>{t('profile.thresholds')}</span><Icon name="chevron" /></a>
     <a class="list-row" href="/profile/notifications"><span>{t('profile.notifications')}</span><Icon name="chevron" /></a>
     <a class="list-row" href="/profile/connector"><span>{t('profile.connector')}</span><Icon name="chevron" /></a>
+    <a class="list-row" href="/profile/shortcuts"><span>{t('profile.shortcuts')}</span><Icon name="chevron" /></a>
     <a class="list-row" href="/news"><span>{t('profile.news')}</span><Icon name="chevron" /></a>
     <a class="list-row" href="/profile/info"><span>{t('profile.info')}</span><Icon name="chevron" /></a>
     {#if user.role === 'admin'}

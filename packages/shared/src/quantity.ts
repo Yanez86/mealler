@@ -39,6 +39,13 @@ export const weightIn = (kg: number, system: UnitSystem) => (system === 'us' ? k
 export const weightFrom = (value: number, system: UnitSystem) => (system === 'us' ? lbToKg(value) : value);
 export const weightUnit = (system: UnitSystem) => (system === 'us' ? 'lb' : 'kg');
 
+/** Water as people read it: "1,25 l" or "750 ml", or "42 fl oz" with US units. */
+export function formatWater(ml: number, system: UnitSystem, locale: string): string {
+  const n = (v: number, digits = 0) => new Intl.NumberFormat(locale, { maximumFractionDigits: digits }).format(v);
+  if (system === 'us') return `${n(ml / ML_PER_FLOZ)} fl oz`;
+  return ml >= 1000 ? `${n(ml / 1000, 2)} l` : `${n(ml)} ml`;
+}
+
 const LABELS: Record<Locale, Record<QuantityUnit, [one: string, other: string]>> = {
   it: {
     g: ['g', 'g'],

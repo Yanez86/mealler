@@ -16,6 +16,7 @@
     type Estimate,
     type Favorite,
     type FavoriteFood,
+    type FoodCategory,
     type Product,
     type Slot,
     type Suggestion
@@ -54,6 +55,12 @@
   const favoriteMode = params.has('favorite');
   const favoriteEditId = Number(params.get('favorite')) || null;
   let favoriteName = $state('');
+  // A favorite food is one food (its name may be left out); a favorite meal has a name and several.
+  let favoriteKind = $state<'meal' | 'food'>(params.get('kind') === 'food' ? 'food' : 'meal');
+  const foodMode = $derived(favoriteMode && favoriteKind === 'food');
+  // Library foods the user starred: in the shortcuts, they open in "From the library" for their amount.
+  let starredList = $state<Product[]>([]);
+  let picker = $state<{ chooseProduct: (p: Product) => void } | undefined>();
   const today = todayIn(app.user?.timezone ?? 'UTC');
   const units = app.user?.units ?? 'metric';
   const locale = app.locale;
@@ -134,7 +141,11 @@
   const missingValues = $derived(named.filter((r) => !hasValues(r) && !(entryId && r === rows[0])));
   const back = $derived(favoriteMode ? '/favorites' : date === today ? '/' : `/?d=${date}`);
   const pageTitle = $derived(
-    favoriteMode ? t(favoriteEditId ? 'fav.editTitle' : 'fav.newTitle') : entryId ? t('entry.titleEdit') : t('entry.titleNew')
+    favoriteMode
+      ? t(favoriteEditId ? 'fav.editTitle' : foodMode ? 'fav.newFoodTitle' : 'fav.newTitle')
+      : entryId
+        ? t('entry.titleEdit')
+        : t('entry.titleNew')
   );
 
   onMount(async () => {
@@ -180,10 +191,12 @@
         // The text field does not wait for these.
         void Promise.all([
           get<Favorite[]>('/favorites').catch(() => []),
-          get<Suggestion[]>(`/suggestions${slotId ? `?slotId=${slotId}` : ''}`).catch(() => [])
-        ]).then(([favs, frequent]) => {
+          get<Suggestion[]>(`/suggestions${slotId ? `?slotId=${slotId}` : ''}`).catch(() => []),
+          get<Product[]>('/products?starred=1').catch(() => [])
+        ]).then(([favs, frequent, stars]) => {
           favoritesList = favs;
           suggestions = frequent;
+          starredList = stars;
           // Opened from the Favorites page: that favorite is already in the form.
           const fav = favs.find((f) => f.id === Number(params.get('fav')));
           if (fav) {
@@ -204,7 +217,8 @@
   /** Several foods typed in one row become one row each; a quantity in the text fills the quantity field. */
   function splitRow(index: number) {
     const row = rows[index];
-    if (!row) return;
+    // A favorite food stays one food, whatever its name says.
+    if (!row || foodMode) return;
     const parts = splitFoods(row.name);
     if (!parts.length) return;
     if (parts.length === 1) {
@@ -305,7 +319,10 @@
   // ---------- Favorite editor ----------
 
   async function loadFavorite(all: Slot[]) {
-    favoritesList = await get<Favorite[]>('/favorites').catch(() => []);
+    [favoritesList, starredList] = await Promise.all([
+      get<Favorite[]>('/favorites').catch(() => []),
+      get<Product[]>('/products?starred=1').catch(() => [])
+    ]);
     if (!favoriteEditId) {
       slotId = null;
       return;
@@ -315,7 +332,9 @@
       error = t('error.notFound');
       return;
     }
-    favoriteName = fav.name;
+    favoriteKind = fav.foods.length > 1 ? 'meal' : 'food';
+    // A favorite food named after its food shows an empty name: it follows the food.
+    favoriteName = favoriteKind === 'food' && fav.name === fav.foods[0]?.description ? '' : fav.name;
     slotId = fav.slotId && all.some((s) => s.id === fav.slotId) ? fav.slotId : null;
     rows = fav.foods.map((food) => {
       const row = newRow(units);
@@ -326,6 +345,8 @@
 
   /** A food from the library becomes a row with its values for the amount chosen. */
   function pickProduct(p: Product, grams: number) {
+    // A favorite food is the food just picked.
+    if (foodMode) rows = [newRow(units)];
     const row = freeRow();
     const f = grams / 100;
     const r = (v: number) => Math.round(v * f * 10) / 10;
@@ -343,8 +364,8 @@
     splitAll();
     const list = rows.filter((r) => r.name.trim());
     error = '';
-    if (!favoriteName.trim() || !list.length) {
-      error = t('fav.needNameFoods');
+    if (!list.length || (!foodMode && !favoriteName.trim())) {
+      error = t(foodMode ? 'fav.needFood' : 'fav.needNameFoods');
       return;
     }
     if (list.some(hasBadNumber)) {
@@ -359,10 +380,11 @@
     }
     busy = true;
     try {
-      const body = { name: favoriteName.trim(), slotId, foods: list.map(foodOf) };
+      const name = favoriteName.trim() || list[0].name.trim().slice(0, 100);
+      const body = { name, slotId, foods: (foodMode ? list.slice(0, 1) : list).map(foodOf) };
       if (favoriteEditId) await put(`/favorites/${favoriteEditId}`, body);
       else await post('/favorites', body);
-      await goto('/favorites', { replaceState: true });
+      await goto(foodMode ? '/favorites?tab=foods' : '/favorites', { replaceState: true });
     } catch (e) {
       error = errorMessage(e);
     } finally {
@@ -370,11 +392,34 @@
     }
   }
 
-  const quick = $derived([
-    ...favoritesList.filter((f) => f.id !== favoriteEditId).map((f) => ({ key: `f${f.id}`, label: f.name, star: true, value: f as Favorite | Suggestion })),
+  // Shortcuts: favorite meals on one line; favorite foods, starred library foods and frequent meals on another.
+  interface Chip {
+    key: string;
+    label: string;
+    star: boolean;
+    category: FoodCategory;
+    use: () => void;
+  }
+  const others = $derived(favoritesList.filter((f) => f.id !== favoriteEditId));
+  const mealChips = $derived<Chip[]>(
+    others
+      .filter((f) => f.foods.length > 1)
+      .map((f) => ({ key: `f${f.id}`, label: f.name, star: true, category: f.category ?? mealCategory([f.name, f.description], f.items), use: () => useQuick(f) }))
+  );
+  const foodChips = $derived<Chip[]>([
+    ...others
+      .filter((f) => f.foods.length <= 1)
+      .map((f) => ({ key: `f${f.id}`, label: f.name, star: true, category: f.category ?? mealCategory([f.name, f.description], f.items), use: () => useQuick(f) })),
+    ...starredList.map((p) => ({
+      key: `p${p.id}`,
+      label: p.name,
+      star: true,
+      category: p.category ?? mealCategory([p.name]),
+      use: () => picker?.chooseProduct(p)
+    })),
     ...suggestions
       .filter((s) => !favoritesList.some((f) => f.description.toLowerCase() === s.description.toLowerCase()))
-      .map((s) => ({ key: `s${s.description}`, label: s.description, star: false, value: s as Favorite | Suggestion }))
+      .map((s) => ({ key: `s${s.description}`, label: s.description, star: false, category: s.category ?? mealCategory([s.description], s.items), use: () => useQuick(s) }))
   ]);
 
   // ---------- Estimates ----------
@@ -607,10 +652,16 @@
     <form class="stack" onsubmit={favoriteMode ? saveFavoriteMeal : save}>
       {#if favoriteMode}
         <div class="field">
-          <label for="fav-name">{t('fav.name')}</label>
-          <input id="fav-name" required maxlength="100" placeholder={t('fav.namePlaceholder')} bind:value={favoriteName} />
+          <label for="fav-name">{t('fav.name')}{#if foodMode} <span class="muted small">({t('common.optional')})</span>{/if}</label>
+          <input
+            id="fav-name"
+            required={!foodMode}
+            maxlength="100"
+            placeholder={foodMode ? t('fav.namePlaceholderFood') : t('fav.namePlaceholder')}
+            bind:value={favoriteName} />
         </div>
       {/if}
+      {#if !foodMode}
       <fieldset class="field" style="border: none; margin: 0; padding: 0; min-width: 0">
         <legend class="label" style="padding: 0; margin-bottom: 8px">
           {#if favoriteMode}{t('fav.usualSlot')} <span class="muted small">({t('common.optional')})</span>{:else}{t('entry.slot')}{/if}
@@ -625,15 +676,17 @@
           {/each}
         </div>
       </fieldset>
+      {/if}
 
       {#if !entryId}
         <!-- A food logged from the library goes straight to the diary: with other foods still typed here, stay. -->
         <LibraryPicker
+          bind:this={picker}
           {slotId}
           {date}
           productId={Number(params.get('product')) || null}
           onpick={favoriteMode ? pickProduct : undefined}
-          back={favoriteMode ? `/add?favorite=${favoriteEditId ?? 'new'}` : null}
+          back={favoriteMode ? `/add?favorite=${favoriteEditId ?? 'new'}${foodMode && !favoriteEditId ? '&kind=food' : ''}` : null}
           onlogged={() => {
             if (named.length) libraryMessage = t('foods.logged');
             else {
@@ -644,22 +697,26 @@
         {#if libraryMessage}<p class="notice" role="status">{libraryMessage}</p>{/if}
       {/if}
 
-      {#if !entryId && quick.length}
-        <section class="field" aria-labelledby="quick-title">
-          <h2 id="quick-title" class="label">{t('fav.quick')}</h2>
-          <div class="chips">
-            {#each quick as q (q.key)}
-              <button type="button" class="chip" aria-label={t('fav.use', { name: q.label })} onclick={() => useQuick(q.value)}>
-                <FoodIcon category={q.value.category ?? mealCategory([q.label, q.value.description], q.value.items)} size={24} badge={false} />{q.label}{#if q.star}<Icon name="star" size={16} />{/if}
-              </button>
-            {/each}
-          </div>
-        </section>
+      {#if !entryId && !foodMode}
+        {#each [{ id: 'quick-meals', title: t('fav.quickMeals'), chips: mealChips }, { id: 'quick-foods', title: t('fav.quickFoods'), chips: foodChips }] as group (group.id)}
+          {#if group.chips.length}
+            <section class="field" aria-labelledby={group.id}>
+              <h2 id={group.id} class="label">{group.title}</h2>
+              <div class="chips">
+                {#each group.chips as q (q.key)}
+                  <button type="button" class="chip" aria-label={t('fav.use', { name: q.label })} onclick={q.use}>
+                    <FoodIcon category={q.category} size={24} badge={false} />{q.label}{#if q.star}<Icon name="star" size={16} />{/if}
+                  </button>
+                {/each}
+              </div>
+            </section>
+          {/if}
+        {/each}
       {/if}
 
       <section class="what" aria-labelledby="what-title">
         <div class="what-head">
-          <h2 id="what-title" class="label">{favoriteMode ? t('fav.what') : t('entry.what')}</h2>
+          <h2 id="what-title" class="label">{foodMode ? t('fav.whatFood') : favoriteMode ? t('fav.what') : t('entry.what')}</h2>
           <button class="tips-btn" type="button" popovertarget="tips" aria-label={t('entry.tipsOpen')}>?</button>
         </div>
         <div id="tips" class="tips card" popover aria-labelledby="tips-title">
@@ -687,16 +744,21 @@
               onsplit={() => splitRow(i)} />
           {/each}
         </div>
-        <button class="btn btn-ghost add-food" type="button" onclick={addRow}><Icon name="plus" size={20} stroke={2.5} />{t('entry.addFood')}</button>
+        {#if !foodMode}
+          <button class="btn btn-ghost add-food" type="button" onclick={addRow}><Icon name="plus" size={20} stroke={2.5} />{t('entry.addFood')}</button>
+        {/if}
         {#if draftRestored}<p class="notice" role="status">{t('entry.draftRestored')}</p>{/if}
         {#if splitMessage}<p class="notice" role="status">{splitMessage}</p>{/if}
       </section>
 
       {#if canEstimate}
         <div class="ai-actions">
-          <button class="btn" type="button" disabled={estimating} onclick={() => { labelMode = false; fileInput?.click(); }}>
-            <Icon name="camera" size={20} />{t('ai.photo')}
-          </button>
+          <!-- A photo of the plate makes a row per food: not for a favorite food, which is one. -->
+          {#if !foodMode}
+            <button class="btn" type="button" disabled={estimating} onclick={() => { labelMode = false; fileInput?.click(); }}>
+              <Icon name="camera" size={20} />{t('ai.photo')}
+            </button>
+          {/if}
           <button class="btn" type="button" disabled={estimating} onclick={() => { labelMode = true; fileInput?.click(); }}>
             <Icon name="camera" size={20} />{t('ai.labelPhoto')}
           </button>

@@ -2,7 +2,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
-  import { onDestroy } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import { cubicOut } from 'svelte/easing';
   import { fly } from 'svelte/transition';
   import {
@@ -18,7 +18,8 @@
     type Entry,
     type Nutrient,
     type NutrientSummary,
-    type ThresholdStatus
+    type ThresholdStatus,
+    type WaterDay
   } from '@mealler/shared';
   import { beacon, del, get, post, put } from '$lib/api';
   import type { AiStatus } from '@mealler/shared';
@@ -31,6 +32,7 @@
   import Swipeable from '$lib/Swipeable.svelte';
   import TopBar from '$lib/TopBar.svelte';
   import WaterCard from '$lib/WaterCard.svelte';
+  import { waterText } from '$lib/water';
   import { net, pendingFor } from '$lib/offline.svelte';
 
   const timezone = $derived(app.user?.timezone ?? 'UTC');
@@ -42,6 +44,24 @@
 
   let loadedDay = $state<DayResponse | null>(null);
   let error = $state('');
+
+  // ---------- "Bevi un bicchiere" ----------
+  // The Android shortcut opens /?water=add: one glass for today, then the plain diary with a note.
+  let waterAdded = $state('');
+  onMount(async () => {
+    const user = app.user;
+    if (page.url.searchParams.get('water') !== 'add' || !user) return;
+    const day = today;
+    await goto('/', { replaceState: true, keepFocus: true, noScroll: true });
+    try {
+      const res = await post<WaterDay>('/water', { date: day, ml: user.waterGlassMl });
+      waterAdded = t('water.addedShortcut', { amount: waterText(res.ml), goal: waterText(user.waterGoalMl) });
+      const fresh = await get<DayResponse>(`/day/${day}`);
+      if (date === day) loadedDay = fresh;
+    } catch (e) {
+      error = errorMessage(e);
+    }
+  });
 
   // ---------- Swipe to delete, with undo ----------
   // Deleted entries disappear at once; the server is asked only when the undo bar goes away.
@@ -383,6 +403,9 @@
     </p>
   {/if}
 
+  {#if waterAdded}
+    <p class="notice" role="status">{waterAdded}</p>
+  {/if}
   {#if error}
     <p class="error" role="alert">{error}</p>
   {/if}

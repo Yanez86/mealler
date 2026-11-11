@@ -70,6 +70,14 @@
     if (productId) choose(await get<Product>(`/products/${productId}`).catch(() => null));
   });
 
+  let section = $state<HTMLElement | null>(null);
+
+  /** Opens a food from outside (a starred food tapped in the meal form), ready for its amount. */
+  export function chooseProduct(p: Product) {
+    choose(p);
+    requestAnimationFrame(() => section?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+  }
+
   function choose(p: Product | null) {
     if (!p) return;
     selected = p;
@@ -86,7 +94,7 @@
       const res = await get<{ product: Product | null; draft: ProductDraft | null }>(`/products/barcode/${code}`);
       if (res.product) choose(res.product);
       // Not in the library yet: add it there, then come back to this meal (what was typed is kept as a draft).
-      else await goto(`/favorites?tab=foods&barcode=${code}&back=${encodeURIComponent(back ?? `/add?slot=${slotId ?? ''}&d=${date}`)}`);
+      else await goto(`/favorites?tab=library&barcode=${code}&back=${encodeURIComponent(back ?? `/add?slot=${slotId ?? ''}&d=${date}`)}`);
     } catch (e) {
       error = errorMessage(e);
     }
@@ -130,7 +138,7 @@
   }
 </script>
 
-<section class="field" aria-labelledby="lib-title">
+<section class="field" aria-labelledby="lib-title" bind:this={section}>
   <h2 id="lib-title" class="label">{t('foods.fromLibrary')}</h2>
 
   {#if scanning}

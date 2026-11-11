@@ -1,11 +1,12 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
-<!-- Favorites (personal saved meals) and Foods (shared library of packaged products). -->
+<!-- Favorites: Meals (favorites of several foods), Foods (favorites of one food, plus the library foods
+     the user starred) and Library (the shared library of packaged products, where stars are set). -->
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { mealCategory, type Favorite, type Product, type ProductDraft } from '@mealler/shared';
-  import { del, get } from '$lib/api';
+  import { del, get, put } from '$lib/api';
   import { errorMessage, formatNumber, t } from '$lib/state.svelte';
   import FoodIcon from '$lib/FoodIcon.svelte';
   import Icon from '$lib/Icon.svelte';
@@ -14,7 +15,11 @@
   import { servingKcal, servingText } from '$lib/serving';
   import TopBar from '$lib/TopBar.svelte';
 
-  const tab = $derived(page.url.searchParams.get('tab') === 'foods' ? 'foods' : 'favorites');
+  type Tab = 'meals' | 'foods' | 'library';
+  const tab = $derived.by((): Tab => {
+    const asked = page.url.searchParams.get('tab');
+    return asked === 'foods' || asked === 'library' ? asked : 'meals';
+  });
 
   // ---------- Favorites ----------
   let favorites = $state<Favorite[] | null>(null);
@@ -23,6 +28,32 @@
   async function loadFavorites() {
     try {
       favorites = await get<Favorite[]>('/favorites');
+    } catch (e) {
+      error = errorMessage(e);
+    }
+  }
+
+  // A favorite of one food is a favorite food; of several, a favorite meal.
+  const meals = $derived(favorites?.filter((f) => f.foods.length > 1) ?? null);
+  const singles = $derived(favorites?.filter((f) => f.foods.length <= 1) ?? null);
+
+  // ---------- Starred library foods ----------
+  let starred = $state<Product[] | null>(null);
+
+  async function loadStarred() {
+    try {
+      starred = await get<Product[]>('/products?starred=1');
+    } catch (e) {
+      error = errorMessage(e);
+    }
+  }
+
+  /** The star is personal: it puts a library food among the user's favorite foods. */
+  async function setStar(p: Product, on: boolean) {
+    try {
+      const updated = on ? await put<Product>(`/products/${p.id}/star`, {}) : await del<Product>(`/products/${p.id}/star`);
+      if (foods) foods = foods.map((f) => (f.id === p.id ? { ...f, starred: updated.starred } : f));
+      await loadStarred();
     } catch (e) {
       error = errorMessage(e);
     }
@@ -61,13 +92,14 @@
   }
 
   $effect(() => {
-    if (tab !== 'foods') return;
+    if (tab !== 'library') return;
     void query;
     clearTimeout(timer);
     timer = setTimeout(loadFoods, 250);
   });
 
   onMount(async () => {
+    void loadStarred();
     await loadFavorites();
     // Coming from a barcode that is not in the library yet: open the form prefilled.
     const code = page.url.searchParams.get('barcode');
@@ -110,49 +142,87 @@
 
   const cancelForm = () => (back ? goto(back, { replaceState: true }) : closeForm());
 
-  function setTab(next: 'favorites' | 'foods') {
+  function setTab(next: Tab) {
     closeForm();
-    goto(next === 'foods' ? '/favorites?tab=foods' : '/favorites', { replaceState: true, noScroll: true, keepFocus: true });
+    goto(next === 'meals' ? '/favorites' : `/favorites?tab=${next}`, { replaceState: true, noScroll: true, keepFocus: true });
   }
 </script>
 
-<svelte:head><title>{tab === 'foods' ? t('foods.tab') : t('fav.title')} · Mealler</title></svelte:head>
+<svelte:head><title>{tab === 'library' ? t('foods.tab') : t('fav.title')} · Mealler</title></svelte:head>
+
+{#snippet favoriteRow(f: Favorite)}
+  <li class="swipe-item">
+    <Swipeable label={t('fav.removeLabel', { name: f.name })} background="var(--surface)" ondelete={() => removeFavorite(f)}>
+      <div class="list-row">
+        <a class="use grow" href="/add?fav={f.id}" aria-label={t('fav.use', { name: f.name })}>
+          <FoodIcon category={f.category ?? mealCategory([f.name, f.description], f.items)} size={44} />
+          <span class="grow">
+            <span class="name block">{f.name}</span>
+            {#if f.name !== f.description}<span class="muted small block">{f.description}</span>{/if}
+            <span class="muted small block">
+              {f.kcal != null ? `${formatNumber(f.kcal)} kcal · ` : ''}{t('fav.uses', { n: f.uses })}
+            </span>
+          </span>
+        </a>
+        <a class="icon-btn plain" href="/add?favorite={f.id}" aria-label={t('fav.editLabel', { name: f.name })}>
+          <Icon name="edit" size={20} />
+        </a>
+      </div>
+    </Swipeable>
+  </li>
+{/snippet}
+
+{#snippet productInfo(p: Product)}
+  {@const serving = servingText(p)}
+  {@const perServing = servingKcal(p)}
+  <FoodIcon category={p.category ?? mealCategory([p.name])} size={44} />
+  <span class="grow">
+    <span class="name">{p.name}</span>
+    {#if p.brand}<span class="muted small"> · {p.brand}</span>{/if}
+    {#if serving}
+      <span class="small block">{perServing != null ? `${serving} · ${formatNumber(perServing)} kcal` : serving}</span>
+    {/if}
+    <span class="muted small block">{t('foods.per100short', { kcal: formatNumber(p.kcal) })}</span>
+  </span>
+{/snippet}
 
 <main class="page stack">
   <TopBar title={t('fav.title')} section="favorites" />
 
   <div class="segmented" role="group" aria-label={t('fav.title')}>
-    <button type="button" aria-pressed={tab === 'favorites'} onclick={() => setTab('favorites')}>{t('fav.title')}</button>
-    <button type="button" aria-pressed={tab === 'foods'} onclick={() => setTab('foods')}>{t('foods.tab')}</button>
+    <button type="button" aria-pressed={tab === 'meals'} onclick={() => setTab('meals')}>{t('fav.meals')}</button>
+    <button type="button" aria-pressed={tab === 'foods'} onclick={() => setTab('foods')}>{t('fav.foods')}</button>
+    <button type="button" aria-pressed={tab === 'library'} onclick={() => setTab('library')}>{t('foods.tab')}</button>
   </div>
 
   {#if error}<p class="error" role="alert">{error}</p>{/if}
 
-  {#if tab === 'favorites'}
+  {#if tab === 'meals'}
     <p class="muted">{t('fav.intro')}</p>
     <a class="btn btn-primary" href="/add?favorite=new"><Icon name="plus" size={20} />{t('fav.new')}</a>
-    {#if favorites && !favorites.length}
+    {#if meals && !meals.length}
       <p class="notice">{t('fav.none')}</p>
-    {:else if favorites}
+    {:else if meals}
       <ul class="card list">
-        {#each favorites as f (f.id)}
+        {#each meals as f (f.id)}{@render favoriteRow(f)}{/each}
+      </ul>
+    {/if}
+  {:else if tab === 'foods'}
+    <p class="muted">{t('fav.foodsIntro')}</p>
+    <a class="btn btn-primary" href="/add?favorite=new&kind=food"><Icon name="plus" size={20} />{t('fav.newFood')}</a>
+    {#if singles && starred && !singles.length && !starred.length}
+      <p class="notice">{t('fav.noFoods')}</p>
+    {:else if singles && starred}
+      <ul class="card list">
+        {#each singles as f (f.id)}{@render favoriteRow(f)}{/each}
+        <!-- Starred library foods: a tap opens them in the meal form to choose the amount; a swipe takes the star off. -->
+        {#each starred as p (p.id)}
           <li class="swipe-item">
-            <Swipeable label={t('fav.removeLabel', { name: f.name })} background="var(--surface)" ondelete={() => removeFavorite(f)}>
-              <div class="list-row">
-                <a class="use grow" href="/add?fav={f.id}" aria-label={t('fav.use', { name: f.name })}>
-                  <FoodIcon category={f.category ?? mealCategory([f.name, f.description], f.items)} size={44} />
-                  <span class="grow">
-                    <span class="name block">{f.name}</span>
-                    {#if f.name !== f.description}<span class="muted small block">{f.description}</span>{/if}
-                    <span class="muted small block">
-                      {f.kcal != null ? `${formatNumber(f.kcal)} kcal · ` : ''}{t('fav.uses', { n: f.uses })}
-                    </span>
-                  </span>
-                </a>
-                <a class="icon-btn plain" href="/add?favorite={f.id}" aria-label={t('fav.editLabel', { name: f.name })}>
-                  <Icon name="edit" size={20} />
-                </a>
-              </div>
+            <Swipeable label={t('fav.unstarLabel', { name: p.name })} background="var(--surface)" ondelete={() => setStar(p, false)}>
+              <a class="list-row use" href="/add?product={p.id}" aria-label={t('fav.use', { name: p.name })}>
+                {@render productInfo(p)}
+                <span class="star-on" title={t('fav.fromLibrary')}><Icon name="star" size={20} filled /></span>
+              </a>
             </Swipeable>
           </li>
         {/each}
@@ -172,22 +242,22 @@
     {:else if foods}
       <ul class="card list">
         {#each foods as p (p.id)}
-          {@const serving = servingText(p)}
-          {@const perServing = servingKcal(p)}
           <li class="swipe-item">
             <Swipeable label={t('foods.deleteLabel', { name: p.name })} disabled={!p.canEdit} background="var(--surface)" ondelete={() => removeFood(p)}>
-            <button class="list-row item" type="button" onclick={() => (editing = p)}>
-              <FoodIcon category={p.category ?? mealCategory([p.name])} size={44} />
-              <span class="grow">
-                <span class="name">{p.name}</span>
-                {#if p.brand}<span class="muted small"> · {p.brand}</span>{/if}
-                {#if serving}
-                  <span class="small block">{perServing != null ? `${serving} · ${formatNumber(perServing)} kcal` : serving}</span>
-                {/if}
-                <span class="muted small block">{t('foods.per100short', { kcal: formatNumber(p.kcal) })}</span>
-              </span>
-              <Icon name="chevron" />
-            </button>
+              <div class="list-row">
+                <button class="item grow" type="button" onclick={() => (editing = p)}>
+                  {@render productInfo(p)}
+                </button>
+                <button
+                  class="icon-btn plain star"
+                  class:star-on={p.starred}
+                  type="button"
+                  aria-pressed={p.starred}
+                  aria-label={t('fav.starLabel', { name: p.name })}
+                  onclick={() => setStar(p, !p.starred)}>
+                  <Icon name="star" size={22} filled={p.starred} />
+                </button>
+              </div>
             </Swipeable>
           </li>
         {/each}
@@ -245,6 +315,10 @@
     flex: 1;
     min-width: 0;
   }
+  .star-on {
+    color: var(--accent-ink);
+    display: inline-flex;
+  }
   .name {
     font-weight: 600;
   }
@@ -252,7 +326,11 @@
     display: block;
   }
   .item {
-    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 56px;
+    padding: 0;
     border: none;
     background: transparent;
     color: var(--text);

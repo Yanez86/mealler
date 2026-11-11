@@ -1,15 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Water as the user reads and types it: litres and millilitres, or US fluid ounces. Stored in ml.
-import { ML_PER_FLOZ } from '@mealler/shared';
-import { app, formatNumber } from './state.svelte';
+import { ML_PER_FLOZ, formatWater } from '@mealler/shared';
+import { app } from './state.svelte';
 
 const us = () => app.user?.units === 'us';
 
 /** "1,25 l", "750 ml" or "42 fl oz". */
-export function waterText(ml: number): string {
-  if (us()) return `${formatNumber(ml / ML_PER_FLOZ)} fl oz`;
-  return ml >= 1000 ? `${formatNumber(ml / 1000, 2)} l` : `${formatNumber(ml)} ml`;
-}
+export const waterText = (ml: number): string => formatWater(ml, app.user?.units ?? 'metric', app.locale);
 
 /** The unit the daily goal is typed in: litres, or fl oz. */
 export const goalUnit = () => (us() ? 'fl oz' : 'l');

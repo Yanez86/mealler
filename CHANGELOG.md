@@ -3,6 +3,19 @@
 Tutte le modifiche rilevanti di Mealler sono annotate qui.
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il [versionamento semantico](https://semver.org/lang/it/).
 
+## [1.6.1] - 2026-11-11
+
+### Aggiunto
+- I Preferiti hanno tre schede: Pasti, Alimenti e Libreria.
+- Alimenti preferiti: si crea un alimento con «Nuovo alimento preferito», oppure si mette la stella a un prodotto della Libreria. La stella è personale.
+- Nella schermata del pasto le scorciatoie sono divise tra pasti preferiti e alimenti preferiti; un prodotto con la stella si apre in «Dalla libreria», pronto per scegliere la quantità.
+- Profilo → Comandi Rapidi: con una chiave personale si crea un comando di iPhone che segna un bicchiere d'acqua dallo schermo bloccato, dal Centro di Controllo, dal Tasto Azione o con Siri. La pagina spiega i passaggi.
+- Su Android, tenendo premuta l'icona di Mealler compare «Bevi un bicchiere».
+- Promemoria per bere, in Profilo → Notifiche: una notifica dopo qualche ora senz'acqua, nella fascia oraria scelta, finché non raggiungi l'obiettivo.
+
+### Modificato
+- La scheda della libreria condivisa si chiama ora «Libreria».
+
 ## [1.6.0] - 2026-11-11
 
 ### Aggiunto
