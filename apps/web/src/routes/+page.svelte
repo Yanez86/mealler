@@ -194,6 +194,48 @@
     goto(d === today ? '/' : `/?d=${d}`, { keepFocus: true, noScroll: true });
   }
 
+  // ---------- Swipe to change day ----------
+  // A clear sideways swipe on the page shows the next day (to the left) or the previous one (to the
+  // right), like the arrows. Meals and entries that swipe on their own (to the trash) keep their gesture:
+  // their pointerdown does not reach the page. Touch only: with a mouse the arrows are at hand.
+  const DAY_SWIPE = 60;
+  let daySwipe: { id: number; x: number; y: number; vertical: boolean } | null = null;
+  let swallowClick = false;
+
+  function daySwipeDown(e: PointerEvent) {
+    daySwipe = null;
+    if (!e.isPrimary || e.pointerType === 'mouse' || showCalendar) return;
+    if ((e.target as Element).closest('input, textarea, select, [role="dialog"], .snackbar')) return;
+    daySwipe = { id: e.pointerId, x: e.clientX, y: e.clientY, vertical: false };
+  }
+
+  function daySwipeMove(e: PointerEvent) {
+    if (!daySwipe || e.pointerId !== daySwipe.id) return;
+    const dy = Math.abs(e.clientY - daySwipe.y);
+    if (dy > 12 && dy > Math.abs(e.clientX - daySwipe.x)) daySwipe.vertical = true;
+  }
+
+  function daySwipeUp(e: PointerEvent) {
+    const s = daySwipe;
+    if (!s || e.pointerId !== s.id) return;
+    daySwipe = null;
+    if (s.vertical) return;
+    const dx = e.clientX - s.x;
+    const dy = e.clientY - s.y;
+    if (Math.abs(dx) < DAY_SWIPE || Math.abs(dx) < 1.5 * Math.abs(dy)) return;
+    // The swipe may have started on a link or button: it is not a tap on it.
+    swallowClick = true;
+    setTimeout(() => (swallowClick = false), 400);
+    go(addDays(date, dx < 0 ? 1 : -1));
+  }
+
+  function daySwipeClick(e: MouseEvent) {
+    if (!swallowClick) return;
+    e.preventDefault();
+    e.stopPropagation();
+    swallowClick = false;
+  }
+
   let showCalendar = $state(false);
   function pickDay(d: string) {
     showCalendar = false;
@@ -302,7 +344,13 @@
 
 <svelte:head><title>{title} · Mealler</title></svelte:head>
 
-<main class="page">
+<main
+  class="page day-page"
+  onpointerdown={daySwipeDown}
+  onpointermove={daySwipeMove}
+  onpointerup={daySwipeUp}
+  onpointercancel={() => (daySwipe = null)}
+  onclickcapture={daySwipeClick}>
   <TopBar {title} {subtitle} ontitle={() => (showCalendar = true)} titleLabel={t('calendar.open')}>
     {#snippet actions()}
       <button class="icon-btn" type="button" aria-label={t('day.prev')} onclick={() => go(addDays(date, -1))}>
@@ -518,6 +566,10 @@
 </main>
 
 <style>
+  /* Sideways moves stay with the page (to change day); scrolling and zooming stay with the browser. */
+  .day-page {
+    touch-action: pan-y pinch-zoom;
+  }
   .day-body.stale {
     opacity: 0.5;
   }

@@ -20,7 +20,7 @@
 <svelte:head><title>{t('news.title')} · Mealler</title></svelte:head>
 
 <main class="page stack">
-  <TopBar title={t('news.title')}>
+  <TopBar title={t('news.title')} section="profile">
     {#snippet actions()}
       <a class="icon-btn" href="/profile" aria-label={t('common.back')}><Icon name="left" /></a>
     {/snippet}

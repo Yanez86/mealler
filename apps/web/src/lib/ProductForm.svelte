@@ -164,7 +164,7 @@
   }
 
   async function remove() {
-    if (!product || !confirm(t('foods.deleteConfirm'))) return;
+    if (!product || !confirm(t('foods.deleteConfirm', { name: product.name }))) return;
     try {
       await del(`/products/${product.id}`);
       onsaved(null);

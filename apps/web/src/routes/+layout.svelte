@@ -94,7 +94,7 @@
   });
 
   const tabs = [
-    { href: '/', key: 'nav.today', icon: 'calendar' },
+    { href: '/', key: 'nav.diary', icon: 'calendar' },
     { href: '/trends', key: 'nav.trends', icon: 'chart' },
     { href: '/favorites', key: 'nav.favorites', icon: 'star' },
     { href: '/profile', key: 'nav.profile', icon: 'user' }

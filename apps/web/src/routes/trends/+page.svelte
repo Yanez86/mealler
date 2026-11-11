@@ -67,7 +67,7 @@
 <svelte:head><title>{t('trends.title')} · Mealler</title></svelte:head>
 
 <main class="page stack">
-  <TopBar title={t('trends.title')} />
+  <TopBar title={t('trends.title')} section="trends" />
 
   <div class="segmented" role="group" aria-label={t('trends.title')}>
     <button type="button" aria-pressed={tab === 'nutrients'} onclick={() => setTab('nutrients')}>{t('trends.nutrients')}</button>

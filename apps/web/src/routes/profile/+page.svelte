@@ -90,7 +90,7 @@
 <svelte:head><title>{t('profile.title')} · Mealler</title></svelte:head>
 
 <main class="page stack">
-  <TopBar title={t('profile.title')} subtitle={user.email} />
+  <TopBar title={t('profile.title')} section="profile" subtitle={user.email} />
 
   <nav class="card links" aria-label={t('profile.diary')}>
     <a class="list-row" href="/profile/achievements"><span>{t('profile.achievements')}</span><Icon name="chevron" /></a>

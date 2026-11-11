@@ -3,10 +3,19 @@
 Tutte le modifiche rilevanti di Mealler sono annotate qui.
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il [versionamento semantico](https://semver.org/lang/it/).
 
-## [Non rilasciato]
+## [1.5.2] - 2026-11-11
+
+### Aggiunto
+- Nel diario si passa al giorno dopo scorrendo la pagina verso sinistra, e a quello prima scorrendola verso destra. Sulle schede dei pasti e sulle voci lo scorrimento verso sinistra resta quello che mostra il cestino.
+- Gli alimenti della libreria si eliminano scorrendo la riga verso sinistra e toccando il cestino, come nei Preferiti. Lo può fare chi ha aggiunto l'alimento o un amministratore.
+- Andamento, Preferiti e Profilo hanno ciascuno la propria icona in cima alla pagina.
+
+### Modificato
+- Il pulsante «Oggi» nella barra in basso si chiama ora «Diario».
 
 ### Corretto
 - Corretto un problema relativo agli aggiornamenti interrotti a metà.
+- Corretto un problema relativo all'elenco degli utenti e degli inviti in Amministrazione sullo schermo del telefono.
 
 ## [1.5.1] - 2026-11-11
 

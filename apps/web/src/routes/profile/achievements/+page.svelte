@@ -34,7 +34,7 @@
 <svelte:head><title>{t('ach.title')} · Mealler</title></svelte:head>
 
 <main class="page stack">
-  <TopBar title={t('ach.title')} />
+  <TopBar title={t('ach.title')} section="profile" />
 
   {#if error}
     <p class="error" role="alert">{error}</p>

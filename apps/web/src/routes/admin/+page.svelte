@@ -101,7 +101,7 @@
 <svelte:head><title>{t('admin.title')} · Mealler</title></svelte:head>
 
 <main class="page stack">
-  <TopBar title={t('admin.title')}>
+  <TopBar title={t('admin.title')} section="profile">
     {#snippet actions()}
       <a class="icon-btn" href="/profile" aria-label={t('common.back')}><Icon name="left" /></a>
     {/snippet}
@@ -133,23 +133,25 @@
     <h2 id="users-title" class="section-title">{t('admin.users')}</h2>
     <ul class="plain">
       {#each users as u (u.id)}
+        <!-- Name and role on the first line, the email on its own full-width line, the actions below:
+             on a phone nothing is squeezed into a narrow column. -->
         <li class="list-row user">
-          <div class="grow">
-            <p><strong>{u.name}</strong> {#if u.id === app.user?.id}<span class="muted">({t('admin.you')})</span>{/if}</p>
-            <p class="muted small">{u.active ? u.email : `${u.email} · ${t('admin.inactive')}`}</p>
-          </div>
+          <p class="name"><strong>{u.name}</strong> {#if u.id === app.user?.id}<span class="muted">({t('admin.you')})</span>{/if}</p>
           <label class="visually-hidden" for="role-{u.id}">{t('admin.role')}</label>
           <select id="role-{u.id}" class="input role" value={u.role} onchange={(e) => setRole(u, e.currentTarget)}>
             <option value="user">{t('admin.role.user')}</option>
             <option value="admin">{t('admin.role.admin')}</option>
           </select>
+          <p class="muted small email">{u.active ? u.email : `${u.email} · ${t('admin.inactive')}`}</p>
           {#if u.id !== app.user?.id}
-            <button class="btn btn-ghost" type="button" onclick={() => toggleActive(u)}>
-              {u.active ? t('admin.deactivate') : t('admin.activate')}
-            </button>
-            <button class="btn btn-ghost" type="button" title={t('admin.resetHelp')} onclick={() => resetPassword(u)}>
-              {copied === `reset-${u.id}` ? t('admin.copied') : t('admin.reset')}
-            </button>
+            <div class="actions">
+              <button class="btn btn-ghost" type="button" onclick={() => toggleActive(u)}>
+                {u.active ? t('admin.deactivate') : t('admin.activate')}
+              </button>
+              <button class="btn btn-ghost" type="button" title={t('admin.resetHelp')} onclick={() => resetPassword(u)}>
+                {copied === `reset-${u.id}` ? t('admin.copied') : t('admin.reset')}
+              </button>
+            </div>
           {/if}
         </li>
       {/each}
@@ -161,13 +163,13 @@
     {#if invites.length}
       <ul class="plain">
         {#each invites as i (i.token)}
-          <li class="list-row">
-            <div class="grow">
-              <p>{i.email ?? '—'}</p>
-              <p class="muted small">{t('admin.expires', { d: formatDate(i.expiresAt.slice(0, 10), { day: 'numeric', month: 'long' }) })}</p>
+          <li class="list-row invite">
+            <p class="email">{i.email ?? '—'}</p>
+            <p class="muted small">{t('admin.expires', { d: formatDate(i.expiresAt.slice(0, 10), { day: 'numeric', month: 'long' }) })}</p>
+            <div class="actions">
+              <button class="btn btn-ghost" type="button" onclick={() => copy(i)}>{copied === i.token ? t('admin.copied') : t('admin.copy')}</button>
+              <button class="btn btn-ghost" type="button" onclick={() => revoke(i)}>{t('admin.revoke')}</button>
             </div>
-            <button class="btn btn-ghost" type="button" onclick={() => copy(i)}>{copied === i.token ? t('admin.copied') : t('admin.copy')}</button>
-            <button class="btn btn-ghost" type="button" onclick={() => revoke(i)}>{t('admin.revoke')}</button>
           </li>
         {/each}
       </ul>
@@ -223,17 +225,41 @@
     margin: 0;
     padding: 0;
   }
-  .grow {
-    flex: 1;
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
   .user {
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 2px 12px;
+    padding: 12px 0;
+  }
+  .invite {
+    display: block;
+    padding: 12px 0 4px;
+  }
+  .invite:first-child {
+    padding-top: 0;
+  }
+  .name {
+    overflow-wrap: break-word;
+  }
+  .email {
+    grid-column: 1 / -1;
+    overflow-wrap: anywhere;
   }
   .role {
     width: auto;
     min-width: 0;
+  }
+  /* The buttons' text lines up with the name above: the padding they lose here is given back as margin. */
+  .actions {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 4px;
+    margin: 4px 0 -4px -12px;
+  }
+  .actions .btn {
+    padding: 0 12px;
   }
   .check {
     display: flex;

@@ -27,9 +27,9 @@ const it = {
   'common.license': 'Mealler è software libero, distribuito con licenza AGPL-3.0.',
 
   'nav.main': 'Navigazione principale',
-  'nav.today': 'Oggi',
+  'nav.diary': 'Diario',
   'nav.profile': 'Profilo',
-  'nav.home': 'Mealler, torna a Oggi',
+  'nav.home': 'Mealler, torna al Diario',
 
   'field.name': 'Nome',
   'field.email': 'Email',
@@ -477,7 +477,8 @@ const it = {
   'foods.servingLabelHint': 'Es. «1 pacchetto»',
   'foods.save': 'Salva alimento',
   'foods.delete': 'Elimina alimento',
-  'foods.deleteConfirm': 'Eliminare questo alimento dalla libreria condivisa?',
+  'foods.deleteConfirm': 'Eliminare {name} dalla libreria condivisa?',
+  'foods.deleteLabel': 'Elimina {name} dalla libreria',
   'foods.per100short': '{kcal} kcal / 100 g',
   'foods.fromLibrary': 'Dalla libreria',
   'foods.grams': 'Grammi',
@@ -625,9 +626,9 @@ const en: Record<MessageKey, string> = {
   'common.license': 'Mealler is free software, released under the AGPL-3.0 license.',
 
   'nav.main': 'Main navigation',
-  'nav.today': 'Today',
+  'nav.diary': 'Diary',
   'nav.profile': 'Profile',
-  'nav.home': 'Mealler, back to Today',
+  'nav.home': 'Mealler, back to the Diary',
 
   'field.name': 'Name',
   'field.email': 'Email',
@@ -1075,7 +1076,8 @@ const en: Record<MessageKey, string> = {
   'foods.servingLabelHint': 'E.g. "1 pack"',
   'foods.save': 'Save food',
   'foods.delete': 'Delete food',
-  'foods.deleteConfirm': 'Delete this food from the shared library?',
+  'foods.deleteConfirm': 'Delete {name} from the shared library?',
+  'foods.deleteLabel': 'Delete {name} from the library',
   'foods.per100short': '{kcal} kcal / 100 g',
   'foods.fromLibrary': 'From the library',
   'foods.grams': 'Grams',

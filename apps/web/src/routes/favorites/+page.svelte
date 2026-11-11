@@ -95,6 +95,17 @@
     }
   });
 
+  // Only who added a food, or an admin, can delete it: for the others the row does not swipe.
+  async function removeFood(p: Product) {
+    if (!confirm(t('foods.deleteConfirm', { name: p.name }))) return;
+    try {
+      await del(`/products/${p.id}`);
+      await loadFoods();
+    } catch (e) {
+      error = errorMessage(e);
+    }
+  }
+
   function closeForm() {
     editing = null;
     draft = null;
@@ -118,7 +129,7 @@
 <svelte:head><title>{tab === 'foods' ? t('foods.tab') : t('fav.title')} · Mealler</title></svelte:head>
 
 <main class="page stack">
-  <TopBar title={t('fav.title')} />
+  <TopBar title={t('fav.title')} section="favorites" />
 
   <div class="segmented" role="group" aria-label={t('fav.title')}>
     <button type="button" aria-pressed={tab === 'favorites'} onclick={() => setTab('favorites')}>{t('fav.title')}</button>
@@ -134,7 +145,7 @@
     {:else if favorites}
       <ul class="card list">
         {#each favorites as f (f.id)}
-          <li class="fav">
+          <li class="swipe-item">
             <Swipeable label={t('fav.removeLabel', { name: f.name })} background="var(--surface)" ondelete={() => removeFavorite(f)}>
               <div class="list-row">
                 <a class="use grow" href="/add?fav={f.id}" aria-label={t('fav.use', { name: f.name })}>
@@ -172,7 +183,8 @@
         {#each foods as p (p.id)}
           {@const serving = servingText(p)}
           {@const perServing = servingKcal(p)}
-          <li>
+          <li class="swipe-item">
+            <Swipeable label={t('foods.deleteLabel', { name: p.name })} disabled={!p.canEdit} background="var(--surface)" ondelete={() => removeFood(p)}>
             <button class="list-row item" type="button" onclick={() => (editing = p)}>
               <FoodIcon category={p.category ?? mealCategory([p.name])} size={44} />
               <span class="grow">
@@ -185,6 +197,7 @@
               </span>
               <Icon name="chevron" />
             </button>
+            </Swipeable>
           </li>
         {/each}
       </ul>
@@ -224,10 +237,10 @@
     padding-bottom: 4px;
   }
   /* The divider sits on the item, so it stays put while the row slides. */
-  .fav + .fav {
+  .swipe-item + .swipe-item {
     border-top: 1px solid var(--border);
   }
-  .fav .list-row {
+  .swipe-item .list-row {
     border-top: none;
   }
   .use {
@@ -249,16 +262,11 @@
   }
   .item {
     width: 100%;
-    border-left: none;
-    border-right: none;
-    border-bottom: none;
+    border: none;
     background: transparent;
     color: var(--text);
     font: inherit;
     text-align: left;
     cursor: pointer;
-  }
-  li:first-child .item {
-    border-top: none;
   }
 </style>
