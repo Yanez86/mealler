@@ -310,9 +310,9 @@ In `apps/web/src/lib/AiAdmin.svelte:67-71` un campo non numerico («5$», «10 u
 
 ## 5. Stato delle correzioni
 
-Situazione all'11 novembre 2026, sul ramo `audit-fixes` (sei commit dopo questo documento, non ancora rilasciati).
+Situazione all'11 novembre 2026, rilasciata come versione 1.5.0.
 
-Come sono state verificate: le voci di sicurezza e sui token sono state rilette una per una sul codice del server prima di toccarlo, e nessuna è risultata infondata. Le correzioni del server hanno test automatici (17 test, tutti verdi) e l'immagine Docker è stata compilata e avviata con lo smoke test della CI. Le correzioni dell'interfaccia superano il controllo dei tipi e la compilazione, ma **non sono state provate in un browser né su un telefono**: vanno provate a mano prima del rilascio.
+Come sono state verificate: le voci di sicurezza e sui token sono state rilette una per una sul codice del server prima di toccarlo, e nessuna è risultata infondata. Le correzioni del server hanno test automatici (17 test, tutti verdi) e l'immagine Docker è stata compilata e avviata con lo smoke test della CI. Le correzioni dell'interfaccia superano il controllo dei tipi e la compilazione, ma **non sono state provate in un browser né su un telefono**: vanno provate a mano dopo l'aggiornamento.
 
 | Area | Risolte | In parte | Aperte |
 | --- | --- | --- | --- |
