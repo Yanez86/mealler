@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { ALL_DAYS, NUTRIENTS, addDays, todayIn, type CalendarResponse, type DayResponse, type Threshold } from '@mealler/shared';
 import type { AppContext } from '../app.ts';
 import { requireUser } from '../auth.ts';
-import { entries, photos, slotSkips, slots, thresholds } from '../db/schema.ts';
+import { entries, favorites, photos, slotSkips, slots, thresholds } from '../db/schema.ts';
 import { aiStatus, deletePhoto } from '../ai.ts';
 import { badRequest, notFound } from '../http.ts';
 import { buildDay, calendarDays, thresholdsOn, toEntry, toSlot, userSlots } from '../services.ts';
@@ -136,15 +136,18 @@ export async function diaryRoutes(app: FastifyInstance, { db, ai }: AppContext) 
     // Save now, estimate in the background (in-app AI must be enabled).
     calculate: z.boolean().optional(),
     // Sent again with the same id (offline queue, lost answer), an entry is not saved twice.
-    clientId: z.string().uuid().optional()
+    clientId: z.string().uuid().optional(),
+    // The favorite this entry was filled from: counts as one more use of it.
+    favoriteId: zId.optional()
   });
 
   const ownPhoto = (userId: number, photoId: string | null | undefined) =>
     !photoId || !!db.select().from(photos).where(and(eq(photos.id, photoId), eq(photos.userId, userId))).get();
 
   function storedFields(body: Partial<z.infer<typeof entryBody>>) {
-    const { items, estimate, calculate, ...rest } = body;
+    const { items, estimate, calculate, favoriteId, ...rest } = body;
     void calculate;
+    void favoriteId;
     const out: Partial<typeof entries.$inferInsert> = { ...rest };
     if (items !== undefined) out.detail = items ? JSON.stringify(items) : null;
     if (estimate === 'calculated' || estimate === 'corrected') {
@@ -177,11 +180,18 @@ export async function diaryRoutes(app: FastifyInstance, { db, ai }: AppContext) 
     if (!ownPhoto(userId, body.photoId)) throw badRequest('photo');
   }
 
-  function insertEntry(dbOrTx: Pick<typeof db, 'insert' | 'select'>, userId: number, body: EntryBody, background: boolean) {
+  function insertEntry(dbOrTx: Pick<typeof db, 'insert' | 'select' | 'update'>, userId: number, body: EntryBody, background: boolean) {
     const sent =
       body.clientId &&
       dbOrTx.select().from(entries).where(and(eq(entries.userId, userId), eq(entries.clientId, body.clientId))).get();
     if (sent) return sent;
+    if (body.favoriteId) {
+      dbOrTx
+        .update(favorites)
+        .set({ uses: sql`${favorites.uses} + 1` })
+        .where(and(eq(favorites.id, body.favoriteId), eq(favorites.userId, userId)))
+        .run();
+    }
     return dbOrTx
       .insert(entries)
       .values({
@@ -227,7 +237,7 @@ export async function diaryRoutes(app: FastifyInstance, { db, ai }: AppContext) 
   app.patch('/entries/:id', async (request) => {
     const user = requireUser(request);
     const { id } = z.object({ id: zId }).parse(request.params);
-    const body = entryBody.omit({ clientId: true }).partial().parse(request.body);
+    const body = entryBody.omit({ clientId: true, favoriteId: true }).partial().parse(request.body);
     const current = db
       .select()
       .from(entries)

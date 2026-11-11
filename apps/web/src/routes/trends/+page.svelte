@@ -4,13 +4,13 @@
   import { page } from '$app/state';
   import { NUTRIENTS, NUTRIENT_UNITS, addDays, thresholdStatus, todayIn, type Nutrient, type TrendsResponse } from '@mealler/shared';
   import { get } from '$lib/api';
-  import { app, errorMessage, formatDate, formatNumber, t } from '$lib/state.svelte';
+  import { app, clock, errorMessage, formatDate, formatNumber, t } from '$lib/state.svelte';
   import BarChart from '$lib/BarChart.svelte';
   import TopBar from '$lib/TopBar.svelte';
   import WeightPanel from '$lib/WeightPanel.svelte';
 
   const tab = $derived(page.url.searchParams.get('tab') === 'weight' ? 'weight' : 'nutrients');
-  const today = $derived(todayIn(app.user?.timezone ?? 'UTC'));
+  const today = $derived(todayIn(app.user?.timezone ?? 'UTC', new Date(clock.now)));
 
   const spans = [7, 30, 90] as const;
   let span = $state<7 | 30 | 90>(7);

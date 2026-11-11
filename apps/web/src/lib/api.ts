@@ -10,6 +10,9 @@ export class ApiError extends Error {
   }
 }
 
+/** What to do when the server no longer knows the session (expired, or closed from another device). Set by the app state. */
+export const session = { expired: () => {} };
+
 export async function api<T>(method: string, path: string, body?: unknown): Promise<T> {
   let response: Response;
   try {
@@ -20,10 +23,15 @@ export async function api<T>(method: string, path: string, body?: unknown): Prom
       body: body === undefined ? undefined : JSON.stringify(body)
     });
   } catch {
-    throw new ApiError(0, 'offline');
+    // Nothing was changed by a read that did not get through: only writes are "not saved".
+    throw new ApiError(0, method === 'GET' ? 'unreachable' : 'offline');
   }
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new ApiError(response.status, (data as { error?: string }).error ?? 'internal');
+  if (!response.ok) {
+    const code = (data as { error?: string }).error ?? 'internal';
+    if (response.status === 401 && code === 'unauthorized') session.expired();
+    throw new ApiError(response.status, code);
+  }
   return data as T;
 }
 

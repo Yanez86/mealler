@@ -5,7 +5,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { mealCategory, type Favorite, type Product, type ProductDraft } from '@mealler/shared';
-  import { del, get } from '$lib/api';
+  import { del, get, patch } from '$lib/api';
   import { errorMessage, formatNumber, t } from '$lib/state.svelte';
   import FoodIcon from '$lib/FoodIcon.svelte';
   import Icon from '$lib/Icon.svelte';
@@ -37,7 +37,23 @@
     }
   }
 
+  async function renameFavorite(f: Favorite) {
+    const name = prompt(t('fav.rename'), f.name)?.trim();
+    if (!name || name === f.name) return;
+    try {
+      await patch(`/favorites/${f.id}`, { name });
+      await loadFavorites();
+    } catch (e) {
+      error = errorMessage(e);
+    }
+  }
+
   // ---------- Foods ----------
+  // Set when the page was opened from a meal being added (a barcode not in the library yet): where to go back.
+  const back = $derived.by(() => {
+    const to = page.url.searchParams.get('back');
+    return to?.startsWith('/add?') ? to : null;
+  });
   let query = $state('');
   let foods = $state<Product[] | null>(null);
   let editing = $state<Product | null>(null);
@@ -84,10 +100,13 @@
     creating = false;
   }
 
-  async function saved() {
+  async function saved(p: Product | null) {
+    if (back) return goto(p ? `${back}&product=${p.id}` : back, { replaceState: true });
     closeForm();
     await loadFoods();
   }
+
+  const cancelForm = () => (back ? goto(back, { replaceState: true }) : closeForm());
 
   function setTab(next: 'favorites' | 'foods') {
     closeForm();
@@ -117,14 +136,19 @@
           <li class="fav">
             <Swipeable label={t('fav.removeLabel', { name: f.name })} background="var(--surface)" ondelete={() => removeFavorite(f)}>
               <div class="list-row">
-                <FoodIcon category={f.category ?? mealCategory([f.name, f.description], f.items)} size={44} />
-                <div class="grow">
-                  <p class="name">{f.name}</p>
-                  {#if f.name !== f.description}<p class="muted small">{f.description}</p>{/if}
-                  <p class="muted small">
-                    {#if f.kcal != null}{formatNumber(f.kcal)} kcal · {/if}{t('fav.uses', { n: f.uses })}
-                  </p>
-                </div>
+                <a class="use grow" href="/add?fav={f.id}" aria-label={t('fav.use', { name: f.name })}>
+                  <FoodIcon category={f.category ?? mealCategory([f.name, f.description], f.items)} size={44} />
+                  <span class="grow">
+                    <span class="name block">{f.name}</span>
+                    {#if f.name !== f.description}<span class="muted small block">{f.description}</span>{/if}
+                    <span class="muted small block">
+                      {#if f.kcal != null}{formatNumber(f.kcal)} kcal · {/if}{t('fav.uses', { n: f.uses })}
+                    </span>
+                  </span>
+                </a>
+                <button class="icon-btn plain" type="button" aria-label={t('fav.renameLabel', { name: f.name })} onclick={() => renameFavorite(f)}>
+                  <Icon name="edit" size={20} />
+                </button>
               </div>
             </Swipeable>
           </li>
@@ -132,7 +156,7 @@
       </ul>
     {/if}
   {:else if creating || editing}
-    <ProductForm product={editing} {draft} onsaved={saved} oncancel={closeForm} />
+    <ProductForm product={editing} {draft} onsaved={saved} oncancel={cancelForm} />
   {:else}
     <p class="muted">{t('foods.intro')}</p>
     <button class="btn btn-primary" type="button" onclick={() => (creating = true)}><Icon name="plus" size={20} />{t('foods.new')}</button>
@@ -204,6 +228,13 @@
   }
   .fav .list-row {
     border-top: none;
+  }
+  .use {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: inherit;
+    text-decoration: none;
   }
   .grow {
     flex: 1;

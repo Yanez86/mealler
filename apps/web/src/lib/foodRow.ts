@@ -35,6 +35,8 @@ export interface FoodRow {
   estimate: Pick<Estimate, 'confidence' | 'notes'> | null;
   /** Chosen by the user; null = guessed from the name. */
   category: FoodCategory | null;
+  /** The favorite this row was filled from, if any: saving the meal counts as one more use of it. */
+  favoriteId: number | null;
   estimating: boolean;
 }
 
@@ -65,6 +67,7 @@ export function newRow(units: UnitSystem, name = ''): FoodRow {
     estimatedValues: null,
     estimate: null,
     category: null,
+    favoriteId: null,
     estimating: false
   };
 }

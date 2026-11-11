@@ -862,6 +862,11 @@ test('favorites, suggestions, weights, trends, export and bulk estimates', async
   assert.equal(res.json().kcal, 150);
   res = await app.inject({ method: 'GET', url: '/api/favorites', headers });
   assert.equal(res.json()[0].uses, 1);
+  // An entry saved from the add-meal form with a favorite in it counts as a use too.
+  res = await app.inject({ method: 'POST', url: '/api/entries', headers, payload: { slotId: slots[1].id, date: '2026-11-01', description: 'Yogurt', kcal: 150, favoriteId: fav.id } });
+  assert.equal(res.statusCode, 200, res.body);
+  res = await app.inject({ method: 'GET', url: '/api/favorites', headers });
+  assert.equal(res.json()[0].uses, 2);
 
   // Suggestions need a meal logged at least twice.
   await app.inject({ method: 'POST', url: `/api/favorites/${fav.id}/use`, headers, payload: { slotId: slots[0].id, date: '2026-11-08' } });

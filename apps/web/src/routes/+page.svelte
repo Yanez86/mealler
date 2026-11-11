@@ -22,7 +22,7 @@
   } from '@mealler/shared';
   import { beacon, del, get, post, put } from '$lib/api';
   import type { AiStatus } from '@mealler/shared';
-  import { app, errorMessage, formatDate, formatNumber, t } from '$lib/state.svelte';
+  import { app, clock, errorMessage, formatDate, formatNumber, t } from '$lib/state.svelte';
   import { fill } from '$lib/fill';
   import CalendarPopup from '$lib/CalendarPopup.svelte';
   import Estimating from '$lib/Estimating.svelte';
@@ -33,7 +33,7 @@
   import { net, pendingFor } from '$lib/offline.svelte';
 
   const timezone = $derived(app.user?.timezone ?? 'UTC');
-  const today = $derived(todayIn(timezone));
+  const today = $derived(todayIn(timezone, new Date(clock.now)));
   const date = $derived.by(() => {
     const d = page.url.searchParams.get('d');
     return d && isIsoDate(d) ? d : today;
@@ -131,6 +131,8 @@
   $effect(() => {
     const d = date;
     void net.pending;
+    // Back in the foreground: a meal logged from claude.ai or another device shows up.
+    void clock.resumed;
     error = '';
     get<DayResponse>(`/day/${d}`)
       .then((res) => {
@@ -247,7 +249,7 @@
   }
 
   const nowTime = $derived.by(() => {
-    const parts = new Intl.DateTimeFormat('en-GB', { timeZone: timezone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date());
+    const parts = new Intl.DateTimeFormat('en-GB', { timeZone: timezone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(clock.now));
     return parts;
   });
 
@@ -315,6 +317,13 @@
     <p class="notice" role="status">{t('offline.pending', { n: pendingFor(date) })}</p>
   {/if}
 
+  {#if net.rejected.length}
+    <p class="error" role="alert">
+      {t('offline.rejected', { names: net.rejected.join(', ') })}
+      <button class="btn btn-ghost" type="button" onclick={() => (net.rejected = [])}>{t('common.close')}</button>
+    </p>
+  {/if}
+
   {#if error}
     <p class="error" role="alert">{error}</p>
   {/if}
@@ -322,7 +331,8 @@
   {#if day}
     {@const kcal = day.summary.kcal}
     {#key day.date}
-    <div class="day-body" in:fly={{ x: dayDir * 48, duration: motion ? 260 : 0, easing: cubicOut, opacity: 0 }}>
+    <!-- While another day is loading, the one still on screen cannot be touched: its "+" would add to the wrong date. -->
+    <div class="day-body" class:stale={day.date !== date} inert={day.date !== date} in:fly={{ x: dayDir * 48, duration: motion ? 260 : 0, easing: cubicOut, opacity: 0 }}>
     <section class="card summary" aria-label={t('day.summary')}>
       <div class="kcal">
         <p><span class="big">{formatNumber(kcal.value)}</span> <span class="muted unit">kcal</span></p>
@@ -366,6 +376,9 @@
       <button class="btn btn-block calc-all" type="button" onclick={calculateAll}>
         <Icon name="sparkle" size={20} />{t('day.calculateAll', { n: withoutValues })}
       </button>
+    {/if}
+    {#if withoutValues > 0 && ai?.enabled && (ai.capReached || ai.limitReached)}
+      <p class="notice">{t(ai.capReached ? 'ai.capReached' : 'ai.limitReached')}</p>
     {/if}
     {#if queuedMessage}<p class="notice" role="status">{queuedMessage}</p>{/if}
 
@@ -495,6 +508,9 @@
 </main>
 
 <style>
+  .day-body.stale {
+    opacity: 0.5;
+  }
   .summary {
     display: flex;
     flex-direction: column;

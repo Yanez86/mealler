@@ -5,8 +5,8 @@
   import { goto, onNavigate } from '$app/navigation';
   import { page } from '$app/state';
   import type { Status, User } from '@mealler/shared';
-  import { get, patch } from '$lib/api';
-  import { app, setUser, t } from '$lib/state.svelte';
+  import { ApiError, get, patch } from '$lib/api';
+  import { app, clock, setUser, t } from '$lib/state.svelte';
   import { releasesSince } from '$lib/changelog';
   import Icon from '$lib/Icon.svelte';
   import NewsPopup from '$lib/NewsPopup.svelte';
@@ -47,10 +47,20 @@
       }
     }
 
-    try {
-      setUser(await get<User>('/me'));
-    } catch {
-      setUser(null);
+    // Only "not signed in" leads to the login page: a server that is down or restarting is waited for.
+    for (;;) {
+      try {
+        app.status ??= await get<Status>('/status');
+        setUser(await get<User>('/me'));
+        break;
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 401) {
+          setUser(null);
+          break;
+        }
+        splashMessage = t(navigator.onLine ? 'splash.unreachable' : 'splash.offline');
+        await new Promise((r) => setTimeout(r, 3000));
+      }
     }
     const wait = SPLASH_MIN_MS - (Date.now() - started);
     if (wait > 0) await new Promise((r) => setTimeout(r, wait));
@@ -61,6 +71,13 @@
     net.online = navigator.onLine;
     if (net.online) void flushQueue();
   }
+
+  // Entries waiting on the device are sent again when the app comes back to the foreground and once a
+  // minute, not only when the network returns: the server may have been the one that was away.
+  $effect(() => {
+    void clock.now;
+    if (ready && app.user && net.online && net.pending > 0) void flushQueue();
+  });
 
   $effect(() => {
     if (!ready) return;

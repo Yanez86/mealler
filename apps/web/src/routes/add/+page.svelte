@@ -59,6 +59,49 @@
   let splitMessage = $state('');
   let busy = $state(false);
   let loaded = $state(false);
+  let libraryMessage = $state('');
+
+  // ---------- Draft ----------
+  // What was typed for a new meal survives a reload or a detour (the tab bar, a barcode to add to the
+  // library first): it is kept for this slot and day, for an hour, until the meal is saved or closed with X.
+  const DRAFT = 'mealler-add-draft';
+  const draftFor = `${params.get('slot') ?? ''}|${params.get('d') ?? today}`;
+  let draftRestored = $state(false);
+
+  function clearDraft() {
+    try {
+      sessionStorage.removeItem(DRAFT);
+    } catch {
+      // No session storage: there is no draft to clear.
+    }
+  }
+
+  function restoreDraft() {
+    try {
+      const draft = JSON.parse(sessionStorage.getItem(DRAFT) ?? 'null') as
+        | { for: string; at: number; slotId: number | null; notes: string; photoId: string | null; rows: FoodRow[] }
+        | null;
+      if (!draft || draft.for !== draftFor || Date.now() - draft.at > 60 * 60 * 1000) return;
+      if (!draft.rows.some((r) => r.name.trim())) return;
+      rows = draft.rows.map((r) => ({ ...r, key: newRow(units).key, estimating: false }));
+      notes = draft.notes;
+      photoId = existingPhotoId = draft.photoId;
+      if (draft.slotId && slots.some((s) => s.id === draft.slotId)) slotId = draft.slotId;
+      draftRestored = true;
+    } catch {
+      // Unreadable draft: start empty.
+    }
+  }
+
+  $effect(() => {
+    if (!loaded || entryId) return;
+    const draft = JSON.stringify({ for: draftFor, at: Date.now(), slotId, notes, photoId, rows });
+    try {
+      sessionStorage.setItem(DRAFT, draft);
+    } catch {
+      // Storage unavailable: the form simply has no draft.
+    }
+  });
 
   // In-app estimates
   let ai = $state<AiStatus | null>(null);
@@ -111,12 +154,28 @@
         }
       }
       slots = all;
-      if (!slotId && all.length) slotId = all[0].id;
+      if (!slotId && all.length) {
+        // No slot asked for: today, the latest one whose time has come; otherwise the first.
+        const now = new Intl.DateTimeFormat('en-GB', { timeZone: app.user?.timezone ?? 'UTC', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date());
+        const due = date === today ? all.filter((s) => s.time <= now).sort((a, b) => a.time.localeCompare(b.time)).at(-1) : undefined;
+        slotId = (due ?? all[0]).id;
+      }
       if (!entryId) {
-        [favoritesList, suggestions] = await Promise.all([
+        // The text field does not wait for these.
+        void Promise.all([
           get<Favorite[]>('/favorites').catch(() => []),
           get<Suggestion[]>(`/suggestions${slotId ? `?slotId=${slotId}` : ''}`).catch(() => [])
-        ]);
+        ]).then(([favs, frequent]) => {
+          favoritesList = favs;
+          suggestions = frequent;
+          // Opened from the Favorites page: that favorite is already in the form.
+          const fav = favs.find((f) => f.id === Number(params.get('fav')));
+          if (fav) {
+            useQuick(fav);
+            if (!params.get('slot') && fav.slotId && all.some((s) => s.id === fav.slotId)) slotId = fav.slotId;
+          }
+        });
+        if (!params.get('fav')) restoreDraft();
       }
     } catch (e) {
       error = errorMessage(e);
@@ -180,6 +239,7 @@
     row.category = q.category;
     row.estimatedValues = null;
     row.estimate = null;
+    row.favoriteId = 'id' in q ? q.id : null;
   }
 
   async function saveFavorite() {
@@ -202,7 +262,7 @@
   }
 
   const quick = $derived([
-    ...favoritesList.slice(0, 6).map((f) => ({ key: `f${f.id}`, label: f.name, star: true, value: f as Favorite | Suggestion })),
+    ...favoritesList.map((f) => ({ key: `f${f.id}`, label: f.name, star: true, value: f as Favorite | Suggestion })),
     ...suggestions
       .filter((s) => !favoritesList.some((f) => f.description.toLowerCase() === s.description.toLowerCase()))
       .map((s) => ({ key: `s${s.description}`, label: s.description, star: false, value: s as Favorite | Suggestion }))
@@ -269,6 +329,11 @@
   /** A photo of the plate: every food Claude sees becomes a row with its values. */
   async function estimatePhoto() {
     if (!photo) return;
+    // The foods Claude sees replace the rows: ask before values already there (typed or paid for) are lost.
+    if (rows.some((r) => r.name.trim() && hasValues(r)) && !confirm(t('ai.photoReplace'))) {
+      photo = null;
+      return;
+    }
     splitAll();
     photoEstimating = true;
     error = '';
@@ -355,6 +420,7 @@
     // Nothing entered and in-app estimates on: save now, Claude fills the values in the background.
     if (!isExisting && !hasValues(row) && aiUsable) body.calculate = true;
     if (!isExisting) body.clientId = newClientId();
+    if (!isExisting && row.favoriteId) body.favoriteId = row.favoriteId;
     return body;
   }
 
@@ -379,12 +445,18 @@
       } else {
         await post('/entries/batch', { entries: bodies });
       }
-      await goto(back);
+      clearDraft();
+      // The form leaves the history: "back" from the diary does not open it again.
+      await goto(back, { replaceState: true });
     } catch (e) {
       if (!entryId && e instanceof ApiError && e.code === 'offline') {
         // No connection: keep the entries on the device, they are sent when the network returns.
-        for (const body of bodies) enqueueEntry(body);
-        await goto(date === today ? '/?queued=1' : `/?d=${date}&queued=1`);
+        if (bodies.map((body) => enqueueEntry(body)).every(Boolean)) {
+          clearDraft();
+          await goto(date === today ? '/?queued=1' : `/?d=${date}&queued=1`, { replaceState: true });
+        } else {
+          error = t('offline.notStored');
+        }
       } else {
         error = errorMessage(e);
       }
@@ -398,7 +470,7 @@
     busy = true;
     try {
       await del(`/entries/${entryId}`);
-      await goto(back);
+      await goto(back, { replaceState: true });
     } catch (e) {
       error = errorMessage(e);
       busy = false;
@@ -413,7 +485,7 @@
     title={entryId ? t('entry.titleEdit') : t('entry.titleNew')}
     subtitle={formatDate(date, { weekday: 'short', day: 'numeric', month: 'short' })}>
     {#snippet actions()}
-      <a class="icon-btn" href={back} aria-label={t('common.close')}><Icon name="close" /></a>
+      <a class="icon-btn" href={back} aria-label={t('common.close')} onclick={clearDraft}><Icon name="close" /></a>
     {/snippet}
   </TopBar>
 
@@ -432,7 +504,19 @@
       </fieldset>
 
       {#if !entryId}
-        <LibraryPicker {slotId} {date} onlogged={() => goto(back)} />
+        <!-- A food logged from the library goes straight to the diary: with other foods still typed here, stay. -->
+        <LibraryPicker
+          {slotId}
+          {date}
+          productId={Number(params.get('product')) || null}
+          onlogged={() => {
+            if (named.length) libraryMessage = t('foods.logged');
+            else {
+              clearDraft();
+              void goto(back, { replaceState: true });
+            }
+          }} />
+        {#if libraryMessage}<p class="notice" role="status">{libraryMessage}</p>{/if}
       {/if}
 
       {#if !entryId && quick.length}
@@ -479,6 +563,7 @@
           {/each}
         </div>
         <button class="btn btn-ghost add-food" type="button" onclick={addRow}><Icon name="plus" size={20} stroke={2.5} />{t('entry.addFood')}</button>
+        {#if draftRestored}<p class="notice" role="status">{t('entry.draftRestored')}</p>{/if}
         {#if splitMessage}<p class="notice" role="status">{splitMessage}</p>{/if}
       </section>
 

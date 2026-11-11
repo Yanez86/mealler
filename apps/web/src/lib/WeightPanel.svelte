@@ -4,12 +4,12 @@
   import { onMount } from 'svelte';
   import { addDays, isoWeekday, todayIn, weightFrom, weightIn, weightUnit, type User, type WeightEntry } from '@mealler/shared';
   import { del, get, patch, put } from './api';
-  import { app, errorMessage, formatDate, formatNumber, setUser, t } from './state.svelte';
+  import { app, clock, errorMessage, formatDate, formatNumber, setUser, t } from './state.svelte';
   import Icon from './Icon.svelte';
   import WeightChart from './WeightChart.svelte';
 
   const user = $derived(app.user as User);
-  const today = $derived(todayIn(user.timezone));
+  const today = $derived(todayIn(user.timezone, new Date(clock.now)));
   // Weights are stored in kg and shown in pounds with US units.
   const units = $derived(user.units ?? 'metric');
   const unit = $derived(weightUnit(units));

@@ -9,7 +9,12 @@ interface QueuedEntry {
   body: Record<string, unknown> & { date: string };
 }
 
-export const net = $state({ online: typeof navigator === 'undefined' ? true : navigator.onLine, pending: 0 });
+export const net = $state({
+  online: typeof navigator === 'undefined' ? true : navigator.onLine,
+  pending: 0,
+  /** Descriptions of queued entries the server refused: shown to the user, who can write them again. */
+  rejected: [] as string[]
+});
 
 let userId: number | null = null;
 const key = () => `mealler-queue-${userId ?? 'anon'}`;
@@ -22,13 +27,16 @@ function read(): QueuedEntry[] {
   }
 }
 
-function write(list: QueuedEntry[]) {
+/** False when the device could not keep the list (storage full or unavailable). */
+function write(list: QueuedEntry[]): boolean {
   try {
     localStorage.setItem(key(), JSON.stringify(list));
   } catch {
-    // Storage full or unavailable: nothing more we can do offline.
+    net.pending = read().length;
+    return false;
   }
   net.pending = list.length;
+  return true;
 }
 
 export function initOffline(currentUserId: number | null) {
@@ -39,10 +47,11 @@ export function initOffline(currentUserId: number | null) {
 /** An id for a new entry: the server saves an entry once, however many times it receives it. */
 export const newClientId = (): string | undefined => crypto.randomUUID?.();
 
-export function enqueueEntry(body: QueuedEntry['body']) {
+/** Keeps an entry for later. False when the device could not store it: the caller must say so. */
+export function enqueueEntry(body: QueuedEntry['body']): boolean {
   const list = read();
   list.push({ id: String(body.clientId ?? Math.random()), createdAt: new Date().toISOString(), body });
-  write(list);
+  return write(list);
 }
 
 export function pendingFor(date: string): number {
@@ -64,8 +73,11 @@ export async function flushQueue(): Promise<number> {
         await post('/entries', next.body);
         sent++;
       } catch (error) {
-        if (error instanceof ApiError && (error.code === 'offline' || error.status >= 500 || error.status === 401)) break;
-        // Rejected by the server (e.g. the slot no longer exists): drop it rather than block the queue.
+        // Not this entry's fault (no network, server down, signed out, too many requests): try again later.
+        if (error instanceof ApiError && (error.code === 'offline' || error.status >= 500 || error.status === 401 || error.status === 429)) break;
+        // Refused by the server (e.g. the slot no longer exists): out of the queue so it does not block
+        // the others, and reported, never dropped in silence.
+        net.rejected.push(String(next.body.description ?? '?'));
       }
       list = list.slice(1);
       write(list);

@@ -1,6 +1,7 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <!-- "From the library" in the add-meal screen: find a packaged food, choose the amount, log it. -->
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { G_PER_OZ, mealCategory, type Product, type ProductDraft } from '@mealler/shared';
   import { get, post } from './api';
@@ -10,7 +11,12 @@
   import { servingKcal, servingText } from './serving';
   import Icon from './Icon.svelte';
 
-  let { slotId, date, onlogged }: { slotId: number | null; date: string; onlogged: () => void } = $props();
+  let {
+    slotId,
+    date,
+    productId = null,
+    onlogged
+  }: { slotId: number | null; date: string; productId?: number | null; onlogged: () => void } = $props();
 
   let query = $state('');
   let results = $state<Product[]>([]);
@@ -42,7 +48,13 @@
     }, 250);
   });
 
-  function choose(p: Product) {
+  // Back from adding a scanned food to the library: it is ready to be logged.
+  onMount(async () => {
+    if (productId) choose(await get<Product>(`/products/${productId}`).catch(() => null));
+  });
+
+  function choose(p: Product | null) {
+    if (!p) return;
     selected = p;
     query = '';
     results = [];
@@ -56,7 +68,8 @@
     try {
       const res = await get<{ product: Product | null; draft: ProductDraft | null }>(`/products/barcode/${code}`);
       if (res.product) choose(res.product);
-      else await goto(`/favorites?tab=foods&barcode=${code}`);
+      // Not in the library yet: add it there, then come back to this meal (what was typed is kept as a draft).
+      else await goto(`/favorites?tab=foods&barcode=${code}&back=${encodeURIComponent(`/add?slot=${slotId ?? ''}&d=${date}`)}`);
     } catch (e) {
       error = errorMessage(e);
     }
@@ -85,6 +98,7 @@
     error = '';
     try {
       await post(`/products/${selected.id}/log`, { slotId, date, grams });
+      selected = null;
       onlogged();
     } catch (e) {
       error = errorMessage(e);

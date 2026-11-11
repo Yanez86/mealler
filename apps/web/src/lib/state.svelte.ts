@@ -10,7 +10,7 @@ import {
   type Theme,
   type User
 } from '@mealler/shared';
-import { ApiError } from './api';
+import { ApiError, session } from './api';
 import { flushQueue, initOffline } from './offline.svelte';
 import { refreshSubscription } from './push';
 
@@ -19,6 +19,26 @@ export const app = $state<{ status: Status | null; user: User | null; locale: Lo
   user: null,
   locale: guessLocale()
 });
+
+/**
+ * The time as the pages see it: it moves on once a minute and when the app comes back to the foreground,
+ * so "today" follows the calendar in an app left open overnight. `resumed` counts the returns: pages
+ * read it to load their data again.
+ */
+export const clock = $state({ now: Date.now(), resumed: 0 });
+if (typeof document !== 'undefined') {
+  setInterval(() => (clock.now = Date.now()), 60_000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    clock.now = Date.now();
+    clock.resumed++;
+  });
+}
+
+// Session expired: back to the login page (the layout remembers where the user was).
+session.expired = () => {
+  if (app.user) setUser(null);
+};
 
 function guessLocale(): Locale {
   if (typeof navigator === 'undefined') return DEFAULT_LOCALE;
@@ -54,6 +74,10 @@ export function errorMessage(error: unknown): string {
     switch (error.code) {
       case 'offline':
         return t('common.offline');
+      case 'unreachable':
+        return t('error.unreachable');
+      case 'unauthorized':
+        return t('error.sessionExpired');
       case 'invalidCredentials':
         return t('login.invalid');
       case 'emailTaken':
