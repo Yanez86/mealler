@@ -383,9 +383,6 @@
     {/snippet}
   </TopBar>
 
-  {#if date !== today}
-    <p style="margin-bottom: 12px"><a href="/">{t('day.goToday')}</a></p>
-  {/if}
 
   {#if page.url.searchParams.has('queued') && !net.online}
     <p class="notice" role="status">{t('offline.queued')}</p>

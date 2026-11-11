@@ -16,7 +16,7 @@ docker compose up -d
 
 Apri `http://IP-DEL-SERVER:3000` (o la porta scelta in `MEALLER_PORT`): la prima pagina crea l'account **amministratore**.
 
-Per usare una versione precisa invece di `latest`, modifica `image:` in `docker-compose.yml`, per esempio `ghcr.io/yanez86/mealler:1.6.1` (sono pubblicati anche `1.2` e `1`).
+Per usare una versione precisa invece di `latest`, modifica `image:` in `docker-compose.yml`, per esempio `ghcr.io/yanez86/mealler:1.6.2` (sono pubblicati anche `1.2` e `1`).
 
 Senza HTTPS Mealler funziona nella rete di casa, ma il telefono **non** installa la PWA e **non** riceve notifiche: per quelle serve uno dei metodi qui sotto. In tutti i casi imposta nel file `.env`:
 

@@ -3,6 +3,11 @@
 Tutte le modifiche rilevanti di Mealler sono annotate qui.
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il [versionamento semantico](https://semver.org/lang/it/).
 
+## [1.6.2] - 2026-11-11
+
+### Modificato
+- Il link «Torna a oggi» in cima al Diario non c'è più: per tornare a oggi c'è il pulsante «Torna a oggi» in fondo al calendario, oppure il logo in alto a sinistra.
+
 ## [1.6.1] - 2026-11-11
 
 ### Aggiunto

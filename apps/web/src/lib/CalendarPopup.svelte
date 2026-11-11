@@ -1,6 +1,7 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <!-- Month calendar of the diary, opened from the day's title: complete days in green, started days
-     with a dot, today circled. Starts at the sign-up month; a tap opens the day. -->
+     with a dot, today circled. Starts at the sign-up month; a tap opens the day. Looking at another
+     day, "Back to today" opens today. -->
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
   import { addDays, isoWeekday, type CalendarDay, type CalendarResponse } from '@mealler/shared';
@@ -126,6 +127,10 @@
       <span><span class="sw partial"></span>{t('calendar.legendPartial')}</span>
       <span><span class="sw today"></span>{t('weight.legendToday')}</span>
     </div>
+
+    {#if selected !== today}
+      <button class="btn btn-block" type="button" onclick={() => onpick(today)}>{t('day.goToday')}</button>
+    {/if}
   </div>
 </div>
 
@@ -160,6 +165,9 @@
   }
   .popup:focus {
     outline: none;
+  }
+  .popup > .btn {
+    margin-top: 14px;
   }
   .head {
     display: flex;
