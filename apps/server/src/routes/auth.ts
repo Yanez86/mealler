@@ -180,7 +180,8 @@ export async function authRoutes(app: FastifyInstance, { db, config, ai }: AppCo
         waterReminderEnabled: z.boolean(),
         waterReminderHours: z.number().int().min(1).max(6),
         waterReminderStart: zTime,
-        waterReminderEnd: zTime
+        waterReminderEnd: zTime,
+        meatFree: z.boolean()
       })
       .partial()
       .refine((b) => !b.waterReminderStart || !b.waterReminderEnd || b.waterReminderStart < b.waterReminderEnd, { message: 'range' })

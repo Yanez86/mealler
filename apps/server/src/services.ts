@@ -52,7 +52,8 @@ export function toUser(row: UserRow): User {
     waterReminderEnabled: row.waterReminderEnabled,
     waterReminderHours: row.waterReminderHours,
     waterReminderStart: row.waterReminderStart,
-    waterReminderEnd: row.waterReminderEnd
+    waterReminderEnd: row.waterReminderEnd,
+    meatFree: row.meatFree
   };
 }
 

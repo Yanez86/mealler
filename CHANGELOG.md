@@ -3,6 +3,12 @@
 Tutte le modifiche rilevanti di Mealler sono annotate qui.
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il [versionamento semantico](https://semver.org/lang/it/).
 
+## [1.6.3] - 2026-11-11
+
+### Aggiunto
+- Calorie e macronutrienti hanno le loro icone: una fiamma, una bistecca, una spiga, una goccia d'olio e una foglia. Si vedono nel riepilogo del Diario, in Andamento e nelle Soglie.
+- In Profilo → Preferenze c'è «Senza carne»: nelle immagini dell'app, al posto della carne compaiono legumi e verdure. Le proteine diventano due fagioli, il logo ha una carota e l'animazione d'attesa è una carota. Gli alimenti che registri restano come sono.
+
 ## [1.6.2] - 2026-11-11
 
 ### Modificato

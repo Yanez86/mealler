@@ -32,6 +32,7 @@
   import Swipeable from '$lib/Swipeable.svelte';
   import TopBar from '$lib/TopBar.svelte';
   import WaterCard from '$lib/WaterCard.svelte';
+  import NutrientIcon from '$lib/NutrientIcon.svelte';
   import { waterText } from '$lib/water';
   import { net, pendingFor } from '$lib/offline.svelte';
 
@@ -414,7 +415,7 @@
     <div class="day-body" class:stale={day.date !== date} inert={day.date !== date} in:fly={{ x: dayDir * 48, duration: motion ? 260 : 0, easing: cubicOut, opacity: 0 }}>
     <section class="card summary" aria-label={t('day.summary')}>
       <div class="kcal">
-        <p><span class="big">{formatNumber(kcal.value)}</span> <span class="muted unit">kcal</span></p>
+        <p class="kcal-total"><NutrientIcon nutrient="kcal" size={30} /><span class="big">{formatNumber(kcal.value)}</span> <span class="muted unit">kcal</span></p>
         {#if kcal.max != null}
           <p class="muted small right">
             {kcal.value <= kcal.max
@@ -443,7 +444,7 @@
               <span class="muted name">{t(`nutrient.${n}`)}</span>
               <span class="muted small target">{target(s, 'g')}</span>
             </div>
-            <span class="value">{formatNumber(s.value, 1)} g</span>
+            <span class="value"><NutrientIcon nutrient={n} size={22} />{formatNumber(s.value, 1)} g</span>
             <div class="bar"><span class="status-{s.status}" use:fill={percent(s)}></span></div>
             <span class="status status-ink-{s.status}" class:quiet={s.status === 'none'}><Icon name={statusIcon[s.status]} size={14} stroke={2.5} />{t(`day.status.${s.status}`)}</span>
           </div>
@@ -669,8 +670,19 @@
     text-align: right;
   }
   .value {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     font-size: 20px;
     font-weight: 700;
+  }
+  .kcal-total {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .kcal-total :global(.nutrient-icon) {
+    align-self: center;
   }
   .status {
     display: inline-flex;

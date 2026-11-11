@@ -15,6 +15,7 @@
   let theme = $state<Theme>(user.theme);
   let units = $state<UnitSystem>(user.units ?? 'metric');
   let timezone = $state(user.timezone);
+  let meatFree = $state(user.meatFree ?? false);
   let prefsMsg = $state('');
   let prefsError = $state('');
 
@@ -39,7 +40,7 @@
     event.preventDefault();
     prefsMsg = prefsError = '';
     try {
-      setUser(await patch<User>('/me', { name, locale, theme, timezone, units }));
+      setUser(await patch<User>('/me', { name, locale, theme, timezone, units, meatFree }));
       prefsMsg = t('common.saved');
     } catch (e) {
       prefsError = errorMessage(e);
@@ -133,6 +134,11 @@
       </select>
       <p id="units-help" class="help">{t('units.help')}</p>
     </div>
+    <label class="check meat-free">
+      <input type="checkbox" bind:checked={meatFree} />
+      <img src="/no-meat.svg" alt="" width="32" height="32" draggable="false" />
+      <span>{t('profile.meatFree')}<br /><span class="muted small">{t('profile.meatFreeHelp')}</span></span>
+    </label>
     <div class="field">
       <label for="tz">{t('field.timezone')}</label>
       <select id="tz" bind:value={timezone}>
@@ -208,6 +214,21 @@
 </main>
 
 <style>
+  .meat-free {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 44px;
+  }
+  .meat-free input {
+    width: 22px;
+    height: 22px;
+    flex: none;
+    accent-color: var(--accent);
+  }
+  .meat-free img {
+    flex: none;
+  }
   .links {
     padding-top: 4px;
     padding-bottom: 4px;

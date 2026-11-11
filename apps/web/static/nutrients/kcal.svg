@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+  <!-- Mealler nutrient: kcal (a flame) -->
+  <path d="M33 5C36 15 47 20 49 33C51 47 42 58 31 58C20 58 13 50 13 39C13 30 18 25 22 20C23 26 25 29 29 30C28 21 29 12 33 5Z" fill="#F7A440" stroke="#14181D" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M32 31C34 37 40 40 40 47C40 53 36 56 31.5 56C26 56 23 52 23 47C23 43 25 40 27 38C28 41 29 42 31 42C30 38 30 34 32 31Z" fill="#F6C343" stroke="#14181D" stroke-width="2.6" stroke-linejoin="round"/>
+  <ellipse cx="22" cy="40" rx="2.4" ry="5" fill="#FBD08A" transform="rotate(15 22 40)"/>
+</svg>

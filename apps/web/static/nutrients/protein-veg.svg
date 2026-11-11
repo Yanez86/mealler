@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+  <!-- Mealler nutrient: protein, meat-free (two beans) -->
+  <g transform="rotate(-24 30 40)">
+    <path d="M8 38C7 27 17 22 25 26C28 27.5 31 27.5 34 26C42 22 52 27 51 37C50 47 40 53 29 52C17 51 9 46 8 38Z" fill="#A8322B" stroke="#14181D" stroke-width="3" stroke-linejoin="round"/>
+    <ellipse cx="29.5" cy="29.5" rx="3.6" ry="1.8" fill="#F4E6D8" stroke="#14181D" stroke-width="1.6"/>
+    <ellipse cx="17" cy="33" rx="4.5" ry="2" fill="#D8655C" transform="rotate(-25 17 33)"/>
+  </g>
+  <g transform="rotate(28 44 22)">
+    <path d="M28 22C27 13 35 9 41 12C43 13 45 13 47 12C53 9 60 14 59 21C58 29 51 33 43 33C35 33 29 29 28 22Z" fill="#F1DCC3" stroke="#14181D" stroke-width="3" stroke-linejoin="round"/>
+    <g fill="#C2463B">
+      <ellipse cx="34" cy="20" rx="2.2" ry="1.1" transform="rotate(30 34 20)"/>
+      <ellipse cx="39" cy="26" rx="2.6" ry="1.2" transform="rotate(-20 39 26)"/>
+      <ellipse cx="50" cy="19" rx="2.2" ry="1" transform="rotate(40 50 19)"/>
+      <ellipse cx="52" cy="26" rx="2" ry="1" transform="rotate(-10 52 26)"/>
+      <ellipse cx="45" cy="29.5" rx="1.8" ry="0.9"/>
+    </g>
+    <ellipse cx="44" cy="15" rx="3" ry="1.5" fill="#FFFFFF" stroke="#14181D" stroke-width="1.6"/>
+  </g>
+</svg>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+  <!-- Mealler nutrient: protein (a steak) -->
+  <g transform="rotate(-14 32 33)">
+    <path d="M10 30C10 18 22 12 35 13C49 14 57 22 56 33C55 44 46 52 32 52C17 52 10 42 10 30Z" fill="#F4D3C4" stroke="#14181D" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M15 30C15 21 24 17 34 18C45 19 51 25 50 33C49 41 42 47 32 47C21 47 15 39 15 30Z" fill="#D9534A"/>
+    <path d="M24 27C28 30 34 29 38 33M30 39C33 37 38 38 41 40" fill="none" stroke="#B23B34" stroke-width="2.2" stroke-linecap="round"/>
+    <circle cx="41" cy="26" r="5" fill="#FFF4E0" stroke="#14181D" stroke-width="2.6"/>
+    <ellipse cx="22" cy="24" rx="4" ry="2" fill="#EA8A80" transform="rotate(-25 22 24)"/>
+  </g>
+</svg>

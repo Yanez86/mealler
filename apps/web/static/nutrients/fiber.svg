@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+  <!-- Mealler nutrient: fibre (a leaf) -->
+  <path d="M11 55C9 34 22 11 55 8C57 36 40 55 11 55Z" fill="#5BAA4A" stroke="#14181D" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M13 53C23 41 35 28 48 16" fill="none" stroke="#14181D" stroke-width="2.8" stroke-linecap="round"/>
+  <path d="M30 37C28 32 28 28 29 24M30 37C35 38 39 37 42 35" fill="none" stroke="#3E7F33" stroke-width="2.2" stroke-linecap="round"/>
+  <ellipse cx="41" cy="14.5" rx="4.5" ry="2" fill="#9BD08A" transform="rotate(-32 41 14.5)"/>
+</svg>

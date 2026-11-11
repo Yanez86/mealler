@@ -1,24 +1,27 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <!-- Start-up screen: logo, name and what the app is doing, over a tilted lattice of the food-category icons. -->
-<!-- At the bottom: the spinning chicken leg, the version and the maker. -->
+<!-- At the bottom: the spinning chicken leg, the version and the maker. With "Meat-free" a carrot spins
+     and the lattice has no meat or fish. -->
 <script lang="ts">
   import { FOOD_CATEGORIES } from '@mealler/shared';
   import Logo from './Logo.svelte';
   import { tints } from './FoodIcon.svelte';
+  import { app } from './state.svelte';
 
   let { message, version }: { message: string; version: string } = $props();
 
   // ponytail: 18 columns cover screens up to about 1300 px wide, and 3 cycles up to about 1280 px tall; raise them for bigger ones.
   const COLS = 18;
-  const ROWS = FOOD_CATEGORIES.length * 3; // each column slides by one cycle, so 3 never leave a gap
-  // Each row shifts by 5 categories, so the same icon never sits next to itself.
-  const columns = Array.from({ length: COLS }, (_, c) =>
-    Array.from({ length: ROWS }, (_, r) => FOOD_CATEGORIES[(c + r * 5) % FOOD_CATEGORIES.length])
+  const shown = $derived(app.meatFree ? FOOD_CATEGORIES.filter((c) => c !== 'meat' && c !== 'fish') : FOOD_CATEGORIES);
+  // Each column slides by one cycle, so 3 never leave a gap; each row shifts by 5 categories, so the
+  // same icon never sits next to itself.
+  const columns = $derived(
+    Array.from({ length: COLS }, (_, c) => Array.from({ length: shown.length * 3 }, (_, r) => shown[(c + r * 5) % shown.length]))
   );
 </script>
 
 <div class="splash" role="status" aria-live="polite">
-  <div class="lattice" aria-hidden="true">
+  <div class="lattice" aria-hidden="true" style:--half="{shown.length * 34}px">
     {#each columns as column, ci (ci)}
       <div class="col">
         {#each column as c, i (i)}
@@ -42,7 +45,7 @@
   </svg>
   <p class="message">{message}</p>
   <div class="foot">
-    <img class="leg" src="/food/meat.svg" alt="" width="34" height="34" draggable="false" />
+    <img class="leg" src={app.meatFree ? '/carrot.svg' : '/food/meat.svg'} alt="" width="34" height="34" draggable="false" />
     <p class="version">v{version}</p>
     <p class="maker">Happy Squid inc</p>
   </div>
@@ -85,7 +88,8 @@
     background: linear-gradient(to bottom, transparent 35%, var(--bg) 100%);
     pointer-events: none;
   }
-  /* Columns slide by one cycle of the 17 categories (17 × 68 px), every other one the opposite way. */
+  /* Columns slide by one cycle of the categories shown (each 68 px; --half is half a cycle), every other
+     one the opposite way. */
   .col {
     flex: none;
     display: flex;
@@ -177,18 +181,18 @@
   }
   @keyframes up {
     from {
-      transform: translateY(578px);
+      transform: translateY(var(--half));
     }
     to {
-      transform: translateY(-578px);
+      transform: translateY(calc(-1 * var(--half)));
     }
   }
   @keyframes down {
     from {
-      transform: translateY(-578px);
+      transform: translateY(calc(-1 * var(--half)));
     }
     to {
-      transform: translateY(578px);
+      transform: translateY(var(--half));
     }
   }
   @keyframes spin {

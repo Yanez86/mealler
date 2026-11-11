@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+  <!-- Mealler nutrient: carbohydrates (an ear of wheat) -->
+  <g transform="rotate(20 32 34)">
+    <path d="M32 60V20" stroke="#14181D" stroke-width="3.4" stroke-linecap="round"/>
+    <path d="M32 59V22" stroke="#A9672E" stroke-width="1.2" stroke-linecap="round"/>
+    <g fill="#E8B04B" stroke="#14181D" stroke-width="2.8" stroke-linejoin="round">
+      <path d="M32 4C37.5 8 37.5 16 32 20C26.5 16 26.5 8 32 4Z"/>
+      <path d="M30.5 24C29.5 31 23.5 35 16.5 34C17.5 27 23.5 23 30.5 24Z"/>
+      <path d="M33.5 24C34.5 31 40.5 35 47.5 34C46.5 27 40.5 23 33.5 24Z"/>
+      <path d="M30.5 36C29.5 43 23.5 47 16.5 46C17.5 39 23.5 35 30.5 36Z"/>
+      <path d="M33.5 36C34.5 43 40.5 47 47.5 46C46.5 39 40.5 35 33.5 36Z"/>
+    </g>
+    <path d="M30.5 8.5C29.6 10.5 29.6 13 30.5 15" stroke="#F6D58E" stroke-width="2" stroke-linecap="round" fill="none"/>
+  </g>
+</svg>

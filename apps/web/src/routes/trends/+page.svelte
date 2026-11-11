@@ -6,6 +6,7 @@
   import { get } from '$lib/api';
   import { app, clock, errorMessage, formatDate, formatNumber, t } from '$lib/state.svelte';
   import BarChart from '$lib/BarChart.svelte';
+  import NutrientIcon from '$lib/NutrientIcon.svelte';
   import TopBar from '$lib/TopBar.svelte';
   import WeightPanel from '$lib/WeightPanel.svelte';
   import { waterText } from '$lib/water';
@@ -145,7 +146,7 @@
     </div>
     <div class="chips" role="group" aria-label={t('trends.nutrients')}>
       {#each NUTRIENTS as n (n)}
-        <button class="chip" type="button" aria-pressed={nutrient === n} onclick={() => (nutrient = n)}>{t(`nutrient.${n}`)}</button>
+        <button class="chip" type="button" aria-pressed={nutrient === n} onclick={() => (nutrient = n)}><NutrientIcon nutrient={n} size={20} />{t(`nutrient.${n}`)}</button>
       {/each}
     </div>
 

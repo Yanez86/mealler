@@ -34,6 +34,7 @@ export const users = sqliteTable('users', {
   waterReminderStart: text('water_reminder_start').notNull().default('09:00'),
   waterReminderEnd: text('water_reminder_end').notNull().default('21:00'),
   waterReminderLastSent: text('water_reminder_last_sent'),
+  meatFree: integer('meat_free', { mode: 'boolean' }).notNull().default(false),
   createdAt: text('created_at').notNull().$defaultFn(now)
 });
 

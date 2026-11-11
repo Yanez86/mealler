@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+  <!-- Mealler: a carrot, in place of the chicken leg for "Meat-free" -->
+  <g transform="translate(29 35) rotate(-45) scale(0.62)">
+    <g fill="#5BAA4A" stroke="#14181D" stroke-width="4.8" stroke-linejoin="round">
+      <path d="M30 0C38 -10 48 -12 54 -9C50 -2 40 2 30 0Z" />
+      <path d="M30 0C40 -2 50 4 52 10C44 12 36 8 30 0Z" />
+      <path d="M30 0C36 -4 46 -2 50 2C44 4 36 3 30 0Z" fill="#7CC36A" />
+    </g>
+    <path d="M24 -12C31 -12 35 -6 35 0C35 6 31 12 24 12L-30 4C-34 3.4 -34 -3.4 -30 -4Z" fill="#E07A2E" stroke="#14181D" stroke-width="4.8" stroke-linejoin="round" />
+    <path d="M-12 -4.5L-10 1M2 -7.5L4 -1M14 -9.5L16 -3M8 3L10 8.5" stroke="#14181D" stroke-width="3.6" stroke-linecap="round" />
+    <ellipse cx="14" cy="-5" rx="9" ry="2.6" fill="#F5A65B" transform="rotate(-6 14 -5)" />
+  </g>
+</svg>

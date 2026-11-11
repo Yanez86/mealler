@@ -6,6 +6,7 @@
   import { app, errorMessage, parseNumber, setUser, t } from '$lib/state.svelte';
   import { glassFrom, glassIn, glassUnit, goalFrom, goalIn, goalUnit } from '$lib/water';
   import Icon from '$lib/Icon.svelte';
+  import NutrientIcon from '$lib/NutrientIcon.svelte';
   import TopBar from '$lib/TopBar.svelte';
 
   type Row = { min: string; max: string };
@@ -120,7 +121,7 @@
   <form class="stack" onsubmit={save}>
     {#each NUTRIENTS as n (n)}
       <fieldset class="card">
-        <legend class="label">{t(`nutrient.${n}`)} <span class="muted small">({NUTRIENT_UNITS[n]})</span></legend>
+        <legend class="label"><NutrientIcon nutrient={n} size={22} />{t(`nutrient.${n}`)} <span class="muted small">({NUTRIENT_UNITS[n]})</span></legend>
         <div class="pair">
           <div class="field">
             <label for="min-{n}">{t('thresholds.min')}</label>
@@ -166,6 +167,9 @@
     width: 100%;
     padding: 0;
     margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
   .water {
     display: flex;

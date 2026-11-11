@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+  <!-- Mealler nutrient: fat (a drop of oil) -->
+  <path d="M32 5C40 17 50 27 50 39C50 50 42 58 32 58C22 58 14 50 14 39C14 27 24 17 32 5Z" fill="#E9C340" stroke="#14181D" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M32 21C36 28 42 33 42 41C42 47 38 51 32 51" fill="none" stroke="#C99A1E" stroke-width="2.4" stroke-linecap="round"/>
+  <ellipse cx="24" cy="38" rx="3.2" ry="7" fill="#F8E39A" transform="rotate(12 24 38)"/>
+</svg>

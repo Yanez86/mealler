@@ -1376,6 +1376,9 @@ test('water: glasses add up, the last one comes off, goal and settings, trends, 
   assert.equal(res.json().waterEnabled, false);
   res = await app.inject({ method: 'PATCH', url: '/api/me', headers, payload: { waterGoalMl: 50 } });
   assert.equal(res.statusCode, 400);
+  assert.equal(me.meatFree, false);
+  res = await app.inject({ method: 'PATCH', url: '/api/me', headers, payload: { meatFree: true } });
+  assert.equal(res.json().meatFree, true);
 
   // The day before yesterday and yesterday at the goal; today gets there a little later.
   for (const back of [2, 1]) await app.inject({ method: 'POST', url: '/api/water', headers, payload: { date: addDays(today, -back), ml: 1500 } });

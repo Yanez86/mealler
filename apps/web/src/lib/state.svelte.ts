@@ -15,10 +15,21 @@ import { ApiError, session } from './api';
 import { flushQueue, initOffline } from './offline.svelte';
 import { refreshSubscription } from './push';
 
-export const app = $state<{ status: Status | null; user: User | null; locale: Locale }>({
+// "Meat-free" is remembered on the device too, so the start-up screen (before the account is known) follows it.
+const MEAT_FREE = 'mealler-meat-free';
+function storedMeatFree(): boolean {
+  try {
+    return localStorage.getItem(MEAT_FREE) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export const app = $state<{ status: Status | null; user: User | null; locale: Locale; meatFree: boolean }>({
   status: null,
   user: null,
-  locale: guessLocale()
+  locale: guessLocale(),
+  meatFree: typeof localStorage === 'undefined' ? false : storedMeatFree()
 });
 
 /**
@@ -56,6 +67,12 @@ export function setUser(user: User | null) {
   initOffline(user?.id ?? null);
   if (user) {
     app.locale = user.locale;
+    app.meatFree = user.meatFree;
+    try {
+      localStorage.setItem(MEAT_FREE, user.meatFree ? '1' : '0');
+    } catch {
+      // Storage unavailable: the start-up screen simply shows the default pictures.
+    }
     applyTheme(user.theme);
     void flushQueue();
     void refreshSubscription();

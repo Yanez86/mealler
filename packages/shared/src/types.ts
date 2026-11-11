@@ -40,6 +40,8 @@ export interface User {
   waterReminderHours: number;
   waterReminderStart: string;
   waterReminderEnd: string;
+  /** "Meat-free": the app's pictures show legumes and vegetables instead of animals. */
+  meatFree: boolean;
 }
 
 /** A key for the iPhone shortcut that adds water. The key itself is shown only once, when made. */
