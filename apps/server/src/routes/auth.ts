@@ -173,7 +173,10 @@ export async function authRoutes(app: FastifyInstance, { db, config, ai }: AppCo
         weightReminderEnabled: z.boolean(),
         weightReminderWeeks: z.number().int().min(1).max(12),
         weightReminderWeekday: z.number().int().min(1).max(7),
-        weightReminderTime: zTime
+        weightReminderTime: zTime,
+        waterEnabled: z.boolean(),
+        waterGoalMl: z.number().int().min(200).max(10000),
+        waterGlassMl: z.number().int().min(20).max(2000)
       })
       .partial()
       .parse(request.body);

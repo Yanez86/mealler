@@ -1,5 +1,6 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
-<!-- "From the library" in the add-meal screen: find a packaged food, choose the amount, log it. -->
+<!-- "From the library" in the add-meal screen: find a packaged food, choose the amount, log it.
+     With `onpick` (the favorite editor) the food is handed back instead of logged. -->
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
@@ -15,8 +16,18 @@
     slotId,
     date,
     productId = null,
-    onlogged
-  }: { slotId: number | null; date: string; productId?: number | null; onlogged: () => void } = $props();
+    onlogged,
+    onpick,
+    back = null
+  }: {
+    slotId: number | null;
+    date: string;
+    productId?: number | null;
+    onlogged: () => void;
+    onpick?: (product: Product, grams: number) => void;
+    /** Where to come back after adding a scanned food to the library (this meal by default). */
+    back?: string | null;
+  } = $props();
 
   let query = $state('');
   let results = $state<Product[]>([]);
@@ -75,7 +86,7 @@
       const res = await get<{ product: Product | null; draft: ProductDraft | null }>(`/products/barcode/${code}`);
       if (res.product) choose(res.product);
       // Not in the library yet: add it there, then come back to this meal (what was typed is kept as a draft).
-      else await goto(`/favorites?tab=foods&barcode=${code}&back=${encodeURIComponent(`/add?slot=${slotId ?? ''}&d=${date}`)}`);
+      else await goto(`/favorites?tab=foods&barcode=${code}&back=${encodeURIComponent(back ?? `/add?slot=${slotId ?? ''}&d=${date}`)}`);
     } catch (e) {
       error = errorMessage(e);
     }
@@ -99,6 +110,11 @@
   });
 
   async function log() {
+    if (selected && grams != null && onpick) {
+      onpick(selected, grams);
+      selected = null;
+      return;
+    }
     if (!selected || grams == null || !slotId) return;
     busy = true;
     error = '';
@@ -142,7 +158,7 @@
         <input id="lib-amount" inputmode="decimal" autocomplete="off" bind:value={amount} />
       </div>
       {#if preview}<p class="muted">{preview}</p>{/if}
-      <button class="btn btn-primary btn-block" type="button" disabled={busy || grams == null || !slotId} onclick={log}>{t('foods.add')}</button>
+      <button class="btn btn-primary btn-block" type="button" disabled={busy || grams == null || (!slotId && !onpick)} onclick={log}>{onpick ? t('foods.addToMeal') : t('foods.add')}</button>
     </div>
   {:else}
     <div class="search">

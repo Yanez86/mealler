@@ -2,14 +2,19 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
-  import { NUTRIENTS, NUTRIENT_UNITS, addDays, thresholdStatus, todayIn, type Nutrient, type TrendsResponse } from '@mealler/shared';
+  import { ML_PER_FLOZ, NUTRIENTS, NUTRIENT_UNITS, addDays, thresholdStatus, todayIn, type Nutrient, type TrendsResponse } from '@mealler/shared';
   import { get } from '$lib/api';
   import { app, clock, errorMessage, formatDate, formatNumber, t } from '$lib/state.svelte';
   import BarChart from '$lib/BarChart.svelte';
   import TopBar from '$lib/TopBar.svelte';
   import WeightPanel from '$lib/WeightPanel.svelte';
+  import { waterText } from '$lib/water';
 
-  const tab = $derived(page.url.searchParams.get('tab') === 'weight' ? 'weight' : 'nutrients');
+  type Tab = 'nutrients' | 'water' | 'weight';
+  const tab = $derived.by((): Tab => {
+    const asked = page.url.searchParams.get('tab');
+    return asked === 'weight' || asked === 'water' ? asked : 'nutrients';
+  });
   const today = $derived(todayIn(app.user?.timezone ?? 'UTC', new Date(clock.now)));
 
   const spans = [7, 30, 90] as const;
@@ -19,7 +24,7 @@
   let error = $state('');
 
   $effect(() => {
-    if (tab !== 'nutrients') return;
+    if (tab === 'weight') return;
     const from = addDays(today, -(span - 1));
     error = '';
     get<TrendsResponse>(`/trends?from=${from}&to=${today}`)
@@ -59,9 +64,24 @@
     ];
   });
 
-  function setTab(next: 'nutrients' | 'weight') {
-    goto(next === 'weight' ? '/trends?tab=weight' : '/trends', { replaceState: true, noScroll: true, keepFocus: true });
+  function setTab(next: Tab) {
+    goto(next === 'nutrients' ? '/trends' : `/trends?tab=${next}`, { replaceState: true, noScroll: true, keepFocus: true });
   }
+
+  // ---------- Water ----------
+  // Shown in ml, or fl oz with US units; the goal is the one set now.
+  const us = $derived(app.user?.units === 'us');
+  const waterUnit = $derived(us ? 'fl oz' : 'ml');
+  const waterShown = (ml: number) => (us ? Math.round(ml / ML_PER_FLOZ) : ml);
+  const goal = $derived(app.user?.waterGoalMl ?? 2000);
+  const waterDays = $derived(trends ? trends.days.filter((d) => d.water > 0) : []);
+  const waterAverage = $derived(waterDays.length ? waterDays.reduce((s, d) => s + d.water, 0) / waterDays.length : null);
+  const atGoal = $derived(waterDays.filter((d) => d.water >= goal).length);
+  const waterBars = $derived(
+    trends
+      ? trends.days.map((d) => ({ date: d.date, value: d.water > 0 ? waterShown(d.water) : null, min: waterShown(goal), max: null }))
+      : []
+  );
 </script>
 
 <svelte:head><title>{t('trends.title')} · Mealler</title></svelte:head>
@@ -71,11 +91,52 @@
 
   <div class="segmented" role="group" aria-label={t('trends.title')}>
     <button type="button" aria-pressed={tab === 'nutrients'} onclick={() => setTab('nutrients')}>{t('trends.nutrients')}</button>
+    <button type="button" aria-pressed={tab === 'water'} onclick={() => setTab('water')}>{t('water.title')}</button>
     <button type="button" aria-pressed={tab === 'weight'} onclick={() => setTab('weight')}>{t('trends.weight')}</button>
   </div>
 
   {#if tab === 'weight'}
     <WeightPanel />
+  {:else if tab === 'water'}
+    <div class="chips" role="group" aria-label={t('trends.title')}>
+      {#each spans as s (s)}
+        <button class="chip" type="button" aria-pressed={span === s} onclick={() => (span = s)}>{t(`trends.days${s}`)}</button>
+      {/each}
+    </div>
+
+    {#if error}<p class="error" role="alert">{error}</p>{/if}
+
+    {#if trends}
+      {#if !waterDays.length}
+        <p class="notice">{t('trends.waterNoData')}</p>
+      {:else}
+        <section class="card stack" aria-labelledby="water-avg-title">
+          <div class="avg">
+            <div>
+              <h2 id="water-avg-title" class="muted small">{t('trends.average')} · {t('water.title')}</h2>
+              <p><span class="big">{waterText(waterAverage ?? 0)}</span></p>
+              <p class="muted small">{t('trends.waterAverageNote', { n: waterDays.length })}</p>
+            </div>
+            <p class="muted small right">{t('trends.waterAtGoal', { n: atGoal, total: waterDays.length })}</p>
+          </div>
+          <BarChart
+            data={waterBars}
+            unit={waterUnit}
+            label={t('trends.chartLabel', {
+              nutrient: t('water.title'),
+              from: formatDate(trends.from, { day: 'numeric', month: 'long' }),
+              to: formatDate(trends.to, { day: 'numeric', month: 'long' })
+            })} />
+          <div class="legend small muted">
+            <span><span class="sw band"></span>{t('trends.waterGoal', { goal: waterText(goal) })}</span>
+            <span><span class="sw" style="background: var(--ok)"></span>{t('water.done')}</span>
+            <span><span class="sw" style="background: var(--under)"></span>{t('trends.waterUnder')}</span>
+          </div>
+        </section>
+      {/if}
+    {:else if !error}
+      <p class="muted" role="status">{t('common.loading')}</p>
+    {/if}
   {:else}
     <div class="chips" role="group" aria-label={t('trends.title')}>
       {#each spans as s (s)}

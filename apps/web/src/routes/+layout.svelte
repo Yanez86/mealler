@@ -148,8 +148,11 @@
     app.status?.setupRequired ? path === '/setup' : app.user ? !isPublic : isPublic && path !== '/setup'
   );
 
+  // The meal form belongs to the diary, except as the favorite editor (/add?favorite=…).
   const activeTab = $derived(
-    path === '/' || path.startsWith('/add')
+    path.startsWith('/add') && page.url.searchParams.has('favorite')
+      ? '/favorites'
+      : path === '/' || path.startsWith('/add')
       ? '/'
       : path.startsWith('/trends')
         ? '/trends'

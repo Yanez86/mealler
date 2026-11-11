@@ -26,6 +26,9 @@ export const users = sqliteTable('users', {
   weightReminderWeekday: integer('weight_reminder_weekday').notNull().default(1),
   weightReminderTime: text('weight_reminder_time').notNull().default('07:30'),
   weightReminderLastSent: text('weight_reminder_last_sent'),
+  waterEnabled: integer('water_enabled', { mode: 'boolean' }).notNull().default(true),
+  waterGoalMl: integer('water_goal_ml').notNull().default(2000),
+  waterGlassMl: integer('water_glass_ml').notNull().default(250),
   createdAt: text('created_at').notNull().$defaultFn(now)
 });
 
@@ -215,6 +218,16 @@ export const favorites = sqliteTable('favorites', {
   slotId: integer('slot_id'),
   category: text('category', { enum: FOOD_CATEGORIES }),
   uses: integer('uses').notNull().default(0),
+  /** JSON FavoriteFood[] for a meal of several foods; null for a single food kept in the columns above. */
+  foods: text('foods'),
+  createdAt: text('created_at').notNull().$defaultFn(now)
+});
+
+export const water = sqliteTable('water', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull(),
+  date: text('date').notNull(),
+  ml: integer('ml').notNull(),
   createdAt: text('created_at').notNull().$defaultFn(now)
 });
 

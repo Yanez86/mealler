@@ -5,7 +5,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { mealCategory, type Favorite, type Product, type ProductDraft } from '@mealler/shared';
-  import { del, get, patch } from '$lib/api';
+  import { del, get } from '$lib/api';
   import { errorMessage, formatNumber, t } from '$lib/state.svelte';
   import FoodIcon from '$lib/FoodIcon.svelte';
   import Icon from '$lib/Icon.svelte';
@@ -38,16 +38,6 @@
     }
   }
 
-  async function renameFavorite(f: Favorite) {
-    const name = prompt(t('fav.rename'), f.name)?.trim();
-    if (!name || name === f.name) return;
-    try {
-      await patch(`/favorites/${f.id}`, { name });
-      await loadFavorites();
-    } catch (e) {
-      error = errorMessage(e);
-    }
-  }
 
   // ---------- Foods ----------
   // Set when the page was opened from a meal being added (a barcode not in the library yet): where to go back.
@@ -140,6 +130,7 @@
 
   {#if tab === 'favorites'}
     <p class="muted">{t('fav.intro')}</p>
+    <a class="btn btn-primary" href="/add?favorite=new"><Icon name="plus" size={20} />{t('fav.new')}</a>
     {#if favorites && !favorites.length}
       <p class="notice">{t('fav.none')}</p>
     {:else if favorites}
@@ -154,13 +145,13 @@
                     <span class="name block">{f.name}</span>
                     {#if f.name !== f.description}<span class="muted small block">{f.description}</span>{/if}
                     <span class="muted small block">
-                      {#if f.kcal != null}{formatNumber(f.kcal)} kcal · {/if}{t('fav.uses', { n: f.uses })}
+                      {f.kcal != null ? `${formatNumber(f.kcal)} kcal · ` : ''}{t('fav.uses', { n: f.uses })}
                     </span>
                   </span>
                 </a>
-                <button class="icon-btn plain" type="button" aria-label={t('fav.renameLabel', { name: f.name })} onclick={() => renameFavorite(f)}>
+                <a class="icon-btn plain" href="/add?favorite={f.id}" aria-label={t('fav.editLabel', { name: f.name })}>
                   <Icon name="edit" size={20} />
-                </button>
+                </a>
               </div>
             </Swipeable>
           </li>

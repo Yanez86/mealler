@@ -21,8 +21,9 @@ import type { UserRow } from './auth.ts';
 import type { Db } from './db/index.ts';
 import { entries, slots } from './db/schema.ts';
 import { isMcpEnabled, publicBase, userFromBearer } from './oauth.ts';
-import { buildDay, thresholdsOn, toEntry, userSlots } from './services.ts';
+import { buildDay, thresholdsOn, toEntry, userSlots, waterByDay } from './services.ts';
 import { lastWeight, listWeights, saveWeight } from './routes/weight.ts';
+import { MAX_DRINK_ML, addWater } from './routes/water.ts';
 import { logProduct, searchProducts } from './routes/products.ts';
 import { products } from './db/schema.ts';
 
@@ -110,6 +111,7 @@ function dayForClaude(db: Db, user: UserRow, date: string) {
     totals: Object.fromEntries(
       NUTRIENTS.map((n) => [n, { value: day.summary[n].value, min: day.summary[n].min, max: day.summary[n].max, status: day.summary[n].status }])
     ),
+    water: { ml: day.water, goal_ml: user.waterGoalMl },
     slots: day.slots.map(({ slot, entries: list, totals, skipped }) => ({
       slot_id: slot.id,
       name: slot.name,
@@ -145,7 +147,7 @@ const TOOLS: Tool[] = [
   {
     name: 'get_day',
     title: 'Get a diary day',
-    description: "Returns one day of the diary: every slot with its entries, and the day's totals compared with the user's optional min/max thresholds.",
+    description: "Returns one day of the diary: every slot with its entries, the day's totals compared with the user's optional min/max thresholds, and the water drunk against the daily goal.",
     inputSchema: {
       type: 'object',
       properties: { date: { type: 'string', description: "YYYY-MM-DD; defaults to today in the user's time zone" } }
@@ -385,7 +387,7 @@ const TOOLS: Tool[] = [
     title: 'Summarise a period',
     description:
       'Daily totals over a date range (max 92 days) with averages over the days that have entries, ' +
-      'plus current thresholds. Use it for questions like "how was my protein this week?".',
+      'water drunk per day against the goal, plus current thresholds. Use it for questions like "how was my protein this week?".',
     inputSchema: {
       type: 'object',
       properties: {
@@ -409,18 +411,28 @@ const TOOLS: Tool[] = [
         .map(toEntry);
       const byDate = new Map<string, typeof rows>();
       for (const r of rows) byDate.set(r.date, [...(byDate.get(r.date) ?? []), r]);
+      const drunk = waterByDay(db, user.id, from, to);
+      for (const date of drunk.keys()) if (!byDate.has(date)) byDate.set(date, []);
       const days = [...byDate.entries()]
         .sort(([x], [y]) => x.localeCompare(y))
-        .map(([date, list]) => ({ date, entries: list.length, ...sumValues(list) }));
+        .map(([date, list]) => ({ date, entries: list.length, ...sumValues(list), water_ml: drunk.get(date) ?? 0 }));
+      const withEntries = days.filter((d) => d.entries > 0);
       const averages = Object.fromEntries(
-        NUTRIENTS.map((n) => [n, days.length ? Math.round((days.reduce((s, d) => s + d[n], 0) / days.length) * 10) / 10 : null])
+        NUTRIENTS.map((n) => [n, withEntries.length ? Math.round((withEntries.reduce((s, d) => s + d[n], 0) / withEntries.length) * 10) / 10 : null])
       );
+      const waterDays = days.filter((d) => d.water_ml > 0);
       const t = thresholdsOn(db, user.id, to);
       return {
         from,
         to,
-        days_with_entries: days.length,
+        days_with_entries: withEntries.length,
         averages,
+        water: {
+          goal_ml: user.waterGoalMl,
+          days_logged: waterDays.length,
+          average_ml: waterDays.length ? Math.round(waterDays.reduce((s, d) => s + d.water_ml, 0) / waterDays.length) : null,
+          days_at_goal: waterDays.filter((d) => d.water_ml >= user.waterGoalMl).length
+        },
         thresholds: Object.fromEntries(NUTRIENTS.map((n) => [n, { min: t[n].min, max: t[n].max }])),
         days
       };
@@ -503,6 +515,25 @@ const TOOLS: Tool[] = [
     }
   },
   {
+    name: 'log_water',
+    title: 'Log water',
+    description:
+      'Adds water the user drank on a date, in ml (a glass is about 250 ml, a small bottle 500 ml). ' +
+      "Each call adds to the day's total; returns the new total and the daily goal.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ml: { type: 'integer', minimum: 1, maximum: MAX_DRINK_ML },
+        date: { type: 'string', description: 'YYYY-MM-DD; defaults to today' }
+      },
+      required: ['ml']
+    },
+    run: (db, user, args) => {
+      const a = z.object({ ml: z.number().int().min(1).max(MAX_DRINK_ML), date: z.string().optional() }).parse(args ?? {});
+      return { ...addWater(db, user.id, dateOrToday(user, a.date), a.ml), goal_ml: user.waterGoalMl };
+    }
+  },
+  {
     name: 'get_weights',
     title: 'Get weight history',
     description: "Returns the user's weigh-ins between two dates (max 366 days) and the latest one.",
@@ -528,8 +559,9 @@ function instructions(user: UserRow): string {
     "Mealler is the user's self-hosted food diary.",
     `The user's time zone is ${user.timezone}; it is now ${date} ${time} there. Interpret "today", "yesterday", "this morning" in that zone.`,
     'When the user says what they ate, estimate portions and nutritional values yourself and call add_entry with one item per food (each food becomes its own diary entry); for a dish whose ingredients they list, pass the ingredients as items with dish: true (one entry); choose the slot that matches the meal (list_slots shows them).',
+    'When they say they drank water, call log_water with the amount in ml (plain water only; other drinks are diary entries).',
     user.units === 'us'
-      ? 'The user prefers US units (oz, fl oz, cups, lb): talk in those, but the tools take grams and kg, so convert before calling them.'
+      ? 'The user prefers US units (oz, fl oz, cups, lb): talk in those, but the tools take grams, ml and kg, so convert before calling them.'
       : 'The user uses metric units (g, ml, kg).',
     'Values are estimates: say so briefly, and offer to correct them with update_entry.',
     "Reply in the user's language. Never invent entries the user did not mention."

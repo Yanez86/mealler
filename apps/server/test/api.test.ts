@@ -378,7 +378,15 @@ test('claude.ai connector: OAuth 2.1 with PKCE, MCP tools, isolation, refresh an
   assert.equal(res.statusCode, 202);
   res = await mcp({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
   const names = res.json().result.tools.map((t: { name: string }) => t.name);
-  assert.deepEqual(names.sort(), ['add_entry', 'delete_entry', 'get_day', 'get_summary', 'get_thresholds', 'get_weights', 'list_slots', 'log_food', 'log_weight', 'search_foods', 'update_entry']);
+  assert.deepEqual(names.sort(), ['add_entry', 'delete_entry', 'get_day', 'get_summary', 'get_thresholds', 'get_weights', 'list_slots', 'log_food', 'log_water', 'log_weight', 'search_foods', 'update_entry']);
+
+  // Water adds up on the day, and the day shows it against the goal.
+  for (const id of [20, 21]) {
+    res = await mcp({ jsonrpc: '2.0', id, method: 'tools/call', params: { name: 'log_water', arguments: { ml: 500, date: '2026-11-09' } } });
+  }
+  assert.deepEqual(res.json().result.structuredContent, { date: '2026-11-09', ml: 1000, goal_ml: 2000 });
+  res = await mcp({ jsonrpc: '2.0', id: 22, method: 'tools/call', params: { name: 'get_day', arguments: { date: '2026-11-09' } } });
+  assert.deepEqual(res.json().result.structuredContent.water, { ml: 1000, goal_ml: 2000 });
 
   res = await mcp({
     jsonrpc: '2.0',
@@ -858,8 +866,9 @@ test('favorites, suggestions, weights, trends, export and bulk estimates', async
   assert.equal(res.statusCode, 200, res.body);
   const fav = res.json();
   res = await app.inject({ method: 'POST', url: `/api/favorites/${fav.id}/use`, headers, payload: { slotId: slots[0].id, date: '2026-11-09' } });
-  assert.equal(res.json().source, 'favorite');
-  assert.equal(res.json().kcal, 150);
+  assert.equal(res.json().length, 1);
+  assert.equal(res.json()[0].source, 'favorite');
+  assert.equal(res.json()[0].kcal, 150);
   res = await app.inject({ method: 'GET', url: '/api/favorites', headers });
   assert.equal(res.json()[0].uses, 1);
   // An entry saved from the add-meal form with a favorite in it counts as a use too.
@@ -1110,7 +1119,7 @@ test('food category: chosen per entry, favorite and product, carried over, reset
   const fav = res.json();
   assert.equal(fav.category, 'pasta');
   res = await app.inject({ method: 'POST', url: `/api/favorites/${fav.id}/use`, headers, payload: { slotId: slots[2].id, date: '2026-11-09' } });
-  assert.equal(res.json().category, 'pasta');
+  assert.equal(res.json()[0].category, 'pasta');
   res = await app.inject({ method: 'PATCH', url: `/api/favorites/${fav.id}`, headers, payload: { category: 'legumes' } });
   assert.equal(res.json().category, 'legumes');
   assert.equal(res.json().name, 'Pranzo');
@@ -1331,4 +1340,122 @@ test('achievements: worked out from the diary, kept once unlocked', async () => 
   await app.inject({ method: 'DELETE', url: `/api/favorites/${fav.id}`, headers });
   all = await get();
   assert.equal(all.favorite1.at, today);
+});
+
+test('water: glasses add up, the last one comes off, goal and settings, trends, export and achievements', async () => {
+  const { app } = await setupApp();
+  let res = await app.inject({ method: 'POST', url: '/api/setup', payload: admin });
+  const headers = { cookie: cookieOf(res) };
+  const me = res.json();
+  assert.equal(me.waterEnabled, true);
+  assert.equal(me.waterGoalMl, 2000);
+  assert.equal(me.waterGlassMl, 250);
+  const today = todayIn('Europe/Rome');
+
+  res = await app.inject({ method: 'GET', url: `/api/day/${today}`, headers });
+  assert.equal(res.json().water, 0);
+  for (const ml of [250, 250, 500]) {
+    res = await app.inject({ method: 'POST', url: '/api/water', headers, payload: { date: today, ml } });
+    assert.equal(res.statusCode, 200, res.body);
+  }
+  assert.deepEqual(res.json(), { date: today, ml: 1000 });
+  res = await app.inject({ method: 'DELETE', url: `/api/water/${today}/last`, headers });
+  assert.deepEqual(res.json(), { date: today, ml: 500 });
+  res = await app.inject({ method: 'GET', url: `/api/day/${today}`, headers });
+  assert.equal(res.json().water, 500);
+  // Nothing to take off on a day without water: still fine, still zero.
+  res = await app.inject({ method: 'DELETE', url: `/api/water/${addDays(today, -9)}/last`, headers });
+  assert.equal(res.json().ml, 0);
+  res = await app.inject({ method: 'POST', url: '/api/water', headers, payload: { date: today, ml: 0 } });
+  assert.equal(res.statusCode, 400);
+
+  // Settings.
+  res = await app.inject({ method: 'PATCH', url: '/api/me', headers, payload: { waterGoalMl: 1500, waterGlassMl: 330, waterEnabled: false } });
+  assert.equal(res.json().waterGoalMl, 1500);
+  assert.equal(res.json().waterGlassMl, 330);
+  assert.equal(res.json().waterEnabled, false);
+  res = await app.inject({ method: 'PATCH', url: '/api/me', headers, payload: { waterGoalMl: 50 } });
+  assert.equal(res.statusCode, 400);
+
+  // The day before yesterday and yesterday at the goal; today gets there a little later.
+  for (const back of [2, 1]) await app.inject({ method: 'POST', url: '/api/water', headers, payload: { date: addDays(today, -back), ml: 1500 } });
+  const achievements = async () =>
+    Object.fromEntries((await app.inject({ method: 'GET', url: '/api/achievements', headers })).json().map((a: { id: string }) => [a.id, a]));
+  let all = await achievements();
+  assert.equal(all.water1.at, addDays(today, -2));
+  assert.equal(all.water7.progress, 2);
+  await app.inject({ method: 'POST', url: '/api/water', headers, payload: { date: today, ml: 1000 } });
+  all = await achievements();
+  assert.equal(all.water7.progress, 3);
+  assert.equal(all.water7.at, null);
+
+  res = await app.inject({ method: 'GET', url: `/api/trends?from=${addDays(today, -2)}&to=${today}`, headers });
+  assert.deepEqual(
+    res.json().days.map((d: { water: number }) => d.water),
+    [1500, 1500, 1500]
+  );
+  res = await app.inject({ method: 'GET', url: '/api/export.json', headers });
+  assert.equal(JSON.parse(res.body).water.length, 5);
+});
+
+test('favorite meals of several foods: made, edited, used as one entry per food', async () => {
+  const { app } = await setupApp();
+  let res = await app.inject({ method: 'POST', url: '/api/setup', payload: admin });
+  const headers = { cookie: cookieOf(res) };
+  const slots = (await app.inject({ method: 'GET', url: '/api/slots', headers })).json();
+
+  res = await app.inject({
+    method: 'POST',
+    url: '/api/favorites',
+    headers,
+    payload: {
+      name: 'Colazione tipo',
+      slotId: slots[0].id,
+      foods: [
+        { description: 'Yogurt greco', quantity: '150 g', kcal: 140, protein: 15, carbs: 6, fat: 6, category: 'dairy' },
+        { description: 'Muesli', quantity: '40 g', kcal: 150, protein: 4, carbs: 26, fat: 3 },
+        { description: 'Caffè', kcal: null }
+      ]
+    }
+  });
+  assert.equal(res.statusCode, 200, res.body);
+  let fav = res.json();
+  assert.equal(fav.name, 'Colazione tipo');
+  assert.equal(fav.foods.length, 3);
+  assert.equal(fav.kcal, 290);
+  assert.equal(fav.description, 'Yogurt greco, Muesli, Caffè');
+
+  res = await app.inject({ method: 'POST', url: `/api/favorites/${fav.id}/use`, headers, payload: { slotId: slots[0].id, date: '2026-11-09' } });
+  assert.deepEqual(
+    res.json().map((e: { description: string; kcal: number | null; category: string | null }) => [e.description, e.kcal, e.category]),
+    [
+      ['Yogurt greco', 140, 'dairy'],
+      ['Muesli', 150, null],
+      ['Caffè', null, null]
+    ]
+  );
+
+  // The editor replaces name, usual meal and foods; the uses stay.
+  res = await app.inject({
+    method: 'PUT',
+    url: `/api/favorites/${fav.id}`,
+    headers,
+    payload: { name: 'Colazione', slotId: null, foods: [{ description: 'Yogurt greco', quantity: '200 g', kcal: 190 }] }
+  });
+  fav = res.json();
+  assert.equal(fav.name, 'Colazione');
+  assert.equal(fav.slotId, null);
+  assert.equal(fav.uses, 1);
+  assert.equal(fav.kcal, 190);
+  assert.equal(fav.quantity, '200 g');
+  res = await app.inject({ method: 'PUT', url: `/api/favorites/${fav.id}`, headers, payload: { name: 'Vuota', foods: [] } });
+  assert.equal(res.statusCode, 400);
+
+  // A favorite saved before 1.6 (one food in its columns) reads as a list of one.
+  res = await app.inject({ method: 'POST', url: '/api/favorites', headers, payload: { name: 'Mela', description: 'Mela', quantity: '150 g', kcal: 80 } });
+  assert.deepEqual(res.json().foods.map((f: { description: string; quantity: string }) => [f.description, f.quantity]), [['Mela', '150 g']]);
+
+  // Someone else's favorite cannot be edited.
+  res = await app.inject({ method: 'PUT', url: '/api/favorites/9999', headers, payload: { name: 'X', foods: [{ description: 'Y' }] } });
+  assert.equal(res.statusCode, 404);
 });

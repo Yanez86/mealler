@@ -2,7 +2,7 @@
 // Achievements: the catalogue (shared by server and app). The server works out which are unlocked.
 
 export type AchievementTier = 'bronze' | 'silver' | 'gold';
-export type AchievementFamily = 'first' | 'streak' | 'weight' | 'balance' | 'collection' | 'habits';
+export type AchievementFamily = 'first' | 'streak' | 'weight' | 'water' | 'balance' | 'collection' | 'habits';
 
 export interface AchievementDef {
   id: string;
@@ -29,6 +29,9 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   a('days365', 'streak', 'gold', 365),
   a('weights10', 'weight', 'silver', 10),
   a('weeks12', 'weight', 'gold', 12),
+  a('water1', 'water', 'bronze'),
+  a('water7', 'water', 'silver', 7),
+  a('water30', 'water', 'gold', 30),
   a('inrange1', 'balance', 'bronze'),
   a('inrange7', 'balance', 'gold', 7),
   a('rainbow', 'balance', 'silver', 5),
@@ -40,7 +43,7 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   a('midnight', 'habits', 'bronze')
 ];
 
-export const ACHIEVEMENT_FAMILIES: readonly AchievementFamily[] = ['first', 'streak', 'weight', 'balance', 'collection', 'habits'];
+export const ACHIEVEMENT_FAMILIES: readonly AchievementFamily[] = ['first', 'streak', 'weight', 'water', 'balance', 'collection', 'habits'];
 
 export interface AchievementState {
   id: string;

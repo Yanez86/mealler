@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Achievements worked out from the diary itself, so they count retroactively. Once unlocked they are
 // stored, and stay even if the data that earned them is deleted later.
-import { and, asc, eq, isNotNull, min } from 'drizzle-orm';
+import { and, asc, eq, isNotNull, min, sql } from 'drizzle-orm';
 import {
   ACHIEVEMENTS,
   NUTRIENTS,
@@ -14,7 +14,7 @@ import {
   type AchievementState
 } from '@mealler/shared';
 import type { Db } from './db/index.ts';
-import { achievements, entries, favorites, oauthTokens, products, slots, thresholds, weights } from './db/schema.ts';
+import { achievements, entries, favorites, oauthTokens, products, slots, thresholds, water, weights } from './db/schema.ts';
 import type { UserRow } from './auth.ts';
 import { calendarDays, toEntry } from './services.ts';
 
@@ -88,6 +88,20 @@ export function userAchievements(db: Db, user: UserRow): AchievementState[] {
   const newScans = scans.filter((s) => !seen.has(s.product) && seen.add(s.product)).map((s) => s.date);
 
   const weighDays = db.select({ date: weights.date }).from(weights).where(eq(weights.userId, user.id)).orderBy(asc(weights.date)).all().map((w) => w.date);
+  // Days the water goal was reached (the goal set now, for every day).
+  const waterGoal = user.waterGoalMl;
+  const watered = db
+    .select({ date: water.date, ml: sql<number>`sum(${water.ml})` })
+    .from(water)
+    .where(eq(water.userId, user.id))
+    .groupBy(water.date)
+    .orderBy(asc(water.date))
+    .all()
+    .filter((d) => d.ml >= waterGoal)
+    .map((d) => d.date);
+  const w7 = streak(watered, 7);
+  const w30 = streak(watered, 30);
+
   const weekOf = (d: string) => addDays(d, 1 - isoWeekday(d));
   const weeks = streak(uniq(weighDays.map(weekOf)), 12, 7);
 
@@ -129,6 +143,9 @@ export function userAchievements(db: Db, user: UserRow): AchievementState[] {
     days365: { at: nth(complete, 365), progress: complete.length },
     weights10: { at: nth(weighDays, 10), progress: weighDays.length },
     weeks12: { at: weeks.at, progress: weeks.best },
+    water1: { at: first(watered), progress: watered.length },
+    water7: { at: w7.at, progress: w7.best },
+    water30: { at: w30.at, progress: w30.best },
     inrange1: { at: first(inRange), progress: inRange.length },
     inrange7: { at: r7.at, progress: r7.best },
     rainbow: { at: rainbowAt, progress: rainbowBest },

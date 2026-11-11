@@ -7,7 +7,8 @@
     label1: '#AEB8C3', favorite1: '#F6C343', streak3: '#F7A440', streak7: '#0F766E', streak30: '#0F766E',
     days100: '#F7A440', days365: '#0F766E', weights10: '#4D8FD1', weeks12: '#4D8FD1', inrange1: '#5BAA4A',
     inrange7: '#5BAA4A', rainbow: '#4E9E45', entries100: '#0F766E', entries1000: '#0F766E', scans50: '#0F766E',
-    breakfast7: '#8A5530', connector: '#4D8FD1', midnight: '#F6C343'
+    breakfast7: '#8A5530', connector: '#4D8FD1', midnight: '#F6C343',
+    water1: '#4D8FD1', water7: '#4D8FD1', water30: '#4D8FD1'
   };
 </script>
 

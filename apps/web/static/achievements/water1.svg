@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+  <!-- Mealler achievement: water1 (bronze) -->
+  <g>
+    <defs><clipPath id="water1-bottle"><path d="M21 14h12v4c0 3 8 5 8 12v20a6 6 0 0 1-6 6H19a6 6 0 0 1-6-6V30c0-7 8-9 8-12z"/></clipPath></defs>
+    <path d="M21 14h12v4c0 3 8 5 8 12v20a6 6 0 0 1-6 6H19a6 6 0 0 1-6-6V30c0-7 8-9 8-12z" fill="#FFFFFF"/>
+    <g clip-path="url(#water1-bottle)"><rect x="10" y="31" width="34" height="30" fill="#4D8FD1"/><rect x="10" y="31" width="34" height="2.5" fill="#7FB0E3"/></g>
+    <path d="M17.5 36v13" stroke="#FFFFFF" stroke-opacity="0.75" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M21 14h12v4c0 3 8 5 8 12v20a6 6 0 0 1-6 6H19a6 6 0 0 1-6-6V30c0-7 8-9 8-12z" fill="none" stroke="#14181D" stroke-width="3" stroke-linejoin="round"/>
+    <rect x="19" y="6" width="16" height="9" rx="2.5" fill="#0F766E" stroke="#14181D" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M48 7c4 5.5 6 8.5 6 11.5a6 6 0 0 1-12 0c0-3 2-6 6-11.5z" fill="#4D8FD1" stroke="#14181D" stroke-width="3" stroke-linejoin="round"/>
+    <ellipse cx="46" cy="18" rx="1.6" ry="2.6" fill="#A9CDF0"/>
+  </g>
+  <g>
+    <path d="M42 38L37 30H44L49 38Z" fill="#E04F3F" stroke="#14181D" stroke-width="2.4" stroke-linejoin="round"/>
+    <path d="M56 38L61 30H54L49 38Z" fill="#0F766E" stroke="#14181D" stroke-width="2.4" stroke-linejoin="round"/>
+    <circle cx="49" cy="50" r="11" fill="#C98A4B" stroke="#14181D" stroke-width="3"/>
+    <circle cx="49" cy="50" r="7.2" fill="none" stroke="#E6B98A" stroke-width="1.6"/>
+    <path d="M49 45L50.8 48.6L54.6 49.1L51.8 51.7L52.5 55.5L49 53.6L45.5 55.5L46.2 51.7L43.4 49.1L47.2 48.6Z" fill="#E6B98A" stroke="#14181D" stroke-width="1.2" stroke-linejoin="round"/></g>
+</svg>

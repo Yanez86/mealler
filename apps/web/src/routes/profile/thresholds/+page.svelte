@@ -1,9 +1,10 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { NUTRIENTS, NUTRIENT_UNITS, type Nutrient, type Threshold } from '@mealler/shared';
-  import { get, put } from '$lib/api';
-  import { app, errorMessage, parseNumber, t } from '$lib/state.svelte';
+  import { NUTRIENTS, NUTRIENT_UNITS, type Nutrient, type Threshold, type User } from '@mealler/shared';
+  import { get, patch, put } from '$lib/api';
+  import { app, errorMessage, parseNumber, setUser, t } from '$lib/state.svelte';
+  import { glassFrom, glassIn, glassUnit, goalFrom, goalIn, goalUnit } from '$lib/water';
   import Icon from '$lib/Icon.svelte';
   import TopBar from '$lib/TopBar.svelte';
 
@@ -20,6 +21,11 @@
 
   const toText = (n: number | null) => (n == null ? '' : String(n).replace('.', app.locale === 'it' ? ',' : '.'));
   const toNumber = (s: string): number | null => parseNumber(s) ?? null;
+
+  // Water: goal and glass are kept in ml, typed in litres and ml (or fl oz with US units).
+  let waterEnabled = $state(app.user?.waterEnabled ?? true);
+  let waterGoal = $state(toText(goalIn(app.user?.waterGoalMl ?? 2000)));
+  let waterGlass = $state(toText(glassIn(app.user?.waterGlassMl ?? 250)));
 
   onMount(async () => {
     try {
@@ -72,8 +78,19 @@
       error = t('thresholds.invalid');
       return;
     }
+    const goal = toNumber(waterGoal);
+    const glass = toNumber(waterGlass);
+    const goalMl = goal == null ? null : goalFrom(goal);
+    const glassMl = glass == null ? null : glassFrom(glass);
+    if (goalMl == null || glassMl == null || goalMl < 200 || goalMl > 10000 || glassMl < 20 || glassMl > 2000) {
+      const goalText = (ml: number) => `${toText(goalIn(ml))} ${goalUnit()}`;
+      const glassText = (ml: number) => `${toText(glassIn(ml))} ${glassUnit()}`;
+      error = t('water.invalid', { goalMin: goalText(200), goalMax: goalText(10000), glassMin: glassText(20), glassMax: glassText(2000) });
+      return;
+    }
     try {
       await put('/thresholds', { items });
+      setUser(await patch<User>('/me', { waterEnabled, waterGoalMl: goalMl, waterGlassMl: glassMl }));
       saved = true;
     } catch (e) {
       error = errorMessage(e);
@@ -116,6 +133,24 @@
         </div>
       </fieldset>
     {/each}
+    <fieldset class="card water">
+      <legend class="label">{t('water.title')}</legend>
+      <label class="check">
+        <input type="checkbox" bind:checked={waterEnabled} />
+        <span>{t('water.show')}</span>
+      </label>
+      <div class="pair">
+        <div class="field">
+          <label for="water-goal">{t('water.goal')} <span class="muted small">({goalUnit()})</span></label>
+          <input id="water-goal" inputmode="decimal" autocomplete="off" bind:value={waterGoal} />
+        </div>
+        <div class="field">
+          <label for="water-glass">{t('water.glass')} <span class="muted small">({glassUnit()})</span></label>
+          <input id="water-glass" inputmode="decimal" autocomplete="off" bind:value={waterGlass} />
+        </div>
+      </div>
+      <p class="help">{t('water.help')}</p>
+    </fieldset>
     {#if error}<p class="error" role="alert">{error}</p>{/if}
     {#if saved}<p class="notice" role="status">{t('common.saved')}</p>{/if}
     <button class="btn btn-primary btn-block" type="submit">{t('common.save')}</button>
@@ -131,6 +166,31 @@
     width: 100%;
     padding: 0;
     margin-bottom: 12px;
+  }
+  .water {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .water legend {
+    margin-bottom: 0;
+  }
+  /* A label on two lines must not push its field down: the two fields stay level. */
+  .water .pair {
+    align-items: end;
+  }
+  .check {
+    clear: both;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 44px;
+  }
+  .check input {
+    width: 22px;
+    height: 22px;
+    flex: none;
+    accent-color: var(--accent);
   }
   .pair {
     clear: both;

@@ -23,7 +23,7 @@ import {
   type User
 } from '@mealler/shared';
 import type { Db } from './db/index.ts';
-import { entries, settings, slotSkips, slots, thresholds, users } from './db/schema.ts';
+import { entries, settings, slotSkips, slots, thresholds, users, water } from './db/schema.ts';
 import type { UserRow } from './auth.ts';
 
 export function toUser(row: UserRow): User {
@@ -45,7 +45,10 @@ export function toUser(row: UserRow): User {
     weightReminderEnabled: row.weightReminderEnabled,
     weightReminderWeeks: row.weightReminderWeeks,
     weightReminderWeekday: row.weightReminderWeekday,
-    weightReminderTime: row.weightReminderTime
+    weightReminderTime: row.weightReminderTime,
+    waterEnabled: row.waterEnabled,
+    waterGoalMl: row.waterGoalMl,
+    waterGlassMl: row.waterGlassMl
   };
 }
 
@@ -224,6 +227,28 @@ function skippedOn(db: Db, userId: number, from: string, to: string) {
     .all();
 }
 
+/** Water drunk on a day, in ml. */
+export function waterOn(db: Db, userId: number, date: string): number {
+  return (
+    db
+      .select({ ml: sql<number | null>`sum(${water.ml})` })
+      .from(water)
+      .where(and(eq(water.userId, userId), eq(water.date, date)))
+      .get()?.ml ?? 0
+  );
+}
+
+/** Water per day between two dates (days without any are left out). */
+export function waterByDay(db: Db, userId: number, from: string, to: string): Map<string, number> {
+  const rows = db
+    .select({ date: water.date, ml: sql<number>`sum(${water.ml})` })
+    .from(water)
+    .where(and(eq(water.userId, userId), between(water.date, from, to)))
+    .groupBy(water.date)
+    .all();
+  return new Map(rows.map((r) => [r.date, r.ml]));
+}
+
 /** Everything the day view needs: slots active that day (plus any with entries), entries, totals vs thresholds. */
 export function buildDay(db: Db, user: UserRow, date: string): DayResponse {
   const dayEntries = db
@@ -248,7 +273,7 @@ export function buildDay(db: Db, user: UserRow, date: string): DayResponse {
     const { min, max } = limits[n];
     summary[n] = { value: totals[n], min, max, status: thresholdStatus(totals[n], min, max) };
   }
-  return { date, today: todayIn(user.timezone), slots: daySlots, summary };
+  return { date, today: todayIn(user.timezone), slots: daySlots, summary, water: waterOn(db, user.id, date) };
 }
 
 /** For each day from `from` to `to`: how many of its slots have a meal or were skipped. */

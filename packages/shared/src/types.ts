@@ -29,8 +29,27 @@ export interface User {
   weightReminderWeeks: number;
   weightReminderWeekday: number;
   weightReminderTime: string;
+  /** Shows the water card in the diary. */
+  waterEnabled: boolean;
+  /** Daily water goal, in ml. */
+  waterGoalMl: number;
+  /** What one tap on "+ Glass" adds, in ml. */
+  waterGlassMl: number;
 }
 
+/** One food of a favorite meal: it becomes its own diary entry when the favorite is used. */
+export interface FavoriteFood extends NutrientValues {
+  description: string;
+  quantity: string | null;
+  /** Ingredients, for a dish. */
+  items: EstimateItem[] | null;
+  category: FoodCategory | null;
+}
+
+/**
+ * A saved meal. `foods` lists what it is made of (one food for a favorite saved from a single food);
+ * description, quantity and values sum them up for lists and search.
+ */
 export interface Favorite extends NutrientValues {
   id: number;
   name: string;
@@ -41,6 +60,7 @@ export interface Favorite extends NutrientValues {
   items: EstimateItem[] | null;
   /** Chosen by the user; null = guessed from the name. */
   category: FoodCategory | null;
+  foods: FavoriteFood[];
 }
 
 /** A frequent meal, derived from the diary (not saved as favorite). */
@@ -62,6 +82,8 @@ export interface TrendDay extends Record<Nutrient, number> {
   date: string;
   entries: number;
   limits: Record<Nutrient, { min: number | null; max: number | null }>;
+  /** Water drunk, in ml. */
+  water: number;
 }
 
 export interface TrendsResponse {
@@ -202,6 +224,14 @@ export interface DayResponse {
   today: string;
   slots: DaySlot[];
   summary: Record<Nutrient, NutrientSummary>;
+  /** Water drunk that day, in ml. */
+  water: number;
+}
+
+/** The water of a day after adding or removing a drink. */
+export interface WaterDay {
+  date: string;
+  ml: number;
 }
 
 export interface Invite {

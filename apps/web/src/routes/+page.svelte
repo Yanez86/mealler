@@ -30,6 +30,7 @@
   import Icon from '$lib/Icon.svelte';
   import Swipeable from '$lib/Swipeable.svelte';
   import TopBar from '$lib/TopBar.svelte';
+  import WaterCard from '$lib/WaterCard.svelte';
   import { net, pendingFor } from '$lib/offline.svelte';
 
   const timezone = $derived(app.user?.timezone ?? 'UTC');
@@ -440,6 +441,19 @@
     {/if}
     {#if queuedMessage}<p class="notice" role="status">{queuedMessage}</p>{/if}
 
+    {#if app.user?.waterEnabled}
+      <div class="water-slot">
+        <WaterCard
+          date={day.date}
+          ml={day.water}
+          goal={app.user.waterGoalMl}
+          glass={app.user.waterGlassMl}
+          onchange={(ml) => {
+            if (loadedDay && loadedDay.date === day.date) loadedDay.water = ml;
+          }} />
+      </div>
+    {/if}
+
     <section class="meals" aria-labelledby="meals-title">
       <div class="meals-head">
         <h2 id="meals-title" class="section-title">{t('day.meals')}</h2>
@@ -649,6 +663,9 @@
     font-weight: 500;
   }
   .calc-all {
+    margin-top: 16px;
+  }
+  .water-slot {
     margin-top: 16px;
   }
   .meals {

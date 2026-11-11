@@ -15,9 +15,9 @@ import {
 } from '@mealler/shared';
 import type { AppContext } from '../app.ts';
 import { requireUser } from '../auth.ts';
-import { entries, favorites, slots, thresholds, weights } from '../db/schema.ts';
+import { entries, favorites, slots, thresholds, water, weights } from '../db/schema.ts';
 import { badRequest } from '../http.ts';
-import { parseItems, toEntry, toSlot, toUser } from '../services.ts';
+import { parseItems, toEntry, toSlot, toUser, waterByDay } from '../services.ts';
 import { zDate } from '../validation.ts';
 import { aiStatus } from '../ai.ts';
 import { userAchievements } from '../achievements.ts';
@@ -62,6 +62,7 @@ export async function insightRoutes(app: FastifyInstance, { db, ai }: AppContext
       .where(eq(thresholds.userId, user.id))
       .orderBy(asc(thresholds.validFrom), asc(thresholds.id))
       .all();
+    const drunk = waterByDay(db, user.id, from, to);
     const days: TrendDay[] = daysBetween(from, to).map((date) => {
       const list = rows.filter((e) => e.date === date);
       const totals = sumValues(list);
@@ -71,7 +72,7 @@ export async function insightRoutes(app: FastifyInstance, { db, ai }: AppContext
         for (const l of limits) if (l.nutrient === n && l.validFrom <= date) current = { min: l.min, max: l.max };
         dayLimits[n] = current;
       }
-      return { date, entries: list.length, ...totals, limits: dayLimits };
+      return { date, entries: list.length, ...totals, limits: dayLimits, water: drunk.get(date) ?? 0 };
     });
     return { from, to, days };
   });
@@ -135,6 +136,12 @@ export async function insightRoutes(app: FastifyInstance, { db, ai }: AppContext
         .from(weights)
         .where(eq(weights.userId, user.id))
         .orderBy(asc(weights.date))
+        .all(),
+      water: db
+        .select({ date: water.date, ml: water.ml, at: water.createdAt })
+        .from(water)
+        .where(eq(water.userId, user.id))
+        .orderBy(asc(water.date), asc(water.createdAt))
         .all(),
       favorites: db.select().from(favorites).where(eq(favorites.userId, user.id)).all()
     };

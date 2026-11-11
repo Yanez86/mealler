@@ -1,5 +1,6 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
-<!-- Add or edit a meal. Each food is a row of its own and is saved as its own diary entry. -->
+<!-- Add or edit a meal. Each food is a row of its own and is saved as its own diary entry.
+     With ?favorite=new or ?favorite=<id> the same form makes or edits a favorite meal instead. -->
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
@@ -14,10 +15,12 @@
     type Entry,
     type Estimate,
     type Favorite,
+    type FavoriteFood,
+    type Product,
     type Slot,
     type Suggestion
   } from '@mealler/shared';
-  import { ApiError, del, get, patch, post } from '$lib/api';
+  import { ApiError, del, get, patch, post, put } from '$lib/api';
   import { preparePhoto, type PreparedPhoto } from '$lib/image';
   import { reveal } from '$lib/reveal';
   import { enqueueEntry, net, newClientId } from '$lib/offline.svelte';
@@ -47,6 +50,10 @@
 
   const params = page.url.searchParams;
   const entryId = Number(params.get('entry')) || null;
+  // The favorite editor: a name, an optional usual meal and the foods; no date, notes or photo kept.
+  const favoriteMode = params.has('favorite');
+  const favoriteEditId = Number(params.get('favorite')) || null;
+  let favoriteName = $state('');
   const today = todayIn(app.user?.timezone ?? 'UTC');
   const units = app.user?.units ?? 'metric';
   const locale = app.locale;
@@ -95,7 +102,7 @@
   }
 
   $effect(() => {
-    if (!loaded || entryId) return;
+    if (!loaded || entryId || favoriteMode) return;
     const draft = JSON.stringify({ for: draftFor, at: Date.now(), slotId, notes, photoId, rows });
     try {
       sessionStorage.setItem(DRAFT, draft);
@@ -125,7 +132,10 @@
   const named = $derived(rows.filter((r) => r.name.trim()));
   // New foods without values (the entry being edited keeps its own status).
   const missingValues = $derived(named.filter((r) => !hasValues(r) && !(entryId && r === rows[0])));
-  const back = $derived(date === today ? '/' : `/?d=${date}`);
+  const back = $derived(favoriteMode ? '/favorites' : date === today ? '/' : `/?d=${date}`);
+  const pageTitle = $derived(
+    favoriteMode ? t(favoriteEditId ? 'fav.editTitle' : 'fav.newTitle') : entryId ? t('entry.titleEdit') : t('entry.titleNew')
+  );
 
   onMount(async () => {
     try {
@@ -155,6 +165,11 @@
         }
       }
       slots = all;
+      if (favoriteMode) {
+        await loadFavorite(all);
+        loaded = true;
+        return;
+      }
       if (!slotId && all.length) {
         // No slot asked for: today, the latest one whose time has come; otherwise the first.
         const now = new Intl.DateTimeFormat('en-GB', { timeZone: app.user?.timezone ?? 'UTC', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date());
@@ -226,37 +241,59 @@
 
   // ---------- Favorites ----------
 
-  /** A favorite or a frequent meal fills an empty row, or adds one: no new estimate needed. */
-  function useQuick(q: Favorite | Suggestion) {
-    let row = rows.find((r) => !r.name.trim() && !hasValues(r));
-    if (!row) {
-      rows.push(newRow(units));
-      row = rows[rows.length - 1];
-    }
-    row.name = q.description;
-    setQuantityText(row, q.quantity, units, locale);
-    setValues(row, q, locale);
-    row.items = q.items;
-    row.category = q.category;
-    row.estimatedValues = null;
-    row.estimate = null;
-    row.favoriteId = 'id' in q ? q.id : null;
+  /** An empty row to fill, or a new one at the end. */
+  function freeRow(): FoodRow {
+    const row = rows.find((r) => !r.name.trim() && !hasValues(r));
+    if (row) return row;
+    rows.push(newRow(units));
+    return rows[rows.length - 1];
   }
 
+  /** Puts a saved food on a row: no new estimate needed. */
+  function fillRow(row: FoodRow, food: FavoriteFood | Suggestion) {
+    row.name = food.description;
+    setQuantityText(row, food.quantity, units, locale);
+    setValues(row, food, locale);
+    row.items = food.items;
+    row.category = food.category;
+    row.estimatedValues = null;
+    row.estimate = null;
+  }
+
+  /**
+   * A favorite or a frequent meal fills an empty row, or adds one; a favorite of several foods adds a row
+   * for each, to change or remove before saving. Its first row counts the use of the favorite.
+   */
+  function useQuick(q: Favorite | Suggestion) {
+    const foods = 'foods' in q ? q.foods : [q];
+    foods.forEach((food, i) => {
+      const row = freeRow();
+      fillRow(row, food);
+      row.favoriteId = 'id' in q && i === 0 && !favoriteMode ? q.id : null;
+    });
+  }
+
+  const foodOf = (row: FoodRow): FavoriteFood => ({
+    description: row.name.trim(),
+    quantity: rowQuantity(row, locale),
+    ...rowValues(row),
+    items: row.items,
+    category: row.category
+  });
+
+  /** "Save to favorites" under a meal: one food keeps its own name, several ask for one. */
   async function saveFavorite() {
-    const row = named[0];
-    if (!row || busy) return;
+    if (!named.length || busy) return;
+    let name: string | null = null;
+    if (named.length > 1) {
+      name = prompt(t('fav.namePrompt'), slots.find((s) => s.id === slotId)?.name ?? '')?.trim() || null;
+      if (!name) return;
+    }
     busy = true;
     error = '';
     try {
-      await post('/favorites', {
-        description: row.name.trim(),
-        quantity: rowQuantity(row, locale),
-        ...rowValues(row),
-        items: row.items,
-        slotId,
-        category: row.category
-      });
+      if (name) await post('/favorites', { name, slotId, foods: named.map(foodOf) });
+      else await post('/favorites', { ...foodOf(named[0]), slotId });
       favSaved = true;
     } catch (e) {
       error = errorMessage(e);
@@ -265,8 +302,76 @@
     }
   }
 
+  // ---------- Favorite editor ----------
+
+  async function loadFavorite(all: Slot[]) {
+    favoritesList = await get<Favorite[]>('/favorites').catch(() => []);
+    if (!favoriteEditId) {
+      slotId = null;
+      return;
+    }
+    const fav = favoritesList.find((f) => f.id === favoriteEditId);
+    if (!fav) {
+      error = t('error.notFound');
+      return;
+    }
+    favoriteName = fav.name;
+    slotId = fav.slotId && all.some((s) => s.id === fav.slotId) ? fav.slotId : null;
+    rows = fav.foods.map((food) => {
+      const row = newRow(units);
+      fillRow(row, food);
+      return row;
+    });
+  }
+
+  /** A food from the library becomes a row with its values for the amount chosen. */
+  function pickProduct(p: Product, grams: number) {
+    const row = freeRow();
+    const f = grams / 100;
+    const r = (v: number) => Math.round(v * f * 10) / 10;
+    row.name = [p.name, p.brand].filter(Boolean).join(' ');
+    setQuantity(row, { amount: Math.round(grams * 10) / 10, unit: 'g' }, units, locale);
+    setValues(row, { kcal: r(p.kcal), protein: r(p.protein), carbs: r(p.carbs), fat: r(p.fat), fiber: p.fiber == null ? null : r(p.fiber) }, locale);
+    row.items = null;
+    row.category = p.category;
+    row.estimatedValues = null;
+    row.estimate = null;
+  }
+
+  async function saveFavoriteMeal(event: SubmitEvent) {
+    event.preventDefault();
+    splitAll();
+    const list = rows.filter((r) => r.name.trim());
+    error = '';
+    if (!favoriteName.trim() || !list.length) {
+      error = t('fav.needNameFoods');
+      return;
+    }
+    if (list.some(hasBadNumber)) {
+      error = t('error.number');
+      return;
+    }
+    // A favorite is used without new estimates: every food needs its values.
+    const missing = list.filter((r) => !hasValues(r));
+    if (missing.length) {
+      error = t('fav.needValues', { names: missing.map((r) => r.name.trim()).join(', ') });
+      return;
+    }
+    busy = true;
+    try {
+      const body = { name: favoriteName.trim(), slotId, foods: list.map(foodOf) };
+      if (favoriteEditId) await put(`/favorites/${favoriteEditId}`, body);
+      else await post('/favorites', body);
+      await goto('/favorites', { replaceState: true });
+    } catch (e) {
+      error = errorMessage(e);
+    } finally {
+      busy = false;
+    }
+  }
+
   const quick = $derived([
-    ...favoritesList.map((f) => ({ key: `f${f.id}`, label: f.name, star: true, value: f as Favorite | Suggestion })),
+    ...favoritesList.filter((f) => f.id !== favoriteEditId).map((f) => ({ key: `f${f.id}`, label: f.name, star: true, value: f as Favorite | Suggestion })),
     ...suggestions
       .filter((s) => !favoritesList.some((f) => f.description.toLowerCase() === s.description.toLowerCase()))
       .map((s) => ({ key: `s${s.description}`, label: s.description, star: false, value: s as Favorite | Suggestion }))
@@ -486,24 +591,34 @@
   }
 </script>
 
-<svelte:head><title>{entryId ? t('entry.titleEdit') : t('entry.titleNew')} · Mealler</title></svelte:head>
+<svelte:head><title>{pageTitle} · Mealler</title></svelte:head>
 
 <main class="page">
   <TopBar
-    title={entryId ? t('entry.titleEdit') : t('entry.titleNew')}
-    subtitle={formatDate(date, { weekday: 'short', day: 'numeric', month: 'short' })}>
+    title={pageTitle}
+    subtitle={favoriteMode ? '' : formatDate(date, { weekday: 'short', day: 'numeric', month: 'short' })}
+    section={favoriteMode ? 'favorites' : undefined}>
     {#snippet actions()}
       <a class="icon-btn" href={back} aria-label={t('common.close')} onclick={clearDraft}><Icon name="close" /></a>
     {/snippet}
   </TopBar>
 
   {#if loaded}
-    <form class="stack" onsubmit={save}>
+    <form class="stack" onsubmit={favoriteMode ? saveFavoriteMeal : save}>
+      {#if favoriteMode}
+        <div class="field">
+          <label for="fav-name">{t('fav.name')}</label>
+          <input id="fav-name" required maxlength="100" placeholder={t('fav.namePlaceholder')} bind:value={favoriteName} />
+        </div>
+      {/if}
       <fieldset class="field" style="border: none; margin: 0; padding: 0; min-width: 0">
-        <legend class="label" style="padding: 0; margin-bottom: 8px">{t('entry.slot')}</legend>
+        <legend class="label" style="padding: 0; margin-bottom: 8px">
+          {#if favoriteMode}{t('fav.usualSlot')} <span class="muted small">({t('common.optional')})</span>{:else}{t('entry.slot')}{/if}
+        </legend>
         <div class="chips">
           {#each slots as slot (slot.id)}
-            <button type="button" class="chip" aria-pressed={slotId === slot.id} onclick={() => (slotId = slot.id)}>
+            <!-- In the favorite editor the usual meal can be left out: a second tap clears it. -->
+            <button type="button" class="chip" aria-pressed={slotId === slot.id} onclick={() => (slotId = favoriteMode && slotId === slot.id ? null : slot.id)}>
               {#if slotId === slot.id}<Icon name="check" size={18} stroke={2.5} />{/if}
               {slot.name}
             </button>
@@ -517,6 +632,8 @@
           {slotId}
           {date}
           productId={Number(params.get('product')) || null}
+          onpick={favoriteMode ? pickProduct : undefined}
+          back={favoriteMode ? `/add?favorite=${favoriteEditId ?? 'new'}` : null}
           onlogged={() => {
             if (named.length) libraryMessage = t('foods.logged');
             else {
@@ -542,7 +659,7 @@
 
       <section class="what" aria-labelledby="what-title">
         <div class="what-head">
-          <h2 id="what-title" class="label">{t('entry.what')}</h2>
+          <h2 id="what-title" class="label">{favoriteMode ? t('fav.what') : t('entry.what')}</h2>
           <button class="tips-btn" type="button" popovertarget="tips" aria-label={t('entry.tipsOpen')}>?</button>
         </div>
         <div id="tips" class="tips card" popover aria-labelledby="tips-title">
@@ -598,7 +715,7 @@
       {/if}
       {#if !aiUsable && ai?.enabled !== false}
         <p class="help">{t('entry.valuesHelp')}</p>
-      {:else if aiUsable && missingValues.length}
+      {:else if aiUsable && missingValues.length && !favoriteMode}
         <p class="help">{t('ai.laterHint')}</p>
       {/if}
 
@@ -606,7 +723,7 @@
         <p class="notice" role="status"><Estimating /></p>
       {/if}
 
-      {#if photo || existingPhotoId}
+      {#if (photo || existingPhotoId) && !favoriteMode}
         <figure class="photo">
           <img src={photo?.previewUrl ?? `/api/photos/${existingPhotoId}`} alt={t('ai.photoAlt')} />
           {#if photo}
@@ -615,24 +732,32 @@
         </figure>
       {/if}
 
-      <div class="field">
-        <label for="date">{t('entry.date')}</label>
-        <input id="date" type="date" required bind:value={date} />
-      </div>
+      {#if !favoriteMode}
+        <div class="field">
+          <label for="date">{t('entry.date')}</label>
+          <input id="date" type="date" required bind:value={date} />
+        </div>
 
-      <div class="field">
-        <label for="notes">{t('entry.notes')} <span class="muted small">({t('common.optional')})</span></label>
-        <textarea id="notes" rows="2" maxlength="2000" aria-describedby={named.length > 1 ? 'notes-help' : undefined} bind:value={notes}></textarea>
-        {#if named.length > 1}<p id="notes-help" class="help">{t('entry.notesFirst')}</p>{/if}
-      </div>
+        <div class="field">
+          <label for="notes">{t('entry.notes')} <span class="muted small">({t('common.optional')})</span></label>
+          <textarea id="notes" rows="2" maxlength="2000" aria-describedby={named.length > 1 ? 'notes-help' : undefined} bind:value={notes}></textarea>
+          {#if named.length > 1}<p id="notes-help" class="help">{t('entry.notesFirst')}</p>{/if}
+        </div>
+      {/if}
 
       {#if error}<p class="error" role="alert" use:reveal>{error}</p>{/if}
 
       <div class="footer">
-        <button class="btn btn-primary btn-block" type="submit" disabled={busy || estimating || !slotId}>
-          {named.length > 1 ? t('entry.saveMany', { n: named.length }) : t('entry.save')}
-        </button>
-        {#if named.length === 1 && hasValues(named[0])}
+        {#if favoriteMode}
+          <button class="btn btn-primary btn-block" type="submit" disabled={busy || estimating}>
+            <Icon name="star" size={20} />{t('fav.saveMeal')}
+          </button>
+        {:else}
+          <button class="btn btn-primary btn-block" type="submit" disabled={busy || estimating || !slotId}>
+            {named.length > 1 ? t('entry.saveMany', { n: named.length }) : t('entry.save')}
+          </button>
+        {/if}
+        {#if !favoriteMode && named.length && named.every(hasValues)}
           <button class="btn btn-block" type="button" disabled={busy || favSaved} onclick={saveFavorite}>
             <Icon name="star" size={20} />{favSaved ? t('fav.saved') : t('fav.save')}
           </button>

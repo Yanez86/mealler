@@ -3,6 +3,23 @@
 Tutte le modifiche rilevanti di Mealler sono annotate qui.
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il [versionamento semantico](https://semver.org/lang/it/).
 
+## [1.6.0] - 2026-11-11
+
+### Aggiunto
+- Acqua: nel Diario una bottiglia si riempie a ogni tocco su «Bicchiere», fino all'obiettivo del giorno. Il pulsante «−» toglie l'ultimo bicchiere.
+- In Profilo → Soglie si scelgono l'obiettivo giornaliero d'acqua e la misura del bicchiere, e si può nascondere l'acqua dal Diario.
+- In Andamento c'è la scheda «Acqua», con il grafico dei giorni e quanti hanno raggiunto l'obiettivo.
+- Tre nuovi traguardi per l'acqua.
+- Con il connettore di claude.ai si può segnare anche l'acqua bevuta.
+- Pasti preferiti di più alimenti: in Preferiti si crea un pasto nuovo, e la matita apre il pasto per modificarlo.
+- «Salva nei preferiti» funziona anche per un pasto di più alimenti.
+
+### Modificato
+- Un preferito di più alimenti riempie la schermata del pasto con un alimento per riga: prima di salvare si possono cambiare le quantità o togliere qualcosa.
+
+### Corretto
+- Corretto un problema relativo al testo sotto i pasti nell'elenco dei Preferiti.
+
 ## [1.5.2] - 2026-11-11
 
 ### Aggiunto
