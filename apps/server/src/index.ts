@@ -9,10 +9,26 @@ import { createSecretBox, loadSecretKey } from './secrets.ts';
 import { openFoodFactsLookup } from './foods.ts';
 import { users } from './db/schema.ts';
 import { eq } from 'drizzle-orm';
+import { createPasswordReset } from './auth.ts';
+import { findUserByEmail } from './services.ts';
 
 const config = loadConfig();
 const { sqlite, db } = openDatabase(config.dataDir);
 const applied = migrate(sqlite, config.migrationsDir);
+
+// When nobody can sign in as administrator any more:
+//   docker exec mealler node dist/index.js reset-password nome@esempio.it
+// prints a one-time link to set a new password, next to the running server.
+if (process.argv[2] === 'reset-password') {
+  const user = findUserByEmail(db, process.argv[3] ?? '');
+  if (!user) {
+    console.error('Nessun account con questo indirizzo email. / No account with this email address.');
+    process.exit(1);
+  }
+  const link = `${config.baseUrl ?? 'http://INDIRIZZO-DI-MEALLER'}/reset?token=${createPasswordReset(db, user.id)}`;
+  console.log(`Link per scegliere una nuova password, valido 24 ore / Link to set a new password, valid 24 hours:\n${link}`);
+  process.exit(0);
+}
 
 const push = createPushSender(db, config);
 const aiBase = { db, secrets: createSecretBox(loadSecretKey(config.dataDir)), call: anthropicFetch, dataDir: config.dataDir };

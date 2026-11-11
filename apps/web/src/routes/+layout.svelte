@@ -19,7 +19,7 @@
   let splashMessage = $state(t('splash.starting'));
   const SPLASH_MIN_MS = 700;
 
-  const PUBLIC = ['/login', '/setup', '/register'];
+  const PUBLIC = ['/login', '/setup', '/register', '/reset'];
   const path = $derived(page.url.pathname);
   const isPublic = $derived(PUBLIC.includes(path));
 

@@ -135,7 +135,7 @@ Il modo più semplice, a container fermo per qualche secondo:
 cd ~/mealler
 docker compose stop mealler
 docker run --rm -v mealler_mealler-data:/data -v "$PWD":/backup alpine \
-  tar czf /backup/mealler-$(date +%F).tar.gz -C /data .
+  sh -c "umask 077 && tar czf /backup/mealler-$(date +%F).tar.gz -C /data ."
 docker compose start mealler
 ```
 
@@ -148,9 +148,10 @@ docker exec mealler node -e "require('better-sqlite3')('/data/mealler.db').backu
 docker cp mealler:/data/backup.db ./mealler-$(date +%F).db
 docker cp mealler:/data/secret.key ./secret.key
 docker exec mealler rm /data/backup.db
+chmod 600 mealler-*.db secret.key
 ```
 
-Conserva i backup fuori dal NAS: contengono dati sanitari personali, trattali con cura.
+Un backup contiene i diari, le foto e `secret.key`, cioè tutto quello che serve per leggere i dati e decifrare la chiave API: i comandi qui sopra lo creano leggibile solo dal suo proprietario (`umask 077`, `chmod 600`), e `aggiorna.sh` fa lo stesso con la cartella `backups/`. Conserva i backup fuori dal NAS: contengono dati sanitari personali, trattali con cura.
 
 ## 5. Ripristino
 
@@ -199,7 +200,17 @@ Le migrazioni del database partono da sole all'avvio. Fai un backup prima degli 
 
 Per tornare a una versione precedente, imposta il suo tag in `image:` e ripristina il backup fatto prima dell'aggiornamento: le migrazioni non si annullano da sole.
 
-## 7. Problemi frequenti
+## 7. Password dimenticata
+
+Un amministratore apre **Profilo → Amministrazione → Utenti** e tocca **Link nuova password** accanto all'utente: il link, valido 24 ore e usabile una volta, viene copiato e va mandato all'utente, che sceglie da sé la nuova password. Chi la reimposta viene disconnesso da tutti i dispositivi e dalle app collegate con il connettore.
+
+Se a non poter più entrare è l'unico amministratore, crea il link dal server:
+
+```bash
+docker exec mealler node dist/index.js reset-password nome@esempio.it
+```
+
+## 8. Problemi frequenti
 
 - **`port is already allocated`**: un altro servizio usa la porta. Cambia `MEALLER_PORT` nel file `.env` (es. `3080`).
 - **`no configuration file provided`**: esegui i comandi dalla cartella `mealler`, dove si trova `docker-compose.yml`.

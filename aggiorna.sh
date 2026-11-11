@@ -138,11 +138,12 @@ main() {
   local file=""
   if [ "$backup" = 1 ]; then
     step "Backup dei dati"
-    mkdir -p backups
+    # Dentro ci sono diari, foto e la chiave di cifratura: cartella e file leggibili solo da chi li crea.
+    mkdir -p backups && chmod 700 backups
     file="backups/mealler-$(date +%Y%m%d-%H%M%S).tgz"
     # A Mealler fermo il database è coerente; il backup legge il volume da un container temporaneo.
     "${COMPOSE[@]}" stop mealler > /dev/null 2>&1 || true
-    if ! "${COMPOSE[@]}" run --rm --no-deps -T --entrypoint tar mealler czf - -C /data . > "$file" || [ ! -s "$file" ]; then
+    if ! (umask 077 && "${COMPOSE[@]}" run --rm --no-deps -T --entrypoint tar mealler czf - -C /data . > "$file") || [ ! -s "$file" ]; then
       rm -f "$file"
       "${COMPOSE[@]}" up -d > /dev/null 2>&1 || true
       die "Backup non riuscito: Mealler è ripartito con l'immagine nuova, controlla con  docker compose logs mealler"

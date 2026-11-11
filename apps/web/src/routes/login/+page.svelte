@@ -48,4 +48,5 @@
       {t('login.noAccount')}
     {/if}
   </p>
+  <p class="muted small">{t('login.forgot')}</p>
 </main>

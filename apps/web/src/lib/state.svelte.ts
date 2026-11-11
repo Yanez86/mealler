@@ -73,6 +73,8 @@ export function errorMessage(error: unknown): string {
       case 'invalidInvite':
       case 'inviteEmailMismatch':
         return t('register.invalidInvite');
+      case 'invalidReset':
+        return t('reset.invalid');
       case 'registrationClosed':
         return t('register.closed');
       case 'thresholdRange':

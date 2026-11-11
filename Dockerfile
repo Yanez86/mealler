@@ -10,12 +10,11 @@ RUN apt-get update \
 RUN npm install -g pnpm@10
 WORKDIR /app
 COPY . .
-RUN pnpm install --no-frozen-lockfile
+# The lockfile decides every version: the image holds what was tested, not whatever is newest today.
+RUN pnpm install --frozen-lockfile
 RUN pnpm build
-# Runtime dependencies of the server only (the shared workspace package is bundled into dist).
-RUN mkdir -p /prod \
-  && node -e "const p=require('./apps/server/package.json');delete p.devDependencies;p.scripts={start:'node dist/index.js'};require('fs').writeFileSync('/prod/package.json',JSON.stringify(p,null,2))" \
-  && cd /prod && npm install --omit=dev --no-package-lock --no-audit --no-fund
+# Runtime dependencies of the server only, from the same lockfile (the shared workspace package is bundled into dist).
+RUN pnpm --filter @mealler/server deploy --prod --legacy /prod
 
 # ---------- runtime ----------
 FROM node:22-bookworm-slim

@@ -55,6 +55,12 @@ export const sessions = sqliteTable('sessions', {
   createdAt: text('created_at').notNull().$defaultFn(now)
 });
 
+export const passwordResets = sqliteTable('password_resets', {
+  tokenHash: text('token_hash').primaryKey(),
+  userId: integer('user_id').notNull(),
+  expiresAt: integer('expires_at').notNull()
+});
+
 export const invites = sqliteTable('invites', {
   token: text('token').primaryKey(),
   email: text('email'),

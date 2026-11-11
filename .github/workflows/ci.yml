@@ -14,7 +14,7 @@ jobs:
         with:
           node-version: 22
       - run: npm install -g pnpm@10
-      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm install --frozen-lockfile
       - name: Typecheck
         run: pnpm -r --no-bail typecheck
       - name: Test

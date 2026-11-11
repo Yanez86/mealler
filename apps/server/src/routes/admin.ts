@@ -4,7 +4,7 @@ import { and, asc, desc, eq, gt, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Invite } from '@mealler/shared';
 import type { AppContext } from '../app.ts';
-import { hashPassword, randomToken, requireAdmin } from '../auth.ts';
+import { createPasswordReset, hashPassword, randomToken, requireAdmin } from '../auth.ts';
 import { invites, sessions, users } from '../db/schema.ts';
 import { badRequest, conflict, notFound } from '../http.ts';
 import {
@@ -64,6 +64,13 @@ export async function adminRoutes(app: FastifyInstance, { db, config }: AppConte
     const updated = db.update(users).set(body).where(eq(users.id, id)).returning().get();
     if (body.active === false) db.delete(sessions).where(eq(sessions.userId, id)).run();
     return toUser(updated);
+  });
+
+  // A forgotten password: the administrator hands the user a one-time link, and never learns the new password.
+  app.post('/users/:id/reset', async (request) => {
+    const { id } = z.object({ id: zId }).parse(request.params);
+    if (!db.select().from(users).where(eq(users.id, id)).get()) throw notFound();
+    return { url: `${origin(request)}/reset?token=${createPasswordReset(db, id)}` };
   });
 
   app.get('/invites', async (request): Promise<Invite[]> =>

@@ -12,6 +12,7 @@ import {
   randomToken,
   requireUser,
   sha256,
+  usePasswordReset,
   verifyPassword
 } from '../auth.ts';
 import { invites, oauthTokens, sessions, users } from '../db/schema.ts';
@@ -101,6 +102,15 @@ export async function authRoutes(app: FastifyInstance, { db, config, ai }: AppCo
     guard.clear(body.email);
     createSession(db, request, reply, user.id);
     return toUser(user);
+  });
+
+  // The other half of the reset link an administrator hands out (or the server's command line prints).
+  app.post('/auth/reset', { config: strict }, async (request) => {
+    const body = z.object({ token: z.string().max(100), password: zPassword }).parse(request.body);
+    const user = usePasswordReset(db, body.token, await hashPassword(body.password));
+    if (!user) throw forbidden('invalidReset');
+    guard.clear(user.email);
+    return { ok: true };
   });
 
   app.post('/auth/logout', async (request, reply) => {

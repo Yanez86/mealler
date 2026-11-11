@@ -15,7 +15,7 @@ import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { processPendingEntries, purgeOrphanPhotos, type AnthropicCall, type AnthropicResponse } from '../src/ai.ts';
 import { createSecretBox } from '../src/secrets.ts';
-import { users } from '../src/db/schema.ts';
+import { passwordResets, users } from '../src/db/schema.ts';
 import { eq } from 'drizzle-orm';
 
 async function setupApp(publicDir = '/nonexistent') {
@@ -541,6 +541,41 @@ test('logins: attempts are limited per real address and per account', async () =
   res = await login(admin.email, admin.password, '198.51.100.50');
   assert.equal(res.statusCode, 429);
   assert.equal(res.json().error, 'tooMany');
+
+  await app.close();
+});
+
+test('forgotten password: one-time link from an administrator, everything signed out', async () => {
+  const { app, db } = await setupApp();
+  let res = await app.inject({ method: 'POST', url: '/api/setup', payload: admin });
+  const asAdmin = { cookie: cookieOf(res) };
+  res = await app.inject({ method: 'POST', url: '/api/admin/users', headers: asAdmin, payload: { name: 'Bob', email: 'bob@example.com', password: 'another long password' } });
+  const bobId = res.json().id;
+  res = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { email: 'bob@example.com', password: 'another long password' } });
+  const asBob = { cookie: cookieOf(res) };
+
+  // Only administrators make links.
+  res = await app.inject({ method: 'POST', url: `/api/admin/users/${bobId}/reset`, headers: asBob });
+  assert.equal(res.statusCode, 403);
+  res = await app.inject({ method: 'POST', url: `/api/admin/users/${bobId}/reset`, headers: asAdmin });
+  const first = new URL(res.json().url).searchParams.get('token')!;
+  res = await app.inject({ method: 'POST', url: `/api/admin/users/${bobId}/reset`, headers: asAdmin });
+  const token = new URL(res.json().url).searchParams.get('token')!;
+  const stored = db.select().from(passwordResets).all();
+  assert.equal(stored.length, 1);
+  assert.ok(!stored[0].tokenHash.includes(token), 'reset tokens are stored hashed');
+
+  // A newer link replaces the older one; the link works once and signs Bob out everywhere.
+  const reset = (t: string) => app.inject({ method: 'POST', url: '/api/auth/reset', payload: { token: t, password: 'bob has a new password' } });
+  assert.equal((await reset(first)).json().error, 'invalidReset');
+  assert.equal((await reset(token)).statusCode, 200);
+  assert.equal((await reset(token)).json().error, 'invalidReset');
+  res = await app.inject({ method: 'GET', url: '/api/me', headers: asBob });
+  assert.equal(res.statusCode, 401);
+  res = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { email: 'bob@example.com', password: 'another long password' } });
+  assert.equal(res.statusCode, 401);
+  res = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { email: 'bob@example.com', password: 'bob has a new password' } });
+  assert.equal(res.statusCode, 200);
 
   await app.close();
 });

@@ -4,7 +4,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { and, eq, gt } from 'drizzle-orm';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { Db } from './db/index.ts';
-import { sessions, users } from './db/schema.ts';
+import { oauthTokens, passwordResets, sessions, users } from './db/schema.ts';
 import { forbidden, unauthorized } from './http.ts';
 
 export const SESSION_COOKIE = 'mealler_session';
@@ -82,6 +82,28 @@ export function loadUser(db: Db, request: FastifyRequest, reply: FastifyReply): 
     setSessionCookie(request, reply, token, expiresAt);
   }
   return row.user;
+}
+
+/** A one-time token to set a new password within 24 hours; it replaces any earlier one for the same user. */
+export function createPasswordReset(db: Db, userId: number): string {
+  const token = randomToken();
+  db.delete(passwordResets).where(eq(passwordResets.userId, userId)).run();
+  db.insert(passwordResets).values({ tokenHash: sha256(token), userId, expiresAt: Date.now() + DAY_MS }).run();
+  return token;
+}
+
+/** Sets the password chosen with a reset token and signs the user out everywhere. Returns the user, or null. */
+export function usePasswordReset(db: Db, token: string, passwordHash: string): UserRow | null {
+  const reset = db
+    .select()
+    .from(passwordResets)
+    .where(and(eq(passwordResets.tokenHash, sha256(token)), gt(passwordResets.expiresAt, Date.now())))
+    .get();
+  if (!reset) return null;
+  db.delete(passwordResets).where(eq(passwordResets.userId, reset.userId)).run();
+  db.delete(sessions).where(eq(sessions.userId, reset.userId)).run();
+  db.delete(oauthTokens).where(eq(oauthTokens.userId, reset.userId)).run();
+  return db.update(users).set({ passwordHash }).where(eq(users.id, reset.userId)).returning().get() ?? null;
 }
 
 export function requireUser(request: FastifyRequest): UserRow {

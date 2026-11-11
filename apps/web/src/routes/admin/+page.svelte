@@ -51,6 +51,8 @@
   const toggleActive = (u: User) => run(() => patch(`/admin/users/${u.id}`, { active: !u.active }));
   const setRole = (u: User, role: 'admin' | 'user') => run(() => patch(`/admin/users/${u.id}`, { role }));
   const revoke = (i: Invite) => run(() => del(`/admin/invites/${encodeURIComponent(i.token)}`));
+  const resetPassword = (u: User) =>
+    run(async () => copy({ token: `reset-${u.id}`, url: (await post<{ url: string }>(`/admin/users/${u.id}/reset`)).url }));
   const setRegistration = () => run(() => patch('/admin/settings', { registrationOpen: !registrationOpen }));
   const setMcp = () => run(() => patch('/admin/settings', { mcpEnabled: !mcpEnabled }));
   const setOff = () => run(() => patch('/admin/settings', { offEnabled: !offEnabled }));
@@ -75,7 +77,7 @@
     });
   }
 
-  async function copy(invite: Invite) {
+  async function copy(invite: Pick<Invite, 'token' | 'url'>) {
     try {
       await navigator.clipboard.writeText(invite.url);
       copied = invite.token;
@@ -134,6 +136,9 @@
           {#if u.id !== app.user?.id}
             <button class="btn btn-ghost" type="button" onclick={() => toggleActive(u)}>
               {u.active ? t('admin.deactivate') : t('admin.activate')}
+            </button>
+            <button class="btn btn-ghost" type="button" title={t('admin.resetHelp')} onclick={() => resetPassword(u)}>
+              {copied === `reset-${u.id}` ? t('admin.copied') : t('admin.reset')}
             </button>
           {/if}
         </li>
