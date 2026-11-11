@@ -145,7 +145,7 @@ export async function productRoutes(app: FastifyInstance, { db, ai, foods }: App
     return { ...v, name: v.name ?? '', barcode: null, source: 'label' };
   });
 
-  app.post('/products', async (request) => {
+  app.post('/products', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request) => {
     const user = requireUser(request);
     const b = productBody.parse(request.body);
     if (b.barcode && db.select().from(products).where(eq(products.barcode, b.barcode)).get()) throw conflict('barcodeTaken');
@@ -211,7 +211,7 @@ export async function productRoutes(app: FastifyInstance, { db, ai, foods }: App
     return reply.type(row.labelMime).send(createReadStream(labelFile(id)));
   });
 
-  app.put('/products/:id/label', { bodyLimit: 10 * 1024 * 1024 }, async (request) => {
+  app.put('/products/:id/label', { bodyLimit: 10 * 1024 * 1024, config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request) => {
     const user = requireUser(request);
     const { id } = z.object({ id: zId }).parse(request.params);
     const row = get(id);

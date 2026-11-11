@@ -18,6 +18,8 @@ export const SCOPE = 'mealler';
 const CODE_TTL_MS = 5 * 60 * 1000;
 const ACCESS_TTL_MS = 60 * 60 * 1000;
 const REFRESH_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+/** access_expires_at of a token pair whose refresh token was exchanged for a new pair. */
+const ROTATED = 0;
 
 export const isMcpEnabled = (db: Db) => getSetting(db, 'mcp_enabled') === 'true';
 
@@ -111,6 +113,7 @@ function issueTokens(db: Db, clientId: string, userId: number) {
   const accessToken = `mla_${randomToken(32)}`;
   const refreshToken = `mlr_${randomToken(32)}`;
   const now = Date.now();
+  db.delete(oauthTokens).where(lt(oauthTokens.refreshExpiresAt, now)).run();
   db.insert(oauthTokens)
     .values({
       clientId,
@@ -170,6 +173,12 @@ export async function oauthRoutes(app: FastifyInstance, { db, config }: AppConte
   const ensureEnabled = () => {
     if (!isMcpEnabled(db)) throw notFound();
   };
+
+  // Token and revocation requests are form-encoded. Only these routes accept forms: the JSON API must not,
+  // or a plain HTML form on another page could post to it.
+  app.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string' }, (_request, body, done) => {
+    done(null, Object.fromEntries(new URLSearchParams(body as string)));
+  });
 
   const protectedResource = async (request: FastifyRequest) => {
     ensureEnabled();
@@ -295,10 +304,17 @@ export async function oauthRoutes(app: FastifyInstance, { db, config }: AppConte
         if (!row || row.clientId !== client.clientId || row.refreshExpiresAt < Date.now()) {
           throw new OAuthError(400, 'invalid_grant', 'Invalid refresh token');
         }
+        if (row.accessExpiresAt === ROTATED) {
+          // A refresh token already exchanged is being used again: it was copied, and there is no telling
+          // which side is the thief. This app's access for this user ends; they connect it again.
+          db.delete(oauthTokens).where(and(eq(oauthTokens.clientId, row.clientId), eq(oauthTokens.userId, row.userId))).run();
+          throw new OAuthError(400, 'invalid_grant', 'Refresh token reused');
+        }
         const user = db.select().from(users).where(eq(users.id, row.userId)).get();
         if (!user?.active) throw new OAuthError(400, 'invalid_grant', 'User disabled');
-        // Rotation: the old pair stops working as soon as a new one is issued.
-        db.delete(oauthTokens).where(eq(oauthTokens.id, row.id)).run();
+        // Rotation: the old pair stops working as soon as a new one is issued. Its row stays, marked,
+        // until the refresh token would have expired, so a second use can be told from an unknown token.
+        db.update(oauthTokens).set({ accessHash: `rotated:${row.id}`, accessExpiresAt: ROTATED }).where(eq(oauthTokens.id, row.id)).run();
         return issueTokens(db, client.clientId, row.userId);
       }
 

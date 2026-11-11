@@ -15,8 +15,14 @@ export async function pushRoutes(app: FastifyInstance, { db, push }: AppContext)
 
   app.get('/key', async () => ({ publicKey: push.publicKey }));
 
+  // The server posts to this address: only the push services of the browsers, never a host the user picks.
+  const PUSH_HOSTS = /(^|\.)(fcm\.googleapis\.com|push\.services\.mozilla\.com|push\.apple\.com|notify\.windows\.com)$/;
   const subscription = z.object({
-    endpoint: z.string().url().max(2000).refine((u) => u.startsWith('https://')),
+    endpoint: z
+      .string()
+      .url()
+      .max(2000)
+      .refine((u) => u.startsWith('https://') && PUSH_HOSTS.test(new URL(u).hostname)),
     keys: z.object({ p256dh: z.string().min(10).max(200), auth: z.string().min(10).max(100) })
   });
 

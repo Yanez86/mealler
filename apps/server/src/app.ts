@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import type { Config } from './config.ts';
 import type { Db } from './db/index.ts';
 import { loadUser } from './auth.ts';
-import { errorHandler } from './http.ts';
+import { errorHandler, forbidden } from './http.ts';
 import { authRoutes } from './routes/auth.ts';
 import { adminRoutes } from './routes/admin.ts';
 import { diaryRoutes } from './routes/diary.ts';
@@ -36,18 +36,13 @@ export interface AppContext {
 export async function buildApp(ctx: AppContext, opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
   const app = Fastify({
     logger: opts.logger === false ? false : { level: ctx.config.logLevel },
-    trustProxy: true,
+    trustProxy: ctx.config.trustProxy,
     bodyLimit: 1024 * 1024
   });
 
   app.setErrorHandler(errorHandler);
   await app.register(cookie);
   await app.register(rateLimit, { global: false });
-
-  // OAuth token requests are form-encoded.
-  app.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string' }, (_request, body, done) => {
-    done(null, Object.fromEntries(new URLSearchParams(body as string)));
-  });
 
   app.decorateRequest('user', null);
   const csp = contentSecurityPolicy(ctx.config.publicDir);
@@ -66,6 +61,10 @@ export async function buildApp(ctx: AppContext, opts: { logger?: boolean } = {})
   await app.register(
     async (api) => {
       api.addHook('onRequest', async (request, reply) => {
+        // Browsers say where a request comes from. A page on another site, or on a sibling subdomain
+        // (which SameSite=Lax cookies do not stop), may read nothing here and must not change anything.
+        const site = request.headers['sec-fetch-site'];
+        if (!['GET', 'HEAD'].includes(request.method) && (site === 'cross-site' || site === 'same-site')) throw forbidden('crossSite');
         request.user = loadUser(ctx.db, request, reply);
         reply.header('Cache-Control', 'no-store');
       });

@@ -57,6 +57,8 @@ Guida completa (Cloudflare Tunnel, Caddy, Traefik, backup, ripristino, aggiornam
 | `PORT` | `3000` | Porta HTTP interna al container |
 | `MEALLER_DATA_DIR` | `/data` | Cartella del database |
 | `MEALLER_BASE_URL` | — | Indirizzo pubblico, usato per i link d'invito |
+| `MEALLER_BIND` | `0.0.0.0` | Interfaccia su cui Docker pubblica la porta: `127.0.0.1` dietro un proxy o un tunnel (solo `docker-compose.yml`) |
+| `MEALLER_TRUST_PROXY` | indirizzi privati e locali | Indirizzi o reti dei reverse proxy da cui accettare `X-Forwarded-*`; `none` per nessuno |
 | `MEALLER_SOURCE_URL` | questo repo | Link al codice sorgente mostrato nell'app (AGPL) |
 | `LOG_LEVEL` | `info` | Livello di log |
 | `MEALLER_SECRET_KEY` | file `secret.key` in `/data` | Chiave per cifrare i segreti salvati nel database (es. la chiave API Anthropic) |

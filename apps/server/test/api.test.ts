@@ -236,7 +236,7 @@ test('slot reminders respect time, filled slots, quiet hours and pauses', async 
     method: 'POST',
     url: '/api/push/subscribe',
     headers,
-    payload: { endpoint: 'https://push.example.com/abc', keys: { p256dh: 'p256dh-key-0123456789', auth: 'auth-key-0123' } }
+    payload: { endpoint: 'https://fcm.googleapis.com/fcm/send/abc', keys: { p256dh: 'p256dh-key-0123456789', auth: 'auth-key-0123' } }
   });
   assert.equal(res.statusCode, 200, res.body);
 
@@ -272,7 +272,7 @@ test('slot reminders respect time, filled slots, quiet hours and pauses', async 
     method: 'POST',
     url: '/api/push/subscribe',
     headers,
-    payload: { endpoint: 'https://push.example.com/gone', keys: { p256dh: 'p256dh-key-0123456789', auth: 'auth-key-0123' } }
+    payload: { endpoint: 'https://fcm.googleapis.com/fcm/send/gone', keys: { p256dh: 'p256dh-key-0123456789', auth: 'auth-key-0123' } }
   });
   res = await app.inject({ method: 'POST', url: '/api/push/test', headers });
   assert.equal(res.json().delivered, 1);
@@ -457,22 +457,119 @@ test('claude.ai connector: OAuth 2.1 with PKCE, MCP tools, isolation, refresh an
   assert.equal(res.json().result.isError, true);
 
   // Refresh rotates the tokens.
-  res = await app.inject(form({ grant_type: 'refresh_token', refresh_token: tokens.refresh_token, client_id: clientId }));
+  const refresh = (token: string) => app.inject(form({ grant_type: 'refresh_token', refresh_token: token, client_id: clientId }));
+  res = await refresh(tokens.refresh_token);
   assert.equal(res.statusCode, 200, res.body);
   const rotated = res.json();
-  res = await app.inject(form({ grant_type: 'refresh_token', refresh_token: tokens.refresh_token, client_id: clientId }));
-  assert.equal(res.statusCode, 400);
   res = await mcp({ jsonrpc: '2.0', id: 7, method: 'ping' }, tokens.access_token);
   assert.equal(res.statusCode, 401);
   res = await mcp({ jsonrpc: '2.0', id: 8, method: 'ping' }, rotated.access_token);
   assert.equal(res.statusCode, 200);
-
-  // The user sees and revokes the connection from the web app.
   res = await app.inject({ method: 'GET', url: '/api/oauth/connections', headers: asAdmin });
   assert.equal(res.json().length, 1);
-  await app.inject({ method: 'DELETE', url: `/api/oauth/connections/${clientId}`, headers: asAdmin });
+
+  // A refresh token used a second time was copied: that user's connection is closed, nobody else's.
+  res = await refresh(tokens.refresh_token);
+  assert.equal(res.statusCode, 400);
   res = await mcp({ jsonrpc: '2.0', id: 9, method: 'ping' }, rotated.access_token);
   assert.equal(res.statusCode, 401);
+  res = await refresh(rotated.refresh_token);
+  assert.equal(res.statusCode, 400);
+  res = await app.inject({ method: 'GET', url: '/api/oauth/connections', headers: asAdmin });
+  assert.equal(res.json().length, 0);
+  res = await mcp({ jsonrpc: '2.0', id: 10, method: 'ping' }, bobToken);
+  assert.equal(res.statusCode, 200);
+
+  // The user sees and revokes the connection from the web app.
+  res = await app.inject({ method: 'GET', url: '/api/oauth/connections', headers: bob });
+  assert.equal(res.json().length, 1);
+  await app.inject({ method: 'DELETE', url: `/api/oauth/connections/${clientId}`, headers: bob });
+  res = await mcp({ jsonrpc: '2.0', id: 11, method: 'ping' }, bobToken);
+  assert.equal(res.statusCode, 401);
+
+  // Changing the password closes every connected app as well.
+  res = await app.inject({ method: 'POST', url: '/api/oauth/decision', headers: bob, payload: { approve: true, params } });
+  const again = new URL(res.json().redirect).searchParams.get('code')!;
+  res = await app.inject(form({ grant_type: 'authorization_code', code: again, redirect_uri: redirectUri, client_id: clientId, code_verifier: verifier }));
+  const fresh = res.json().access_token;
+  res = await mcp({ jsonrpc: '2.0', id: 12, method: 'ping' }, fresh);
+  assert.equal(res.statusCode, 200);
+  res = await app.inject({ method: 'POST', url: '/api/me/password', headers: bob, payload: { current: 'another long password', next: 'a brand new password' } });
+  assert.equal(res.statusCode, 200, res.body);
+  res = await mcp({ jsonrpc: '2.0', id: 13, method: 'ping' }, fresh);
+  assert.equal(res.statusCode, 401);
+
+  // Forms are accepted by the OAuth endpoints only: the JSON API refuses them, and refuses other sites.
+  res = await app.inject({
+    method: 'POST',
+    url: '/api/admin/users',
+    headers: { ...asAdmin, 'content-type': 'application/x-www-form-urlencoded' },
+    payload: 'name=Eve&email=eve%40example.com&password=a+long+enough+password&role=admin'
+  });
+  assert.equal(res.statusCode, 415);
+  for (const site of ['cross-site', 'same-site']) {
+    res = await app.inject({ method: 'POST', url: '/api/auth/logout', headers: { ...asAdmin, 'sec-fetch-site': site } });
+    assert.equal(res.statusCode, 403);
+  }
+  res = await app.inject({ method: 'GET', url: '/api/me', headers: { ...asAdmin, 'sec-fetch-site': 'cross-site' } });
+  assert.equal(res.statusCode, 200);
+  res = await app.inject({ method: 'POST', url: '/api/auth/logout', headers: { ...asAdmin, 'sec-fetch-site': 'same-origin' } });
+  assert.equal(res.statusCode, 200);
+
+  await app.close();
+});
+
+test('logins: attempts are limited per real address and per account', async () => {
+  const { app } = await setupApp();
+  let res = await app.inject({ method: 'POST', url: '/api/setup', payload: admin });
+  const login = (email: string, password: string, forwarded: string) =>
+    app.inject({ method: 'POST', url: '/api/auth/login', headers: { 'x-forwarded-for': forwarded }, payload: { email, password } });
+
+  // Behind one proxy the client's address is the one the proxy appended, not whatever the client wrote before it.
+  for (let i = 0; i < 10; i++) {
+    res = await login(`nobody${i}@example.com`, 'wrong password', `10.9.9.${i}, 203.0.113.7`);
+    assert.equal(res.statusCode, 401);
+  }
+  res = await login('nobody@example.com', 'wrong password', '10.9.9.99, 203.0.113.7');
+  assert.equal(res.statusCode, 429);
+
+  // Five failures in a row lock the account for a while, from any address and even with the right password.
+  for (let i = 0; i < 5; i++) {
+    res = await login(admin.email, 'wrong password', `198.51.100.${i}`);
+    assert.equal(res.statusCode, 401);
+  }
+  res = await login(admin.email, admin.password, '198.51.100.50');
+  assert.equal(res.statusCode, 429);
+  assert.equal(res.json().error, 'tooMany');
+
+  await app.close();
+});
+
+test('logins: a success clears the failures; push subscriptions go to browser push services only', async () => {
+  const { app } = await setupApp();
+  let res = await app.inject({ method: 'POST', url: '/api/setup', payload: admin });
+  const headers = { cookie: cookieOf(res) };
+  const login = (password: string, i: number) =>
+    app.inject({ method: 'POST', url: '/api/auth/login', headers: { 'x-forwarded-for': `198.51.100.${i}` }, payload: { email: admin.email, password } });
+  for (let round = 0; round < 2; round++) {
+    for (let i = 0; i < 4; i++) assert.equal((await login('wrong password', round * 10 + i)).statusCode, 401);
+    assert.equal((await login(admin.password, 100 + round)).statusCode, 200);
+  }
+
+  const keys = { p256dh: 'p256dh-key-0123456789', auth: 'auth-key-0123' };
+  for (const endpoint of ['https://nas.local/admin', 'https://10.0.0.1/x', 'https://fcm.googleapis.com.evil.example/x', 'http://fcm.googleapis.com/x']) {
+    res = await app.inject({ method: 'POST', url: '/api/push/subscribe', headers, payload: { endpoint, keys } });
+    assert.equal(res.statusCode, 400, endpoint);
+  }
+  for (const endpoint of [
+    'https://fcm.googleapis.com/fcm/send/abc',
+    'https://updates.push.services.mozilla.com/wpush/v2/abc',
+    'https://web.push.apple.com/abc',
+    'https://wns2-par02p.notify.windows.com/w/?token=abc'
+  ]) {
+    res = await app.inject({ method: 'POST', url: '/api/push/subscribe', headers, payload: { endpoint, keys } });
+    assert.equal(res.statusCode, 200, endpoint);
+  }
 
   await app.close();
 });
@@ -754,7 +851,7 @@ test('favorites, suggestions, weights, trends, export and bulk estimates', async
     method: 'POST',
     url: '/api/push/subscribe',
     headers,
-    payload: { endpoint: 'https://push.example.com/w', keys: { p256dh: 'p256dh-key-0123456789', auth: 'auth-key-0123' } }
+    payload: { endpoint: 'https://fcm.googleapis.com/fcm/send/w', keys: { p256dh: 'p256dh-key-0123456789', auth: 'auth-key-0123' } }
   });
   for (const s of slots) await app.inject({ method: 'PATCH', url: `/api/slots/${s.id}`, headers, payload: { reminderEnabled: false } });
   // Monday 9 Nov, 07:40 in Rome: only 7 days since the last weigh-in → nothing.
@@ -1091,7 +1188,7 @@ test('skipped meals, slots for a single day and the month calendar', async () =>
     method: 'POST',
     url: '/api/push/subscribe',
     headers,
-    payload: { endpoint: 'https://push.example.com/skip', keys: { p256dh: 'p256dh-key-0123456789', auth: 'auth-key-0123' } }
+    payload: { endpoint: 'https://fcm.googleapis.com/fcm/send/skip', keys: { p256dh: 'p256dh-key-0123456789', auth: 'auth-key-0123' } }
   });
   assert.equal(res.statusCode, 200, res.body);
   const snackTag = `slot-${snack}-${day}`;

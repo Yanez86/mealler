@@ -594,7 +594,7 @@ export async function mcpRoutes(app: FastifyInstance, { db, config }: AppContext
       )
       .send({ error: 'unauthorized' });
 
-  app.post('/mcp', async (request, reply) => {
+  app.post('/mcp', { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } }, async (request, reply) => {
     if (!isMcpEnabled(db)) return reply.status(404).send({ error: 'notFound' });
     const user = userFromBearer(db, request);
     if (!user) return challenge(request, reply);

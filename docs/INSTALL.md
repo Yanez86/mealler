@@ -22,9 +22,12 @@ Senza HTTPS Mealler funziona nella rete di casa, ma il telefono **non** installa
 
 ```bash
 MEALLER_BASE_URL=https://mealler.miodominio.it
+MEALLER_BIND=127.0.0.1
 ```
 
 e riavvia con `docker compose up -d`.
+
+`MEALLER_BIND=127.0.0.1` **non è facoltativo** quando Mealler è raggiungibile da internet: senza, la porta 3000 resta aperta su tutte le interfacce del server e chi la raggiunge scavalca il proxy, in HTTP semplice (cookie di sessione senza `Secure`) e potendo falsificare il proprio indirizzo per aggirare i limiti sui tentativi di accesso. Le porte pubblicate da Docker ignorano inoltre le regole di `ufw`. Con `127.0.0.1` la porta risponde solo dal server stesso; il proxy e il tunnel dei metodi qui sotto parlano con Mealler dentro la rete Docker e non ne hanno bisogno.
 
 ## 2a. HTTPS con Cloudflare Tunnel (nessuna porta aperta sul router)
 
@@ -102,9 +105,17 @@ networks:
     external: true
 ```
 
-Con un reverse proxy puoi togliere la riga `ports:` di Mealler, così è raggiungibile solo passando dal proxy.
+## 2d. Cosa Mealler si aspetta dal proxy
 
-Il proxy deve passare l'intestazione `X-Forwarded-Proto`: Caddy, Traefik, nginx e Cloudflare lo fanno di default. Da quella Mealler capisce di essere in HTTPS, usa i cookie sicuri e attiva HSTS.
+Il proxy deve passare le intestazioni `X-Forwarded-Proto` e `X-Forwarded-For`: Caddy, Traefik, nginx e Cloudflare lo fanno di default. Dalla prima Mealler capisce di essere in HTTPS, usa i cookie sicuri e attiva HSTS; dalla seconda ricava l'indirizzo di chi si collega, su cui contano i limiti dei tentativi di accesso.
+
+Mealler crede a queste intestazioni solo se arrivano da un indirizzo **privato o locale** (un proxy sullo stesso server o nella stessa rete Docker, come in tutti i metodi qui sopra): quello che scrive un estraneo viene ignorato. Se il tuo proxy sta altrove, indica i suoi indirizzi o le sue reti in `.env`, separati da virgole:
+
+```bash
+MEALLER_TRUST_PROXY=203.0.113.10, 198.51.100.0/24
+```
+
+`MEALLER_TRUST_PROXY=none` non si fida di nessuno (Mealler esposto direttamente, senza proxy).
 
 ## 3. Cosa c'è nella cartella dati
 
