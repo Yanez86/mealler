@@ -3,6 +3,11 @@
 Tutte le modifiche rilevanti di Mealler sono annotate qui.
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il [versionamento semantico](https://semver.org/lang/it/).
 
+## [Non rilasciato]
+
+### Corretto
+- Corretto un problema relativo agli aggiornamenti interrotti a metà.
+
 ## [1.5.1] - 2026-11-11
 
 ### Modificato

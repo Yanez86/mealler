@@ -65,11 +65,18 @@ main() {
   to="$(version_at "$remote")"
 
   if [ "$count" = 0 ]; then
-    if [ "$force" = 0 ]; then
+    # Il codice può essere aggiornato anche se Mealler non lo è: un aggiornamento interrotto dopo git pull.
+    local running
+    running="$(running_version)"
+    if [ "$force" = 0 ] && [ "$running" = "$from" ]; then
       ok "Mealler è già aggiornato (versione $from)."
       return 0
     fi
-    echo "Il codice è già alla versione $from (nessun commit nuovo da scaricare): ricompilo e riavvio con questa versione."
+    if [ "$force" = 0 ]; then
+      echo "Il codice è già alla versione $from, ma Mealler gira con la ${running:-?}: un aggiornamento precedente si è interrotto, lo completo."
+    else
+      echo "Il codice è già alla versione $from (nessun commit nuovo da scaricare): ricompilo e riavvio con questa versione."
+    fi
   else
     echo
     if [ "$from" != "$to" ]; then
@@ -116,6 +123,14 @@ main() {
     esac
   fi
 
+  # Prima di toccare qualcosa: la cartella dei backup creata da un vecchio  sudo ./aggiorna.sh  è di root.
+  if [ "$backup" = 1 ] && [ -e backups ] && { [ ! -w backups ] || [ ! -O backups ]; } && [ "$(id -u)" != 0 ]; then
+    die "La cartella backups/ è di $(stat -c %U backups 2> /dev/null || echo "un altro utente"): rilancia con  sudo ./aggiorna.sh  oppure sistemala con  sudo chown -R $(id -un) backups"
+  fi
+
+  # Da qui in poi un errore lascia l'aggiornamento a metà: lo dico, e dico come finirlo.
+  trap 'interrupted' ERR
+
   # ---------- Codice ----------
   PREVIOUS="$(git_ rev-parse --short HEAD)"
   if [ "$count" != 0 ]; then
@@ -140,6 +155,8 @@ main() {
     step "Backup dei dati"
     # Dentro ci sono diari, foto e la chiave di cifratura: cartella e file leggibili solo da chi li crea.
     mkdir -p backups && chmod 700 backups
+    # Con sudo la cartella resta del proprietario di Mealler, così il prossimo  ./aggiorna.sh  senza sudo la usa.
+    if [ "$(id -u)" = 0 ] && [ -n "$OWNER" ] && [ "$OWNER" != root ]; then chown "$OWNER" backups; fi
     file="backups/mealler-$(date +%Y%m%d-%H%M%S).tgz"
     # A Mealler fermo il database è coerente; il backup legge il volume da un container temporaneo.
     "${COMPOSE[@]}" stop mealler > /dev/null 2>&1 || true
@@ -148,6 +165,7 @@ main() {
       "${COMPOSE[@]}" up -d > /dev/null 2>&1 || true
       die "Backup non riuscito: Mealler è ripartito con l'immagine nuova, controlla con  docker compose logs mealler"
     fi
+    if [ "$(id -u)" = 0 ] && [ -n "$OWNER" ] && [ "$OWNER" != root ]; then chown "$OWNER" "$file"; fi
     echo "  $file ($(du -h "$file" | cut -f1))"
     # Restano gli ultimi 5.
     { ls -1t backups/mealler-*.tgz 2> /dev/null || true; } | tail -n +6 | while read -r old; do rm -f -- "$old"; done
@@ -175,6 +193,19 @@ git_() {
   else
     git -c safe.directory="$REPO" -C "$REPO" "$@"
   fi
+}
+
+# La versione di Mealler acceso, chiesta a Mealler stesso (vuota se è spento o non risponde).
+running_version() {
+  { "${COMPOSE[@]}" exec -T mealler node -e \
+    "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/status').then(r=>r.json()).then(s=>console.log(s.version)).catch(()=>{})" \
+    2> /dev/null || true; } | tr -d '\r'
+}
+
+interrupted() {
+  trap - ERR
+  printf '\n' >&2
+  die "Aggiornamento interrotto a metà (vedi l'errore qui sopra). Il codice potrebbe essere già nuovo ma Mealler no: risolto il problema, rilancia  ./aggiorna.sh  e lo script finisce il lavoro."
 }
 
 version_at() {

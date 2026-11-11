@@ -185,7 +185,7 @@ Lo script:
 5. ferma Mealler e salva un backup della cartella dati in `backups/` (restano gli ultimi 5; `--senza-backup` per saltarlo);
 6. riavvia Mealler, aspetta che risponda e libera lo spazio delle immagini vecchie.
 
-Se non ci sono novità si ferma subito; `--forza` ricompila e riavvia comunque. Per ripristinare uno di questi backup usa la procedura del punto 5 con il file di `backups/`, per esempio `tar xzf /backup/backups/mealler-20261109-183000.tgz`.
+Se non ci sono novità si ferma subito; `--forza` ricompila e riavvia comunque. Se un aggiornamento si è interrotto a metà (il codice è nuovo ma Mealler gira ancora con la versione di prima), lo script se ne accorge e lo completa. Se la cartella `backups/` è di root, perché un aggiornamento precedente è partito con `sudo`, lo script si ferma prima di cambiare qualcosa e dice come sistemarla; con `sudo` la cartella resta dell'utente che possiede la cartella di Mealler. Per ripristinare uno di questi backup usa la procedura del punto 5 con il file di `backups/`, per esempio `tar xzf /backup/backups/mealler-20261109-183000.tgz`.
 
 A mano, senza script:
 
