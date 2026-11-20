@@ -1,7 +1,22 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
-<!-- Swipe left to reveal a red trash icon beside the content. Keyboard and screen reader users reach
-     the same button with Tab: focusing it slides the content open. -->
+<!-- Swipe left to reveal a red trash icon beside the content, or a few named actions (`actions`).
+     Keyboard and screen reader users reach the same buttons with Tab: focusing one slides the content
+     open. -->
 <script lang="ts" module>
+  import type { ComponentProps } from 'svelte';
+  import type IconComponent from './Icon.svelte';
+
+  /** A named button revealed by the swipe, instead of the trash. */
+  export interface SwipeAction {
+    /** Spoken name, e.g. "Mark Dinner as skipped". */
+    label: string;
+    /** Short visible text under the icon. */
+    text: string;
+    icon: ComponentProps<typeof IconComponent>['name'];
+    tone: 'neutral' | 'accent' | 'danger';
+    run: () => void;
+  }
+
   // Only one row stays open at a time.
   let closeOpen: (() => void) | null = null;
 </script>
@@ -11,15 +26,18 @@
   import Icon from './Icon.svelte';
 
   let {
-    label,
-    ondelete,
+    label = '',
+    ondelete = () => {},
+    actions,
     disabled = false,
     radius = '0px',
     background = 'transparent',
     children
   }: {
-    label: string;
-    ondelete: () => void;
+    label?: string;
+    ondelete?: () => void;
+    /** Named actions in place of the trash, left to right. */
+    actions?: SwipeAction[];
     disabled?: boolean;
     /** Corners of the swiping area, as the card inside it. */
     radius?: string;
@@ -27,8 +45,9 @@
     children: Snippet;
   } = $props();
 
-  // How far the content slides: the trash icon sits in this space with some room around it.
-  const ACTION = 72;
+  // How far the content slides: the trash icon (or each named action) sits in this space.
+  const ACTION = $derived(actions?.length ? actions.length * 96 : 72);
+  let row = $state<HTMLDivElement | null>(null);
   let offset = $state(0);
   let dragging = $state(false);
   let mode: 'idle' | 'maybe' | 'x' | 'y' = 'idle';
@@ -113,9 +132,19 @@
     close();
     ondelete();
   }
+
+  function act(action: SwipeAction) {
+    close();
+    action.run();
+  }
+
+  // Moving between the named actions with Tab keeps the row open.
+  function focusOut(e: FocusEvent) {
+    if (!row?.contains(e.relatedTarget as Node | null)) close();
+  }
 </script>
 
-<div class="swipe" style:--swipe-radius={radius}>
+<div class="swipe" style:--swipe-radius={radius} bind:this={row}>
   <!-- The swipe is a touch shortcut: the delete button below is the keyboard and screen reader way. -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
@@ -131,7 +160,21 @@
     onclickcapture={click}>
     {@render children()}
   </div>
-  {#if !disabled}
+  {#if !disabled && actions?.length}
+    <div
+      class="actions tone-{actions[0].tone}"
+      style:width="{ACTION + 24}px"
+      style:opacity={Math.min(1, (-offset / ACTION) * 1.5)}
+      onfocusin={open}
+      onfocusout={focusOut}>
+      {#each actions as action (action.text)}
+        <button class="named tone-{action.tone}" type="button" aria-label={action.label} onclick={() => act(action)}>
+          <Icon name={action.icon} size={22} stroke={2.2} />
+          <span>{action.text}</span>
+        </button>
+      {/each}
+    </div>
+  {:else if !disabled}
     <button
       class="action"
       type="button"
@@ -180,6 +223,49 @@
   .action:focus-visible {
     outline-offset: -6px;
     border-radius: 16px;
+  }
+  /* Named actions: filled buttons side by side; the strip reaches under the card's rounded corner. */
+  .actions {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    padding-left: 24px;
+  }
+  .named {
+    flex: 1;
+    min-width: 0;
+    padding: 0 6px;
+    border: none;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.2;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+  }
+  .named:focus-visible {
+    outline: 3px solid var(--surface);
+    outline-offset: -6px;
+    border-radius: 14px;
+  }
+  .tone-neutral {
+    background: var(--text-2);
+    color: var(--surface);
+  }
+  .tone-accent {
+    background: var(--accent-ink);
+    color: var(--surface);
+  }
+  .tone-danger {
+    background: var(--danger);
+    color: var(--on-danger);
   }
   @media (prefers-reduced-motion: reduce) {
     .content {

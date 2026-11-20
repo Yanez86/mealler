@@ -20,7 +20,9 @@
     type Nutrient,
     type NutrientSummary,
     type Untracked,
-    type WaterDay
+    type UntrackedSize,
+    type WaterDay,
+    UNTRACKED_SIZES
   } from '@mealler/shared';
   import { beacon, del, get, post, put } from '$lib/api';
   import type { AiStatus } from '@mealler/shared';
@@ -30,7 +32,7 @@
   import Estimating from '$lib/Estimating.svelte';
   import FoodIcon from '$lib/FoodIcon.svelte';
   import Icon from '$lib/Icon.svelte';
-  import Swipeable from '$lib/Swipeable.svelte';
+  import Swipeable, { type SwipeAction } from '$lib/Swipeable.svelte';
   import TopBar from '$lib/TopBar.svelte';
   import UntrackedSheet from '$lib/UntrackedSheet.svelte';
   import WaterCard from '$lib/WaterCard.svelte';
@@ -290,15 +292,74 @@
   // ---------- Meals off the diary ----------
   // Eaten but not logged, or not all of it: the meal counts as filled, the day's totals stay partial.
   let untrackedFor = $state<{ id: number; name: string; current: Untracked | null } | null>(null);
-  let toast = $state('');
-  let toastTimer: ReturnType<typeof setTimeout> | undefined;
-  onDestroy(() => clearTimeout(toastTimer));
 
-  function showToast(message: string) {
-    clearTimeout(toastTimer);
-    toast = message;
-    toastTimer = setTimeout(() => (toast = ''), 4000);
+  // A short message at the bottom, with "Undo" when the change can be taken back.
+  let notice = $state<{ message: string; undo?: () => void } | null>(null);
+  let noticeTimer: ReturnType<typeof setTimeout> | undefined;
+  onDestroy(() => clearTimeout(noticeTimer));
+
+  function showNotice(message: string, undo?: () => void) {
+    clearTimeout(noticeTimer);
+    notice = { message, undo };
+    noticeTimer = setTimeout(() => (notice = null), 5000);
   }
+
+  function undoNotice() {
+    const undo = notice?.undo;
+    clearTimeout(noticeTimer);
+    notice = null;
+    undo?.();
+  }
+
+  // The swipe on an empty meal is explained once, until it is first used.
+  const HINT_KEY = 'mealler-swipe-hint';
+  let hintDone = $state(
+    (() => {
+      try {
+        return localStorage.getItem(HINT_KEY) === '1';
+      } catch {
+        return false;
+      }
+    })()
+  );
+  function swipeUsed() {
+    hintDone = true;
+    try {
+      localStorage.setItem(HINT_KEY, '1');
+    } catch {
+      // private mode: the hint comes back next time
+    }
+  }
+
+  async function skipMeal(id: number, name: string) {
+    swipeUsed();
+    await setSkip(id, true);
+    showNotice(t('day.skippedToast', { slot: name }), () => setSkip(id, false));
+  }
+
+  // Marked at once; how much and a note can follow with a tap on the meal.
+  async function untrackMeal(id: number, name: string) {
+    swipeUsed();
+    await setUntracked(id, { size: null, note: null });
+    showNotice(t('untracked.marked', { slot: name }), () => setUntracked(id, null));
+  }
+
+  /** What the swipe on an empty meal offers: skip it (or remove a meal added for this day only), or off the diary. */
+  function emptyActions(id: number, name: string, extra: boolean): SwipeAction[] {
+    const first: SwipeAction = extra
+      ? { label: t('swipe.removeSlot', { slot: name }), text: t('common.delete'), icon: 'trash', tone: 'danger', run: () => removeExtraSlot(id) }
+      : { label: t('day.skipLabel', { slot: name }), text: t('day.skip'), icon: 'skip', tone: 'neutral', run: () => skipMeal(id, name) };
+    return [
+      first,
+      { label: t('day.untrackLabel', { slot: name }), text: t('day.untrack'), icon: 'unseen', tone: 'accent', run: () => untrackMeal(id, name) }
+    ];
+  }
+
+  function untrackedMeta(u: Untracked): string {
+    return [u.size ? t(`untracked.size.${u.size}`) : null, u.note].filter(Boolean).join(' · ') || t('untracked.tapToSay');
+  }
+
+  const sizeRank = (size: UntrackedSize) => UNTRACKED_SIZES.indexOf(size);
 
   function openUntracked(id: number, name: string, current: Untracked | null) {
     untrackedFor = { id, name, current };
@@ -323,7 +384,6 @@
     try {
       if (value) {
         await put(`/day/${date}/untracked/${slotId}`, value);
-        showToast(t('untracked.saved'));
       } else {
         await del(`/day/${date}/untracked/${slotId}`);
       }
@@ -554,55 +614,55 @@
         <p class="notice">{t('day.noSlots')}</p>
       {/if}
 
-      {#snippet untrackedPill(id: number, name: string, u: Untracked, rest: boolean)}
-        <button class="skipped-pill untracked-pill" type="button" aria-label={t('day.untrackedEdit', { slot: name })} onclick={() => openUntracked(id, name, u)}>
-          <Icon name="unseen" size={16} stroke={2.2} /><span>{rest ? t('day.untrackedRest') : t('day.untracked')}{u.size ? ` · ${t(`untracked.size.${u.size}`)}` : ''}</span>
+      {#snippet meter(size: UntrackedSize | null)}
+        {#if size}
+          <span class="meter" aria-hidden="true">
+            {#each UNTRACKED_SIZES as s, i (s)}<span class:on={i <= sizeRank(size)} style:height="{8 + i * 4}px"></span>{/each}
+          </span>
+        {/if}
+      {/snippet}
+
+      {#snippet untrackedRow(id: number, name: string, u: Untracked, rest: boolean)}
+        <button class="state-row" class:rest type="button" onclick={() => openUntracked(id, name, u)}>
+          <span class="badge"><Icon name="unseen" size={18} stroke={2.2} /></span>
+          <span class="state-text">
+            <span class="state-name">{rest ? t('day.untrackedRest') : t('day.untracked')}</span>
+            <span class="state-meta">{untrackedMeta(u)}</span>
+          </span>
+          {@render meter(u.size)}
         </button>
-        {#if u.note}<span class="untracked-text muted">{u.note}</span>{/if}
       {/snippet}
 
       {#each day.slots as { slot, entries, totals, skipped, untracked } (slot.id)}
         {@const empty = entries.length === 0}
-        {@const due = empty && !skipped && !untracked && isDue(slot.time)}
+        {@const free = empty && !skipped && !untracked}
+        {@const due = free && isDue(slot.time)}
         {@const extra = slot.date != null}
         <Swipeable
           label={!empty
             ? t('swipe.clearSlot', { slot: slot.name })
             : skipped
               ? t('swipe.unskip', { slot: slot.name })
-              : untracked
-                ? t('swipe.untracked', { slot: slot.name })
-                : t('swipe.removeSlot', { slot: slot.name })}
-          disabled={empty && !skipped && !untracked && !extra}
+              : t('swipe.untracked', { slot: slot.name })}
+          actions={free ? emptyActions(slot.id, slot.name, extra) : undefined}
           radius="16px"
           ondelete={() =>
-            !empty
-              ? clearSlot(slot.name, entries)
-              : skipped
-                ? setSkip(slot.id, false)
-                : untracked
-                  ? setUntracked(slot.id, null)
-                  : removeExtraSlot(slot.id)}>
-        <div class="slot card" class:due class:skipped class:untracked={empty && !!untracked}>
+            !empty ? clearSlot(slot.name, entries) : skipped ? setSkip(slot.id, false) : setUntracked(slot.id, null)}>
+        <div class="slot card" class:due class:skipped class:marked={empty && !!untracked}>
           <div class="slot-main">
             <div class="slot-head">
               <span class="slot-name">{slot.time} · {slot.name}{#if extra}<span class="extra">{t('day.extra')}</span>{/if}</span>
               {#if !empty}<span class="slot-kcal">{untracked ? t('day.atLeastKcal', { n: formatNumber(totals.kcal) }) : `${formatNumber(totals.kcal)} kcal`}</span>{/if}
             </div>
             {#if skipped}
-              <button class="skipped-pill" type="button" aria-label={t('day.unskipLabel', { slot: slot.name })} onclick={() => setSkip(slot.id, false)}>
-                <Icon name="skip" size={16} stroke={2.2} />{t('day.skipped')}
+              <button class="state-row" type="button" aria-label={t('day.unskipLabel', { slot: slot.name })} onclick={() => setSkip(slot.id, false)}>
+                <span class="badge"><Icon name="skip" size={18} stroke={2.2} /></span>
+                <span class="state-text"><span class="state-name muted">{t('day.skipped')}</span></span>
               </button>
             {:else if empty && untracked}
-              {@render untrackedPill(slot.id, slot.name, untracked, false)}
+              {@render untrackedRow(slot.id, slot.name, untracked, false)}
             {:else if empty}
-              <span class="empty-line">
-                <span class="muted">{t('day.empty')}</span>
-                {#if due}
-                  <button class="skip" type="button" aria-label={t('day.skipLabel', { slot: slot.name })} onclick={() => setSkip(slot.id, true)}>{t('day.skip')}</button>
-                  <button class="skip" type="button" aria-label={t('day.untrackLabel', { slot: slot.name })} onclick={() => openUntracked(slot.id, slot.name, null)}>{t('day.untrack')}</button>
-                {/if}
-              </span>
+              <span class="empty">{t('day.empty')}</span>
             {:else}
               <ul>
                 {#each entries as entry (entry.id)}
@@ -633,7 +693,7 @@
                   </li>
                 {/each}
               </ul>
-              {#if untracked}{@render untrackedPill(slot.id, slot.name, untracked, true)}{/if}
+              {#if untracked}{@render untrackedRow(slot.id, slot.name, untracked, true)}{/if}
             {/if}
           </div>
           {#if due}
@@ -646,6 +706,10 @@
         </div>
         </Swipeable>
       {/each}
+
+      {#if !hintDone && day.slots.some((x) => x.entries.length === 0 && !x.skipped && !x.untracked && isDue(x.slot.time))}
+        <p class="swipe-hint"><Icon name="arrowLeft" size={22} stroke={2.2} /><span>{t('day.swipeHint')}</span></p>
+      {/if}
 
       {#if addingSlot}
         <form class="card stack add-slot" onsubmit={addExtraSlot}>
@@ -677,8 +741,11 @@
         <span>{pendingDelete.message}</span>
         <button type="button" onclick={undoDelete}>{t('swipe.undo')}</button>
       </div>
-    {:else if toast}
-      <div class="snackbar quiet" role="status"><span>{toast}</span></div>
+    {:else if notice}
+      <div class="snackbar" class:quiet={!notice.undo} role="status">
+        <span>{notice.message}</span>
+        {#if notice.undo}<button type="button" onclick={undoNotice}>{t('swipe.undo')}</button>{/if}
+      </div>
     {/if}
   {:else if !error}
     <p class="muted" role="status">{t('common.loading')}</p>
@@ -693,7 +760,10 @@
     <UntrackedSheet
       slot={target.name}
       current={target.current}
-      onsave={(value) => setUntracked(target.id, value)}
+      onsave={async (value) => {
+        await setUntracked(target.id, value);
+        if (!target.current) showNotice(t('untracked.marked', { slot: target.name }), () => setUntracked(target.id, null));
+      }}
       onremove={() => setUntracked(target.id, null)}
       onclose={() => (untrackedFor = null)} />
   {/if}
@@ -826,25 +896,98 @@
   .slot.due .slot-name {
     color: var(--accent-ink);
   }
-  .slot.skipped,
-  .slot.untracked {
+  .slot.skipped {
     background: var(--surface-2);
     border-color: transparent;
   }
-  .untracked-pill {
-    max-width: 100%;
+  .slot.marked {
+    border: 1.5px dashed var(--field);
   }
-  .untracked-pill span {
+  .empty {
+    color: var(--text-2);
+  }
+  /* A skipped meal or one off the diary: icon, name and details in one tappable row. */
+  .state-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 48px;
+    padding: 2px 0;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .state-row.rest {
+    margin-top: 4px;
+    padding-top: 8px;
+    border-top: 1.5px dashed var(--field);
+  }
+  .badge {
+    flex: none;
+    width: 36px;
+    height: 36px;
+    border-radius: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface-2);
+    color: var(--text-2);
+  }
+  .slot.skipped .badge {
+    background: var(--surface);
+  }
+  .state-text {
+    flex: 1;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .state-name {
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .state-meta {
+    font-size: 13px;
+    color: var(--text-2);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .untracked-text {
+  /* How much, roughly: four bars, as many dark as the size. */
+  .meter {
+    flex: none;
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 20px;
+    padding-right: 4px;
+  }
+  .meter span {
+    width: 5px;
+    border-radius: 2px;
+    background: var(--surface-2);
+  }
+  .meter span.on {
+    background: var(--text-2);
+  }
+  .swipe-hint {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--surface);
+    color: var(--text-2);
     font-size: 14px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  }
+  .swipe-hint :global(svg) {
+    flex: none;
+    color: var(--accent-ink);
   }
   .at-least {
     font-size: 15px;
@@ -872,43 +1015,6 @@
     color: var(--accent-ink);
     font-size: 12px;
     font-weight: 600;
-  }
-  .empty-line {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    flex-wrap: wrap;
-  }
-  .skip {
-    min-height: 32px;
-    padding: 0 10px;
-    border: none;
-    border-radius: 16px;
-    background: transparent;
-    color: var(--accent-ink);
-    font: inherit;
-    font-size: 15px;
-    font-weight: 600;
-    text-decoration: underline;
-    text-underline-offset: 3px;
-    cursor: pointer;
-  }
-  .skipped-pill {
-    align-self: flex-start;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    min-height: 36px;
-    margin-top: 2px;
-    padding: 0 12px;
-    border: 1px solid var(--field);
-    border-radius: 18px;
-    background: var(--surface);
-    color: var(--text-2);
-    font: inherit;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
   }
   .add-slot-btn {
     align-self: flex-start;

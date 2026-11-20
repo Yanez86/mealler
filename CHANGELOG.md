@@ -3,6 +3,14 @@
 Tutte le modifiche rilevanti di Mealler sono annotate qui.
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il [versionamento semantico](https://semver.org/lang/it/).
 
+## [1.7.1] - 2026-11-20
+
+### Modificato
+- «Salta» e «Fuori diario» si scelgono scorrendo verso sinistra un pasto vuoto: compaiono due pulsanti. Un suggerimento in fondo ai pasti lo spiega finché non lo usi la prima volta.
+- Un pasto va fuori diario con un tocco; quanto era e una nota si aggiungono toccando il pasto. In basso compare «Annulla», anche quando salti un pasto.
+- Nuovo aspetto per i pasti saltati e fuori diario: un'icona al posto dell'etichetta, il bordo tratteggiato e quattro barrette che dicono quanto era.
+- La scheda del pasto fuori diario si apre dal basso e mostra quanto era con un piatto sempre più pieno.
+
 ## [1.7.0] - 2026-11-20
 
 ### Aggiunto
