@@ -13,7 +13,7 @@ import {
   translate
 } from '@mealler/shared';
 import type { Db } from './db/index.ts';
-import { entries, pushSubscriptions, reminderLog, slotSkips, slots, users, water } from './db/schema.ts';
+import { entries, pushSubscriptions, reminderLog, slotSkips, slots, untrackedMeals, users, water } from './db/schema.ts';
 import { pushToUser, type PushSender } from './push.ts';
 import { lastWeight } from './routes/weight.ts';
 import { waterOn } from './services.ts';
@@ -126,6 +126,13 @@ export async function runReminderTick(db: Db, sender: PushSender, now: Date = ne
         .where(and(eq(slotSkips.userId, user.id), eq(slotSkips.slotId, slot.id), eq(slotSkips.date, date)))
         .get();
       if (skipped) continue;
+
+      const untracked = db
+        .select({ n: sql<number>`1` })
+        .from(untrackedMeals)
+        .where(and(eq(untrackedMeals.userId, user.id), eq(untrackedMeals.slotId, slot.id), eq(untrackedMeals.date, date)))
+        .get();
+      if (untracked) continue;
 
       const delivered = await pushToUser(db, sender, user.id, {
         title: `${slot.name} · ${slot.time}`,

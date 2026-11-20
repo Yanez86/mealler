@@ -8,17 +8,18 @@
   import {
     NUTRIENTS,
     addDays,
+    dayStatus,
     displayQuantity,
     isIsoDate,
     mealCategory,
     sumValues,
-    thresholdStatus,
     todayIn,
     type DayResponse,
+    type DayStatus,
     type Entry,
     type Nutrient,
     type NutrientSummary,
-    type ThresholdStatus,
+    type Untracked,
     type WaterDay
   } from '@mealler/shared';
   import { beacon, del, get, post, put } from '$lib/api';
@@ -31,6 +32,7 @@
   import Icon from '$lib/Icon.svelte';
   import Swipeable from '$lib/Swipeable.svelte';
   import TopBar from '$lib/TopBar.svelte';
+  import UntrackedSheet from '$lib/UntrackedSheet.svelte';
   import WaterCard from '$lib/WaterCard.svelte';
   import NutrientIcon from '$lib/NutrientIcon.svelte';
   import { waterText } from '$lib/water';
@@ -84,7 +86,7 @@
     const summary = { ...d.summary };
     for (const n of NUTRIENTS) {
       const { min, max } = d.summary[n];
-      summary[n] = { value: totals[n], min, max, status: thresholdStatus(totals[n], min, max) };
+      summary[n] = { value: totals[n], min, max, status: dayStatus(totals[n], min, max, d.untracked) };
     }
     return { ...d, slots, summary };
   }
@@ -285,6 +287,61 @@
     await reload();
   }
 
+  // ---------- Meals off the diary ----------
+  // Eaten but not logged, or not all of it: the meal counts as filled, the day's totals stay partial.
+  let untrackedFor = $state<{ id: number; name: string; current: Untracked | null } | null>(null);
+  let toast = $state('');
+  let toastTimer: ReturnType<typeof setTimeout> | undefined;
+  onDestroy(() => clearTimeout(toastTimer));
+
+  function showToast(message: string) {
+    clearTimeout(toastTimer);
+    toast = message;
+    toastTimer = setTimeout(() => (toast = ''), 4000);
+  }
+
+  function openUntracked(id: number, name: string, current: Untracked | null) {
+    untrackedFor = { id, name, current };
+  }
+
+  /** The day as it will be once the server agrees: the mark set or removed on one slot. */
+  function withUntracked(d: DayResponse, slotId: number, value: Untracked | null): DayResponse {
+    const slots = d.slots.map((s) => (s.slot.id === slotId ? { ...s, untracked: value, skipped: false } : s));
+    const untracked = slots.some((s) => s.untracked);
+    const summary = { ...d.summary };
+    for (const n of NUTRIENTS) {
+      const { value: v, min, max } = d.summary[n];
+      summary[n] = { ...d.summary[n], status: dayStatus(v, min, max, untracked) };
+    }
+    return { ...d, slots, summary, untracked };
+  }
+
+  async function setUntracked(slotId: number, value: Untracked | null) {
+    error = '';
+    untrackedFor = null;
+    if (loadedDay) loadedDay = withUntracked(loadedDay, slotId, value);
+    try {
+      if (value) {
+        await put(`/day/${date}/untracked/${slotId}`, value);
+        showToast(t('untracked.saved'));
+      } else {
+        await del(`/day/${date}/untracked/${slotId}`);
+      }
+    } catch (e) {
+      error = errorMessage(e);
+    }
+    await reload();
+  }
+
+  // From the meal page ("Not logging all of it?"): /?d=...&untracked=<slot> opens the mark for that meal.
+  $effect(() => {
+    const asked = Number(page.url.searchParams.get('untracked'));
+    if (!asked || !day || day.date !== date) return;
+    const found = day.slots.find((s) => s.slot.id === asked);
+    goto(date === today ? '/' : `/?d=${date}`, { replaceState: true, keepFocus: true, noScroll: true });
+    if (found) openUntracked(found.slot.id, found.slot.name, found.untracked);
+  });
+
   let addingSlot = $state(false);
   let extraName = $state('');
   let extraTime = $state('');
@@ -349,15 +406,16 @@
     return Math.min(100, Math.round((s.value / ref) * 100));
   }
 
-  const statusIcon: Record<ThresholdStatus, 'down' | 'check' | 'up' | 'minus'> = {
+  const statusIcon: Record<DayStatus, 'down' | 'check' | 'up' | 'minus' | 'unseen'> = {
     under: 'down',
     ok: 'check',
     over: 'up',
-    none: 'minus'
+    none: 'minus',
+    unknown: 'unseen'
   };
 
-  // Skipped meals count as filled.
-  const filled = $derived(day ? day.slots.filter((s) => s.entries.length > 0 || s.skipped).length : 0);
+  // Skipped meals and meals off the diary count as filled.
+  const filled = $derived(day ? day.slots.filter((s) => s.entries.length > 0 || s.skipped || s.untracked).length : 0);
 
   function isDue(slotTime: string): boolean {
     return date < today || (date === today && slotTime <= nowTime);
@@ -415,12 +473,18 @@
     <div class="day-body" class:stale={day.date !== date} inert={day.date !== date} in:fly={{ x: dayDir * 48, duration: motion ? 260 : 0, easing: cubicOut, opacity: 0 }}>
     <section class="card summary" aria-label={t('day.summary')}>
       <div class="kcal">
-        <p class="kcal-total"><NutrientIcon nutrient="kcal" size={30} /><span class="big">{formatNumber(kcal.value)}</span> <span class="muted unit">kcal</span></p>
+        <p class="kcal-total">
+          <NutrientIcon nutrient="kcal" size={30} />
+          {#if day.untracked}<span class="muted at-least">{t('day.atLeast')}</span>{/if}
+          <span class="big">{formatNumber(kcal.value)}</span> <span class="muted unit">kcal</span>
+        </p>
         {#if kcal.max != null}
           <p class="muted small right">
-            {kcal.value <= kcal.max
-              ? t('day.kcalLeft', { n: formatNumber(kcal.max - kcal.value) })
-              : t('day.kcalOver', { n: formatNumber(kcal.value - kcal.max) })}<br />
+            {#if kcal.value > kcal.max}
+              {t('day.kcalOver', { n: formatNumber(kcal.value - kcal.max) })}<br />
+            {:else if !day.untracked}
+              {t('day.kcalLeft', { n: formatNumber(kcal.max - kcal.value) })}<br />
+            {/if}
             {kcal.min != null
               ? t('day.range', { min: formatNumber(kcal.min), max: formatNumber(kcal.max) })
               : t('day.maxOf', { n: formatNumber(kcal.max) })}
@@ -450,6 +514,9 @@
           </div>
         {/each}
       </div>
+      {#if day.untracked}
+        <p class="untracked-note"><Icon name="unseen" size={18} />{t('day.untrackedNotice')}</p>
+      {/if}
     </section>
 
     {#if withoutValues > 0 && ai?.enabled && !ai.capReached && !ai.limitReached}
@@ -487,34 +554,53 @@
         <p class="notice">{t('day.noSlots')}</p>
       {/if}
 
-      {#each day.slots as { slot, entries, totals, skipped } (slot.id)}
+      {#snippet untrackedPill(id: number, name: string, u: Untracked, rest: boolean)}
+        <button class="skipped-pill untracked-pill" type="button" aria-label={t('day.untrackedEdit', { slot: name })} onclick={() => openUntracked(id, name, u)}>
+          <Icon name="unseen" size={16} stroke={2.2} /><span>{rest ? t('day.untrackedRest') : t('day.untracked')}{u.size ? ` · ${t(`untracked.size.${u.size}`)}` : ''}</span>
+        </button>
+        {#if u.note}<span class="untracked-text muted">{u.note}</span>{/if}
+      {/snippet}
+
+      {#each day.slots as { slot, entries, totals, skipped, untracked } (slot.id)}
         {@const empty = entries.length === 0}
-        {@const due = empty && !skipped && isDue(slot.time)}
+        {@const due = empty && !skipped && !untracked && isDue(slot.time)}
         {@const extra = slot.date != null}
         <Swipeable
           label={!empty
             ? t('swipe.clearSlot', { slot: slot.name })
             : skipped
               ? t('swipe.unskip', { slot: slot.name })
-              : t('swipe.removeSlot', { slot: slot.name })}
-          disabled={empty && !skipped && !extra}
+              : untracked
+                ? t('swipe.untracked', { slot: slot.name })
+                : t('swipe.removeSlot', { slot: slot.name })}
+          disabled={empty && !skipped && !untracked && !extra}
           radius="16px"
-          ondelete={() => (!empty ? clearSlot(slot.name, entries) : skipped ? setSkip(slot.id, false) : removeExtraSlot(slot.id))}>
-        <div class="slot card" class:due class:skipped>
+          ondelete={() =>
+            !empty
+              ? clearSlot(slot.name, entries)
+              : skipped
+                ? setSkip(slot.id, false)
+                : untracked
+                  ? setUntracked(slot.id, null)
+                  : removeExtraSlot(slot.id)}>
+        <div class="slot card" class:due class:skipped class:untracked={empty && !!untracked}>
           <div class="slot-main">
             <div class="slot-head">
               <span class="slot-name">{slot.time} · {slot.name}{#if extra}<span class="extra">{t('day.extra')}</span>{/if}</span>
-              {#if !empty}<span class="slot-kcal">{formatNumber(totals.kcal)} kcal</span>{/if}
+              {#if !empty}<span class="slot-kcal">{untracked ? t('day.atLeastKcal', { n: formatNumber(totals.kcal) }) : `${formatNumber(totals.kcal)} kcal`}</span>{/if}
             </div>
             {#if skipped}
               <button class="skipped-pill" type="button" aria-label={t('day.unskipLabel', { slot: slot.name })} onclick={() => setSkip(slot.id, false)}>
                 <Icon name="skip" size={16} stroke={2.2} />{t('day.skipped')}
               </button>
+            {:else if empty && untracked}
+              {@render untrackedPill(slot.id, slot.name, untracked, false)}
             {:else if empty}
               <span class="empty-line">
                 <span class="muted">{t('day.empty')}</span>
                 {#if due}
                   <button class="skip" type="button" aria-label={t('day.skipLabel', { slot: slot.name })} onclick={() => setSkip(slot.id, true)}>{t('day.skip')}</button>
+                  <button class="skip" type="button" aria-label={t('day.untrackLabel', { slot: slot.name })} onclick={() => openUntracked(slot.id, slot.name, null)}>{t('day.untrack')}</button>
                 {/if}
               </span>
             {:else}
@@ -547,6 +633,7 @@
                   </li>
                 {/each}
               </ul>
+              {#if untracked}{@render untrackedPill(slot.id, slot.name, untracked, true)}{/if}
             {/if}
           </div>
           {#if due}
@@ -590,6 +677,8 @@
         <span>{pendingDelete.message}</span>
         <button type="button" onclick={undoDelete}>{t('swipe.undo')}</button>
       </div>
+    {:else if toast}
+      <div class="snackbar quiet" role="status"><span>{toast}</span></div>
     {/if}
   {:else if !error}
     <p class="muted" role="status">{t('common.loading')}</p>
@@ -597,6 +686,16 @@
 
   {#if showCalendar}
     <CalendarPopup selected={date} {today} onpick={pickDay} onclose={() => (showCalendar = false)} />
+  {/if}
+
+  {#if untrackedFor}
+    {@const target = untrackedFor}
+    <UntrackedSheet
+      slot={target.name}
+      current={target.current}
+      onsave={(value) => setUntracked(target.id, value)}
+      onremove={() => setUntracked(target.id, null)}
+      onclose={() => (untrackedFor = null)} />
   {/if}
 </main>
 
@@ -727,9 +826,43 @@
   .slot.due .slot-name {
     color: var(--accent-ink);
   }
-  .slot.skipped {
+  .slot.skipped,
+  .slot.untracked {
     background: var(--surface-2);
     border-color: transparent;
+  }
+  .untracked-pill {
+    max-width: 100%;
+  }
+  .untracked-pill span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .untracked-text {
+    font-size: 14px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .at-least {
+    font-size: 15px;
+    font-weight: 500;
+  }
+  .untracked-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-top: 4px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    font-size: 14px;
+    color: var(--text-2);
+  }
+  .untracked-note :global(svg) {
+    flex: none;
+    margin-top: 1px;
   }
   .extra {
     margin-left: 8px;
@@ -862,6 +995,9 @@
   .snackbar span {
     flex: 1;
     min-width: 0;
+  }
+  .snackbar.quiet {
+    padding: 14px 16px;
   }
   .snackbar button {
     flex: none;

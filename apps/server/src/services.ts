@@ -5,12 +5,12 @@ import {
   DEFAULT_SLOTS,
   NUTRIENTS,
   addDays,
+  dayStatus,
   isLocale,
   isUnitSystem,
   kcalMismatch,
   slotActiveOn,
   sumValues,
-  thresholdStatus,
   todayIn,
   type CalendarDay,
   type DayResponse,
@@ -20,10 +20,12 @@ import {
   type Nutrient,
   type NutrientSummary,
   type Slot,
+  type Untracked,
+  type UntrackedSize,
   type User
 } from '@mealler/shared';
 import type { Db } from './db/index.ts';
-import { entries, settings, slotSkips, slots, thresholds, users, water } from './db/schema.ts';
+import { entries, settings, slotSkips, slots, thresholds, untrackedMeals, users, water } from './db/schema.ts';
 import type { UserRow } from './auth.ts';
 
 export function toUser(row: UserRow): User {
@@ -232,6 +234,38 @@ function skippedOn(db: Db, userId: number, from: string, to: string) {
     .all();
 }
 
+/** Meals off the diary between two dates. */
+export function untrackedOn(db: Db, userId: number, from: string, to: string) {
+  return db
+    .select()
+    .from(untrackedMeals)
+    .where(and(eq(untrackedMeals.userId, userId), between(untrackedMeals.date, from, to)))
+    .all();
+}
+
+/** Marks a meal off the diary (or changes its size and note); it is no longer skipped. */
+export function markUntracked(db: Db, userId: number, slotId: number, date: string, size: UntrackedSize | null, note: string | null) {
+  const updatedAt = new Date().toISOString();
+  db.transaction((tx) => {
+    tx.delete(slotSkips).where(and(eq(slotSkips.userId, userId), eq(slotSkips.slotId, slotId), eq(slotSkips.date, date))).run();
+    tx.insert(untrackedMeals)
+      .values({ userId, slotId, date, size, note, updatedAt })
+      .onConflictDoUpdate({ target: [untrackedMeals.userId, untrackedMeals.slotId, untrackedMeals.date], set: { size, note, updatedAt } })
+      .run();
+  });
+}
+
+export function clearUntracked(db: Pick<Db, 'delete'>, userId: number, slotId: number, date: string) {
+  db.delete(untrackedMeals)
+    .where(and(eq(untrackedMeals.userId, userId), eq(untrackedMeals.slotId, slotId), eq(untrackedMeals.date, date)))
+    .run();
+}
+
+/** The days between two dates with a meal off the diary. */
+export function untrackedDays(db: Db, userId: number, from: string, to: string): Set<string> {
+  return new Set(untrackedOn(db, userId, from, to).map((u) => u.date));
+}
+
 /** Water drunk on a day, in ml. */
 export function waterOn(db: Db, userId: number, date: string): number {
   return (
@@ -263,25 +297,31 @@ export function buildDay(db: Db, user: UserRow, date: string): DayResponse {
     .orderBy(asc(entries.createdAt), asc(entries.id))
     .all()
     .map(toEntry);
-  const used = new Set(dayEntries.map((e) => e.slotId));
   const skipped = new Set(skippedOn(db, user.id, date, date).map((s) => s.slotId));
+  const offDiary = new Map<number, Untracked>(
+    untrackedOn(db, user.id, date, date).map((u) => [u.slotId, { size: u.size, note: u.note }])
+  );
+  // A meal off the diary keeps its slot on the day, like an entry, even if the slot changed since.
+  const used = new Set([...dayEntries.map((e) => e.slotId), ...offDiary.keys()]);
   const daySlots = slotsOfDay(slotsForDays(db, user.id, date, date), date, used)
     .map(toSlot)
     .map((slot) => {
       const list = dayEntries.filter((e) => e.slotId === slot.id);
-      return { slot, entries: list, totals: sumValues(list), skipped: list.length === 0 && skipped.has(slot.id) };
+      const untracked = offDiary.get(slot.id) ?? null;
+      return { slot, entries: list, totals: sumValues(list), skipped: list.length === 0 && !untracked && skipped.has(slot.id), untracked };
     });
+  const untracked = daySlots.some((s) => s.untracked);
   const totals = sumValues(dayEntries);
   const limits = thresholdsOn(db, user.id, date);
   const summary = {} as Record<Nutrient, NutrientSummary>;
   for (const n of NUTRIENTS) {
     const { min, max } = limits[n];
-    summary[n] = { value: totals[n], min, max, status: thresholdStatus(totals[n], min, max) };
+    summary[n] = { value: totals[n], min, max, status: dayStatus(totals[n], min, max, untracked) };
   }
-  return { date, today: todayIn(user.timezone), slots: daySlots, summary, water: waterOn(db, user.id, date) };
+  return { date, today: todayIn(user.timezone), slots: daySlots, summary, untracked, water: waterOn(db, user.id, date) };
 }
 
-/** For each day from `from` to `to`: how many of its slots have a meal or were skipped. */
+/** For each day from `from` to `to`: how many of its slots have a meal, were skipped or are off the diary. */
 export function calendarDays(db: Db, userId: number, from: string, to: string): CalendarDay[] {
   const all = slotsForDays(db, userId, from, to);
   const byDate = (rows: { date: string; slotId: number }[]) => {
@@ -300,15 +340,17 @@ export function calendarDays(db: Db, userId: number, from: string, to: string): 
       .all()
   );
   const skipped = byDate(skippedOn(db, userId, from, to));
+  const offDiary = byDate(untrackedOn(db, userId, from, to));
   const none = new Set<number>();
   const out: CalendarDay[] = [];
   for (let date = from; date <= to; date = addDays(date, 1)) {
     const withMeals = used.get(date) ?? none;
     const skippedSlots = skipped.get(date) ?? none;
+    const untrackedSlots = offDiary.get(date) ?? none;
     // The same slots as the day view, so "complete" here matches "5 of 5 filled" there.
-    const list = slotsOfDay(all, date, withMeals);
-    const filled = list.filter((s) => withMeals.has(s.id) || skippedSlots.has(s.id)).length;
-    out.push({ date, filled, total: list.length });
+    const list = slotsOfDay(all, date, new Set([...withMeals, ...untrackedSlots]));
+    const filled = list.filter((s) => withMeals.has(s.id) || skippedSlots.has(s.id) || untrackedSlots.has(s.id)).length;
+    out.push({ date, filled, total: list.length, untracked: untrackedSlots.size > 0 });
   }
   return out;
 }

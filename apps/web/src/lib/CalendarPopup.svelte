@@ -1,6 +1,6 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <!-- Month calendar of the diary, opened from the day's title: complete days in green, started days
-     with a dot, today circled. Starts at the sign-up month; a tap opens the day. Looking at another
+     with a dot, days with a meal off the diary with a small ring at the corner, today circled. Starts at the sign-up month; a tap opens the day. Looking at another
      day, "Back to today" opens today. -->
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
@@ -68,7 +68,8 @@
     const d = days.get(date);
     const s = statusOf(date);
     if (s === 'none' || !d) return name;
-    return `${name}, ${t(s === 'complete' ? 'calendar.complete' : 'calendar.partial', { n: d.filled, total: d.total })}`;
+    const state = t(s === 'complete' ? 'calendar.complete' : 'calendar.partial', { n: d.filled, total: d.total });
+    return `${name}, ${state}${d.untracked ? `, ${t('calendar.untracked')}` : ''}`;
   }
 
   // Focus goes to the popup itself, so screen readers read it and no focus ring lands on a button.
@@ -112,6 +113,7 @@
               onclick={() => onpick(cell)}>
               {Number(cell.slice(8))}
               {#if s === 'partial'}<span class="dot" aria-hidden="true"></span>{/if}
+              {#if s !== 'none' && days.get(cell)?.untracked}<span class="ring" aria-hidden="true"></span>{/if}
             </button>
           </div>
         {:else}
@@ -125,6 +127,7 @@
     <div class="legend" aria-hidden="true">
       <span><span class="sw complete"></span>{t('calendar.legendComplete')}</span>
       <span><span class="sw partial"></span>{t('calendar.legendPartial')}</span>
+      <span><span class="sw ring-sw"></span>{t('calendar.legendUntracked')}</span>
       <span><span class="sw today"></span>{t('weight.legendToday')}</span>
     </div>
 
@@ -248,6 +251,17 @@
     border-radius: 3px;
     background: var(--good);
   }
+  /* A meal off the diary: a small hollow ring at the top right, readable on green and on plain days. */
+  .ring {
+    position: absolute;
+    top: 1px;
+    right: 1px;
+    width: 12px;
+    height: 12px;
+    border-radius: 6px;
+    border: 2.5px solid var(--text-2);
+    background: var(--surface);
+  }
   .legend {
     display: flex;
     flex-wrap: wrap;
@@ -275,6 +289,13 @@
     height: 6px;
     margin: 4px;
     background: var(--good);
+  }
+  .sw.ring-sw {
+    width: 12px;
+    height: 12px;
+    border-radius: 6px;
+    border: 2.5px solid var(--text-2);
+    background: var(--surface);
   }
   .sw.today {
     border: 2px solid var(--text);

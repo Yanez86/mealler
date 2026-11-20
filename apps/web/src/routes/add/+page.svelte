@@ -829,6 +829,15 @@
             <Icon name="trash" size={20} />{t('entry.delete')}
           </button>
         {/if}
+        {#if !favoriteMode && !entryId && slotId}
+          {@const slotName = slots.find((s) => s.id === slotId)?.name}
+          {#if slotName}
+            <!-- Eaten but not logging it, or not all of it: the day view opens the mark for this meal. -->
+            <a class="btn btn-ghost untracked-link" href="/?d={date}&untracked={slotId}">
+              <Icon name="unseen" size={20} /><span>{t('untracked.fromAdd', { slot: slotName })}</span>
+            </a>
+          {/if}
+        {/if}
       </div>
     </form>
   {:else}
@@ -837,6 +846,14 @@
 </main>
 
 <style>
+  .untracked-link {
+    min-height: 48px;
+    padding: 8px 12px;
+    text-align: center;
+  }
+  .untracked-link :global(svg) {
+    flex: none;
+  }
   .what {
     display: flex;
     flex-direction: column;

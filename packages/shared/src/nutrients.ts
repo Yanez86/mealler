@@ -23,6 +23,30 @@ export function thresholdStatus(value: number, min: number | null, max: number |
   return 'ok';
 }
 
+/** A day's status against a threshold; 'unknown' when a meal off the diary leaves it open. */
+export type DayStatus = ThresholdStatus | 'unknown';
+
+/**
+ * Compare a total known only from below (a meal of the day is off the diary) with optional bounds:
+ * only what is already certain. Over the maximum stays over, a minimum already reached (with no
+ * maximum to pass) stays reached; anything else could still go either way.
+ */
+export function lowerBoundStatus(value: number, min: number | null, max: number | null): DayStatus {
+  if (min == null && max == null) return 'none';
+  if (max != null && value > max) return 'over';
+  if (max == null && min != null && value >= min) return 'ok';
+  return 'unknown';
+}
+
+/** The status of a day's total: exact, or from below when the day has a meal off the diary. */
+export function dayStatus(value: number, min: number | null, max: number | null, untracked: boolean): DayStatus {
+  return untracked ? lowerBoundStatus(value, min, max) : thresholdStatus(value, min, max);
+}
+
+/** How much a meal off the diary was, roughly. */
+export const UNTRACKED_SIZES = ['light', 'normal', 'large', 'huge'] as const;
+export type UntrackedSize = (typeof UNTRACKED_SIZES)[number];
+
 /**
  * Colour of a progress bar: green inside the thresholds, yellow close to them (from 70% of the
  * minimum, or in the last stretch before the maximum), red far below the minimum or over the maximum.

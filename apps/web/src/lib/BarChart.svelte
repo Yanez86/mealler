@@ -2,18 +2,21 @@
 <!-- Daily bars with the threshold band drawn per day; colour AND a legend explain the status.
      Same colours as the day view. Bars grow from the baseline when they appear. A day with a value is a
      button: tapping it selects it (the other bars fade and its value shows above it) and tapping it
-     again lets it go. -->
+     again lets it go. A partial day (a meal off the diary) is striped: its value is only a lower bound,
+     so it takes a status colour only when that is already certain (over the maximum). -->
 <script lang="ts" module>
   export interface BarDatum {
     date: string;
     value: number | null; // null = no meals that day
     min: number | null;
     max: number | null;
+    /** Known only from below: a meal of the day is off the diary. */
+    partial?: boolean;
   }
 </script>
 
 <script lang="ts">
-  import { thresholdStatus, type ThresholdStatus } from '@mealler/shared';
+  import { dayStatus, type DayStatus } from '@mealler/shared';
   import { formatDate, formatNumber } from './state.svelte';
   import ValueTag from './ValueTag.svelte';
 
@@ -61,17 +64,28 @@
   const ticks = $derived([0, peak / 3, (2 * peak) / 3].map((v) => (v > 20 ? Math.round(v / 10) * 10 : Math.round(v))));
   const labelEvery = $derived(Math.max(1, Math.ceil(data.length / 6)));
 
-  const status = (d: BarDatum): ThresholdStatus => (d.value == null ? 'none' : thresholdStatus(d.value, d.min, d.max));
-  const colour: Record<ThresholdStatus, string> = {
+  const status = (d: BarDatum): DayStatus => (d.value == null ? 'none' : dayStatus(d.value, d.min, d.max, !!d.partial));
+  const colour: Record<DayStatus, string> = {
     ok: 'var(--ok)',
     under: 'var(--under)',
     over: 'var(--over)',
-    none: 'var(--text-2)'
+    none: 'var(--text-2)',
+    unknown: 'var(--text-2)'
   };
+  const uid = $props.id();
+  const fillOf = (d: BarDatum) => (d.partial ? `url(#${uid}-${status(d) === 'over' ? 'over' : 'open'})` : colour[status(d)]);
 </script>
 
 <div class="chart" bind:clientWidth={width}>
   <svg {width} {height} role="img" aria-label={label}>
+    <defs>
+      {#each [['open', 'var(--text-2)'], ['over', 'var(--over)']] as [name, ink] (name)}
+        <pattern id="{uid}-{name}" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <rect width="6" height="6" fill={ink} opacity="0.35" />
+          <rect width="3" height="6" fill={ink} />
+        </pattern>
+      {/each}
+    </defs>
     {#each ticks as tick (tick)}
       <line x1={left} x2={width - 4} y1={y(tick)} y2={y(tick)} stroke="var(--border)" />
       <text x={left - 6} y={y(tick) + 4} text-anchor="end" class="axis">{formatNumber(tick)}</text>
@@ -96,7 +110,7 @@
           y={y(d.value)}
           height={top + plotH - y(d.value)}
           rx={Math.min(4, slot * 0.2)}
-          fill={colour[status(d)]} />
+          fill={fillOf(d)} />
       {/if}
       {#if i % labelEvery === 0 || i === data.length - 1}
         <text x={x + slot / 2} y={height - 8} text-anchor="middle" class="axis">{formatDate(d.date, { day: 'numeric', month: data.length > 8 ? 'numeric' : undefined, weekday: data.length <= 8 ? 'narrow' : undefined })}</text>

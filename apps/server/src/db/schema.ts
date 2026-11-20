@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Drizzle table definitions. They mirror migrations/*.sql, which remain the source of truth.
 import { sqliteTable, integer, text, real } from 'drizzle-orm/sqlite-core';
-import { FOOD_CATEGORIES, UNIT_SYSTEMS } from '@mealler/shared';
+import { FOOD_CATEGORIES, UNIT_SYSTEMS, UNTRACKED_SIZES } from '@mealler/shared';
 
 const now = () => new Date().toISOString();
 
@@ -100,6 +100,20 @@ export const slotSkips = sqliteTable('slot_skips', {
   slotId: integer('slot_id').notNull(),
   date: text('date').notNull(),
   createdAt: text('created_at').notNull().$defaultFn(now)
+});
+
+/**
+ * Meals off the diary: eaten but not logged (a wedding, a big dinner). They count as filled and get no
+ * reminder; the day's totals are then only a lower bound. Entries may sit beside the mark.
+ */
+export const untrackedMeals = sqliteTable('untracked_meals', {
+  userId: integer('user_id').notNull(),
+  slotId: integer('slot_id').notNull(),
+  date: text('date').notNull(),
+  size: text('size', { enum: UNTRACKED_SIZES }),
+  note: text('note'),
+  createdAt: text('created_at').notNull().$defaultFn(now),
+  updatedAt: text('updated_at').notNull().$defaultFn(now)
 });
 
 export const entries = sqliteTable('entries', {

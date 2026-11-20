@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import type { Nutrient, NutrientValues, ThresholdStatus } from './nutrients.ts';
+import type { DayStatus, Nutrient, NutrientValues, UntrackedSize } from './nutrients.ts';
 import type { Locale } from './i18n.ts';
 import type { FoodCategory } from './foods.ts';
 import type { UnitSystem } from './quantity.ts';
@@ -99,6 +99,8 @@ export interface TrendDay extends Record<Nutrient, number> {
   limits: Record<Nutrient, { min: number | null; max: number | null }>;
   /** Water drunk, in ml. */
   water: number;
+  /** A meal of the day is off the diary: the totals are only a lower bound, and the day stays out of averages. */
+  untracked: boolean;
 }
 
 export interface TrendsResponse {
@@ -212,13 +214,23 @@ export interface DaySlot {
   totals: Record<Nutrient, number>;
   /** Marked as skipped (and still without entries): counts as filled. */
   skipped: boolean;
+  /** Eaten but not logged, or not all of it: counts as filled, and the totals are only a lower bound. */
+  untracked: Untracked | null;
 }
 
-/** How full a day of the diary is: slots with a meal or skipped, out of the slots of that day. */
+/** A meal off the diary: how much it was, roughly, and a note; both optional. */
+export interface Untracked {
+  size: UntrackedSize | null;
+  note: string | null;
+}
+
+/** How full a day of the diary is: slots with a meal, skipped or off the diary, out of the slots of that day. */
 export interface CalendarDay {
   date: string;
   filled: number;
   total: number;
+  /** A meal of the day is off the diary. */
+  untracked: boolean;
 }
 
 export interface CalendarResponse {
@@ -231,7 +243,8 @@ export interface NutrientSummary {
   value: number;
   min: number | null;
   max: number | null;
-  status: ThresholdStatus;
+  /** 'unknown' when a meal off the diary leaves the comparison open. */
+  status: DayStatus;
 }
 
 export interface DayResponse {
@@ -239,6 +252,8 @@ export interface DayResponse {
   today: string;
   slots: DaySlot[];
   summary: Record<Nutrient, NutrientSummary>;
+  /** A meal of the day is off the diary: the summary values are only a lower bound. */
+  untracked: boolean;
   /** Water drunk that day, in ml. */
   water: number;
 }

@@ -15,9 +15,9 @@ import {
 } from '@mealler/shared';
 import type { AppContext } from '../app.ts';
 import { requireUser } from '../auth.ts';
-import { entries, favorites, slots, thresholds, water, weights } from '../db/schema.ts';
+import { entries, favorites, slots, thresholds, untrackedMeals, water, weights } from '../db/schema.ts';
 import { badRequest } from '../http.ts';
-import { parseItems, toEntry, toSlot, toUser, waterByDay } from '../services.ts';
+import { parseItems, toEntry, toSlot, toUser, untrackedDays, untrackedOn, waterByDay } from '../services.ts';
 import { zDate } from '../validation.ts';
 import { aiStatus } from '../ai.ts';
 import { userAchievements } from '../achievements.ts';
@@ -63,6 +63,7 @@ export async function insightRoutes(app: FastifyInstance, { db, ai }: AppContext
       .orderBy(asc(thresholds.validFrom), asc(thresholds.id))
       .all();
     const drunk = waterByDay(db, user.id, from, to);
+    const offDiary = untrackedDays(db, user.id, from, to);
     const days: TrendDay[] = daysBetween(from, to).map((date) => {
       const list = rows.filter((e) => e.date === date);
       const totals = sumValues(list);
@@ -72,7 +73,7 @@ export async function insightRoutes(app: FastifyInstance, { db, ai }: AppContext
         for (const l of limits) if (l.nutrient === n && l.validFrom <= date) current = { min: l.min, max: l.max };
         dayLimits[n] = current;
       }
-      return { date, entries: list.length, ...totals, limits: dayLimits, water: drunk.get(date) ?? 0 };
+      return { date, entries: list.length, ...totals, limits: dayLimits, water: drunk.get(date) ?? 0, untracked: offDiary.has(date) };
     });
     return { from, to, days };
   });
@@ -89,9 +90,11 @@ export async function insightRoutes(app: FastifyInstance, { db, ai }: AppContext
       .where(and(eq(entries.userId, user.id), between(entries.date, from, to)))
       .orderBy(asc(entries.date), asc(entries.createdAt))
       .all();
-    const header = ['date', 'slot', 'slot_time', 'description', 'quantity', 'kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g', 'source', 'notes', 'category'];
-    const lines = rows.map((r) =>
-      [
+    const header = ['date', 'slot', 'slot_time', 'description', 'quantity', 'kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g', 'source', 'notes', 'category', 'untracked_size'];
+    const lines: { date: string; at: string; cells: unknown[] }[] = rows.map((r) => ({
+      date: r.date,
+      at: r.createdAt,
+      cells: [
         r.date,
         slotNames.get(r.slotId)?.name,
         slotNames.get(r.slotId)?.time,
@@ -105,16 +108,25 @@ export async function insightRoutes(app: FastifyInstance, { db, ai }: AppContext
         r.source,
         r.notes,
         // Chosen by the user, otherwise guessed from the description.
-        r.category ?? mealCategory([r.description], parseItems(r.detail))
+        r.category ?? mealCategory([r.description], parseItems(r.detail)),
+        null
       ]
-        .map(csvCell)
-        .join(',')
-    );
+    }));
+    // A meal off the diary is a row without values, so sums stay right and the day reads as partial.
+    for (const u of untrackedOn(db, user.id, from, to)) {
+      const slot = slotNames.get(u.slotId);
+      lines.push({
+        date: u.date,
+        at: u.createdAt,
+        cells: [u.date, slot?.name, slot?.time, null, null, null, null, null, null, null, 'untracked', u.note, null, u.size ?? 'unknown']
+      });
+    }
+    lines.sort((a, b) => a.date.localeCompare(b.date) || a.at.localeCompare(b.at));
     reply
       .header('Content-Type', 'text/csv; charset=utf-8')
       .header('Content-Disposition', `attachment; filename="mealler-${from}_${to}.csv"`);
     // The BOM lets spreadsheet apps detect UTF-8 (accents in food names).
-    return '﻿' + [header.join(','), ...lines].join('\r\n') + '\r\n';
+    return '﻿' + [header.join(','), ...lines.map((l) => l.cells.map(csvCell).join(','))].join('\r\n') + '\r\n';
   });
 
   app.get('/export.json', async (request, reply) => {
@@ -143,7 +155,14 @@ export async function insightRoutes(app: FastifyInstance, { db, ai }: AppContext
         .where(eq(water.userId, user.id))
         .orderBy(asc(water.date), asc(water.createdAt))
         .all(),
-      favorites: db.select().from(favorites).where(eq(favorites.userId, user.id)).all()
+      favorites: db.select().from(favorites).where(eq(favorites.userId, user.id)).all(),
+      // Meals off the diary: eaten but not (all) logged.
+      untracked: db
+        .select({ date: untrackedMeals.date, slotId: untrackedMeals.slotId, size: untrackedMeals.size, note: untrackedMeals.note })
+        .from(untrackedMeals)
+        .where(eq(untrackedMeals.userId, user.id))
+        .orderBy(asc(untrackedMeals.date))
+        .all()
     };
     reply
       .header('Content-Type', 'application/json; charset=utf-8')

@@ -46,18 +46,20 @@ export function userAchievements(db: Db, user: UserRow): AchievementState[] {
     .all();
   const list = rows.map(toEntry);
 
-  // Complete days: every meal of the day logged or skipped, as in the calendar.
+  // Complete days: every meal of the day logged, skipped or off the diary, as in the calendar.
   const signup = localDay(user.createdAt);
   const since = list[0] && list[0].date < signup ? list[0].date : signup;
-  const complete = calendarDays(db, user.id, since, today)
-    .filter((d) => d.total > 0 && d.filled === d.total)
-    .map((d) => d.date);
+  const calendar = calendarDays(db, user.id, since, today).filter((d) => d.total > 0 && d.filled === d.total);
+  const complete = calendar.map((d) => d.date);
 
-  // Days within every threshold that is set (complete days only, so half a day does not count).
+  // Days within every threshold that is set (complete days only, so half a day does not count, and
+  // none with a meal off the diary, whose totals are unknown).
+  const offDiary = new Set(calendar.filter((d) => d.untracked).map((d) => d.date));
   const limits = db.select().from(thresholds).where(eq(thresholds.userId, user.id)).orderBy(asc(thresholds.validFrom), asc(thresholds.id)).all();
   const byDate = new Map<string, typeof list>();
   for (const e of list) byDate.set(e.date, [...(byDate.get(e.date) ?? []), e]);
   const inRange = complete.filter((date) => {
+    if (offDiary.has(date)) return false;
     const totals = sumValues(byDate.get(date) ?? []);
     const status = NUTRIENTS.map((n) => {
       let cur = { min: null as number | null, max: null as number | null };

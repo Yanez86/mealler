@@ -15,7 +15,7 @@ import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { processPendingEntries, purgeOrphanPhotos, type AnthropicCall, type AnthropicResponse } from '../src/ai.ts';
 import { createSecretBox } from '../src/secrets.ts';
-import { passwordResets, users } from '../src/db/schema.ts';
+import { passwordResets, thresholds, users } from '../src/db/schema.ts';
 import { eq } from 'drizzle-orm';
 
 async function setupApp(publicDir = '/nonexistent') {
@@ -378,7 +378,7 @@ test('claude.ai connector: OAuth 2.1 with PKCE, MCP tools, isolation, refresh an
   assert.equal(res.statusCode, 202);
   res = await mcp({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
   const names = res.json().result.tools.map((t: { name: string }) => t.name);
-  assert.deepEqual(names.sort(), ['add_entry', 'delete_entry', 'get_day', 'get_summary', 'get_thresholds', 'get_weights', 'list_slots', 'log_food', 'log_water', 'log_weight', 'search_foods', 'update_entry']);
+  assert.deepEqual(names.sort(), ['add_entry', 'delete_entry', 'get_day', 'get_summary', 'get_thresholds', 'get_weights', 'list_slots', 'log_food', 'log_water', 'log_weight', 'mark_untracked', 'search_foods', 'update_entry']);
 
   // Water adds up on the day, and the day shows it against the goal.
   for (const id of [20, 21]) {
@@ -446,6 +446,26 @@ test('claude.ai connector: OAuth 2.1 with PKCE, MCP tools, isolation, refresh an
   assert.match(res.json().result.content[0].text, /Colazione/);
 
   res = await mcp({ jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'get_summary', arguments: { from: '2026-11-03', to: '2026-11-09' } } });
+  assert.equal(res.json().result.structuredContent.averages.kcal, 640);
+
+  // A dinner off the diary: the day reads as partial and leaves the averages; the mark can be taken away.
+  res = await mcp({
+    jsonrpc: '2.0',
+    id: 50,
+    method: 'tools/call',
+    params: { name: 'mark_untracked', arguments: { date: '2026-11-09', slot_name: 'Cena', size: 'large', note: 'Matrimonio' } }
+  });
+  assert.equal(res.json().result.isError, undefined, res.body);
+  const marked = res.json().result.structuredContent;
+  assert.equal(marked.untracked, true);
+  assert.deepEqual(marked.slots.find((x: { name: string }) => x.name === 'Cena').untracked, { size: 'large', note: 'Matrimonio' });
+  res = await mcp({ jsonrpc: '2.0', id: 51, method: 'tools/call', params: { name: 'get_summary', arguments: { from: '2026-11-03', to: '2026-11-09' } } });
+  assert.equal(res.json().result.structuredContent.averages.kcal, null);
+  assert.equal(res.json().result.structuredContent.days_untracked, 1);
+  assert.equal(res.json().result.structuredContent.days.find((d: { date: string }) => d.date === '2026-11-09').untracked, true);
+  res = await mcp({ jsonrpc: '2.0', id: 52, method: 'tools/call', params: { name: 'mark_untracked', arguments: { date: '2026-11-09', slot_name: 'Cena', remove: true } } });
+  assert.equal(res.json().result.structuredContent.untracked, false);
+  res = await mcp({ jsonrpc: '2.0', id: 53, method: 'tools/call', params: { name: 'get_summary', arguments: { from: '2026-11-03', to: '2026-11-09' } } });
   assert.equal(res.json().result.structuredContent.averages.kcal, 640);
 
   // The web diary shows the entry as a Claude estimate.
@@ -1138,9 +1158,10 @@ test('food category: chosen per entry, favorite and product, carried over, reset
   // The CSV export has the category in use: chosen, or guessed from the description.
   res = await app.inject({ method: 'GET', url: '/api/export.csv?from=2026-11-09&to=2026-11-09', headers });
   const lines = res.body.trim().split('\r\n');
-  assert.ok(lines[0].endsWith(',category'));
-  assert.ok(lines.some((l) => l.includes('Yogurt greco') && l.endsWith(',dairy')));
-  assert.ok(lines.some((l) => l.includes('Bowl del giovedì') && l.endsWith(',pasta')));
+  // The last column is for meals off the diary, empty on entries.
+  assert.ok(lines[0].endsWith(',category,untracked_size'));
+  assert.ok(lines.some((l) => l.includes('Yogurt greco') && l.endsWith(',dairy,')));
+  assert.ok(lines.some((l) => l.includes('Bowl del giovedì') && l.endsWith(',pasta,')));
 });
 
 test('unit system, meals split into entries, slot cleared at once', async () => {
@@ -1288,13 +1309,173 @@ test('skipped meals, slots for a single day and the month calendar', async () =>
   assert.equal(cal.since, '2026-11-08');
   assert.equal(cal.days.length, 30);
   const on = (d: string) => cal.days.find((x: { date: string }) => x.date === d);
-  assert.deepEqual(on(day), { date: day, filled: 5, total: 6 }); // the afternoon snack is still empty
-  assert.deepEqual(on('2026-11-08'), { date: '2026-11-08', filled: 1, total: 5 });
+  assert.deepEqual(on(day), { date: day, filled: 5, total: 6, untracked: false }); // the afternoon snack is still empty
+  assert.deepEqual(on('2026-11-08'), { date: '2026-11-08', filled: 1, total: 5, untracked: false });
   await app.inject({ method: 'PUT', url: `/api/day/${day}/skip/${afternoon}`, headers });
   cal = (await app.inject({ method: 'GET', url: '/api/calendar?from=2026-11-09&to=2026-11-09', headers })).json();
-  assert.deepEqual(cal.days[0], { date: day, filled: 6, total: 6 });
+  assert.deepEqual(cal.days[0], { date: day, filled: 6, total: 6, untracked: false });
   res = await app.inject({ method: 'GET', url: '/api/calendar?from=2026-11-01&to=2027-02-01', headers });
   assert.equal(res.statusCode, 400);
+
+  await app.close();
+});
+
+test('meals off the diary: filled, partial totals, no reminder, out of averages, isolated', async () => {
+  const { app, db, push, sent } = await setupApp();
+  let res = await app.inject({ method: 'POST', url: '/api/setup', payload: admin });
+  const headers = { cookie: cookieOf(res) };
+  const slots = (await app.inject({ method: 'GET', url: '/api/slots', headers })).json();
+  const [breakfast, snack, lunch, afternoon, dinner] = slots.map((s: { id: number }) => s.id);
+  const today = todayIn('Europe/Rome');
+  const slotOf = (day: { slots: { slot: { id: number } }[] }, id: number) =>
+    day.slots.find((s) => s.slot.id === id) as unknown as { skipped: boolean; untracked: unknown; entries: unknown[] };
+
+  // Thresholds that a partial day could still meet or miss: kcal 1500–2200, protein at least 60 g.
+  await app.inject({
+    method: 'PUT',
+    url: '/api/thresholds',
+    headers,
+    payload: { items: [{ nutrient: 'kcal', min: 1500, max: 2200 }, { nutrient: 'protein', min: 60, max: null }] }
+  });
+  await app.inject({ method: 'POST', url: '/api/entries', headers, payload: { slotId: breakfast, date: today, description: 'Caffè e brioche', kcal: 400, protein: 20 } });
+
+  // Marking: size and note are optional and checked; the slot must be the user's.
+  res = await app.inject({ method: 'PUT', url: `/api/day/${today}/untracked/${dinner}`, headers, payload: { size: 'huge', note: '  Matrimonio di Luca  ' } });
+  assert.equal(res.statusCode, 200, res.body);
+  res = await app.inject({ method: 'PUT', url: `/api/day/${today}/untracked/${dinner}`, headers, payload: { size: 'enormous' } });
+  assert.equal(res.statusCode, 400);
+  res = await app.inject({ method: 'PUT', url: `/api/day/${today}/untracked/99999`, headers, payload: {} });
+  assert.equal(res.statusCode, 404);
+
+  res = await app.inject({ method: 'GET', url: `/api/day/${today}`, headers });
+  let day = res.json();
+  assert.equal(day.untracked, true);
+  assert.deepEqual(slotOf(day, dinner).untracked, { size: 'huge', note: 'Matrimonio di Luca' });
+  assert.equal(slotOf(day, lunch).untracked, null);
+  // Totals are a lower bound: below the maximum nothing can be said, a minimum alone is not reached yet.
+  assert.equal(day.summary.kcal.value, 400);
+  assert.equal(day.summary.kcal.status, 'unknown');
+  assert.equal(day.summary.protein.status, 'unknown');
+  assert.equal(day.summary.carbs.status, 'none');
+
+  // What is already certain stays: over the maximum, a minimum reached.
+  await app.inject({ method: 'POST', url: '/api/entries', headers, payload: { slotId: lunch, date: today, description: 'Lasagne', kcal: 2000, protein: 50 } });
+  day = (await app.inject({ method: 'GET', url: `/api/day/${today}`, headers })).json();
+  assert.equal(day.summary.kcal.status, 'over');
+  assert.equal(day.summary.protein.status, 'ok');
+
+  // Changing the size, clearing the note.
+  await app.inject({ method: 'PUT', url: `/api/day/${today}/untracked/${dinner}`, headers, payload: { size: 'large', note: '' } });
+  day = (await app.inject({ method: 'GET', url: `/api/day/${today}`, headers })).json();
+  assert.deepEqual(slotOf(day, dinner).untracked, { size: 'large', note: null });
+
+  // What is known can be logged beside the mark: the mark stays.
+  await app.inject({ method: 'POST', url: '/api/entries', headers, payload: { slotId: dinner, date: today, description: 'Prosecco', kcal: 90 } });
+  day = (await app.inject({ method: 'GET', url: `/api/day/${today}`, headers })).json();
+  assert.equal(slotOf(day, dinner).entries.length, 1);
+  assert.deepEqual(slotOf(day, dinner).untracked, { size: 'large', note: null });
+
+  // Skipped and off the diary exclude each other.
+  await app.inject({ method: 'PUT', url: `/api/day/${today}/untracked/${snack}`, headers, payload: {} });
+  await app.inject({ method: 'PUT', url: `/api/day/${today}/skip/${snack}`, headers });
+  day = (await app.inject({ method: 'GET', url: `/api/day/${today}`, headers })).json();
+  assert.equal(slotOf(day, snack).skipped, true);
+  assert.equal(slotOf(day, snack).untracked, null);
+  await app.inject({ method: 'PUT', url: `/api/day/${today}/untracked/${snack}`, headers, payload: { size: 'light' } });
+  day = (await app.inject({ method: 'GET', url: `/api/day/${today}`, headers })).json();
+  assert.equal(slotOf(day, snack).skipped, false);
+  assert.deepEqual(slotOf(day, snack).untracked, { size: 'light', note: null });
+
+  // The calendar counts it as filled and says the day has a meal off the diary.
+  let cal = (await app.inject({ method: 'GET', url: `/api/calendar?from=${today}&to=${today}`, headers })).json();
+  assert.deepEqual(cal.days[0], { date: today, filled: 4, total: 5, untracked: true });
+  await app.inject({ method: 'PUT', url: `/api/day/${today}/skip/${afternoon}`, headers });
+  cal = (await app.inject({ method: 'GET', url: `/api/calendar?from=${today}&to=${today}`, headers })).json();
+  assert.deepEqual(cal.days[0], { date: today, filled: 5, total: 5, untracked: true });
+
+  // Trends flag the day; the export keeps the mark as a row without values.
+  res = await app.inject({ method: 'GET', url: `/api/trends?from=${addDays(today, -1)}&to=${today}`, headers });
+  assert.deepEqual(res.json().days.map((d: { untracked: boolean }) => d.untracked), [false, true]);
+  res = await app.inject({ method: 'GET', url: `/api/export.csv?from=${today}&to=${today}`, headers });
+  const lines = res.body.trim().split('\r\n');
+  assert.match(lines[0], /,untracked_size$/);
+  assert.ok(lines.some((l) => /,Cena,20:00,,,,,,,,untracked,,,large$/.test(l)), res.body);
+  res = await app.inject({ method: 'GET', url: '/api/export.json', headers });
+  assert.equal(res.json().untracked.length, 2);
+
+  // Another user can neither mark this user's slot nor see the marks.
+  res = await app.inject({ method: 'POST', url: '/api/admin/invites', headers, payload: {} });
+  res = await app.inject({ method: 'POST', url: '/api/register', payload: { token: res.json().token, name: 'Bob', email: 'bob@example.com', password: 'another long password' } });
+  const bob = { cookie: cookieOf(res) };
+  res = await app.inject({ method: 'PUT', url: `/api/day/${today}/untracked/${dinner}`, headers: bob, payload: {} });
+  assert.equal(res.statusCode, 404);
+  res = await app.inject({ method: 'DELETE', url: `/api/day/${today}/untracked/${dinner}`, headers: bob });
+  day = (await app.inject({ method: 'GET', url: `/api/day/${today}`, headers })).json();
+  assert.deepEqual(slotOf(day, dinner).untracked, { size: 'large', note: null });
+  res = await app.inject({ method: 'GET', url: `/api/day/${today}`, headers: bob });
+  assert.equal(res.json().untracked, false);
+
+  // Removing the mark: the day is exact again.
+  await app.inject({ method: 'DELETE', url: `/api/day/${today}/untracked/${dinner}`, headers });
+  await app.inject({ method: 'DELETE', url: `/api/day/${today}/untracked/${snack}`, headers });
+  day = (await app.inject({ method: 'GET', url: `/api/day/${today}`, headers })).json();
+  assert.equal(day.untracked, false);
+  assert.equal(day.summary.kcal.status, 'over');
+  assert.equal(day.summary.protein.status, 'ok');
+
+  // No reminder for a meal off the diary (10:47 in Rome, the 10:30 snack is due at 10:45).
+  const past = '2026-11-09';
+  res = await app.inject({
+    method: 'POST',
+    url: '/api/push/subscribe',
+    headers,
+    payload: { endpoint: 'https://fcm.googleapis.com/fcm/send/untracked', keys: { p256dh: 'p256dh-key-0123456789', auth: 'auth-key-0123' } }
+  });
+  assert.equal(res.statusCode, 200, res.body);
+  await app.inject({ method: 'PUT', url: `/api/day/${past}/untracked/${snack}`, headers, payload: {} });
+  const tag = `slot-${snack}-${past}`;
+  await runReminderTick(db, push, new Date('2026-11-09T09:47:00Z'));
+  assert.equal(sent.filter((x) => x.payload.tag === tag).length, 0);
+  await app.inject({ method: 'DELETE', url: `/api/day/${past}/untracked/${snack}`, headers });
+  await runReminderTick(db, push, new Date('2026-11-09T09:48:00Z'));
+  assert.equal(sent.filter((x) => x.payload.tag === tag).length, 1);
+
+  await app.close();
+});
+
+test('meals off the diary: complete days for streaks, never days in range', async () => {
+  const { app, db } = await setupApp();
+  let res = await app.inject({ method: 'POST', url: '/api/setup', payload: admin });
+  const headers = { cookie: cookieOf(res) };
+  const slots = (await app.inject({ method: 'GET', url: '/api/slots', headers })).json();
+  const today = todayIn('Europe/Rome');
+  const [me] = db.select().from(users).all();
+  // A kcal range valid on the past days too.
+  db.insert(thresholds).values({ userId: me.id, nutrient: 'kcal', min: 300, max: 2000, validFrom: addDays(today, -30) }).run();
+  const get = async () =>
+    Object.fromEntries(
+      (await app.inject({ method: 'GET', url: '/api/achievements', headers })).json().map((a: { id: string }) => [a.id, a])
+    );
+
+  // Three days in a row, every meal logged except dinner, which is off the diary.
+  for (const back of [3, 2, 1]) {
+    const date = addDays(today, -back);
+    for (const slot of slots.slice(0, 4)) {
+      await app.inject({ method: 'POST', url: '/api/entries', headers, payload: { slotId: slot.id, date, description: 'Mela', kcal: 100 } });
+    }
+    res = await app.inject({ method: 'PUT', url: `/api/day/${date}/untracked/${slots[4].id}`, headers, payload: { size: 'large' } });
+    assert.equal(res.statusCode, 200, res.body);
+  }
+  let all = await get();
+  assert.equal(all.streak3.at, addDays(today, -1));
+  assert.equal(all.inrange1.at, null);
+
+  // Without the mark, a day with dinner logged is in range.
+  const last = addDays(today, -1);
+  await app.inject({ method: 'DELETE', url: `/api/day/${last}/untracked/${slots[4].id}`, headers });
+  await app.inject({ method: 'POST', url: '/api/entries', headers, payload: { slotId: slots[4].id, date: last, description: 'Minestra', kcal: 300 } });
+  all = await get();
+  assert.equal(all.inrange1.at, last);
 
   await app.close();
 });

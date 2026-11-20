@@ -395,6 +395,14 @@ input[type='time']::-webkit-date-and-time-value {
 .bar > span.status-none {
   background: var(--text-2);
 }
+/* Known only from below (a meal off the diary): stripes, so it never reads as a status colour. */
+.bar > span.status-unknown {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--text-2) 0 5px,
+    color-mix(in srgb, var(--text-2) 40%, transparent) 5px 10px
+  );
+}
 .status-ink-ok {
   color: var(--ok-ink);
 }
@@ -404,7 +412,8 @@ input[type='time']::-webkit-date-and-time-value {
 .status-ink-over {
   color: var(--over-ink);
 }
-.status-ink-none {
+.status-ink-none,
+.status-ink-unknown {
   color: var(--text-2);
 }
 

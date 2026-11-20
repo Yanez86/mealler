@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { thresholdStatus, thresholdTone, sumValues, kcalMismatch, parseNumber } from './nutrients.ts';
+import { dayStatus, lowerBoundStatus, thresholdStatus, thresholdTone, sumValues, kcalMismatch, parseNumber } from './nutrients.ts';
 import { isIsoDate, addDays, isoWeekday, slotActiveOn, todayIn, isValidTime, inTimeRange, nowIn } from './dates.ts';
 import { translate, MESSAGES } from './i18n.ts';
 import { isNewerVersion } from './version.ts';
@@ -17,6 +17,21 @@ import {
   splitFoods,
   storedQuantity
 } from './quantity.ts';
+
+test('lowerBoundStatus keeps only what a partial total already settles', () => {
+  // No bounds: nothing to judge.
+  assert.equal(lowerBoundStatus(50, null, null), 'none');
+  // Over the maximum is certain; under it the rest of the day could still go over.
+  assert.equal(lowerBoundStatus(2400, 1500, 2200), 'over');
+  assert.equal(lowerBoundStatus(1800, 1500, 2200), 'unknown');
+  assert.equal(lowerBoundStatus(400, null, 2200), 'unknown');
+  // A minimum alone: reached is certain, not reached yet is open.
+  assert.equal(lowerBoundStatus(70, 60, null), 'ok');
+  assert.equal(lowerBoundStatus(20, 60, null), 'unknown');
+  // dayStatus picks the exact comparison when the day is fully logged.
+  assert.equal(dayStatus(20, 60, null, false), 'under');
+  assert.equal(dayStatus(20, 60, null, true), 'unknown');
+});
 
 test('thresholdStatus handles optional bounds', () => {
   assert.equal(thresholdStatus(50, null, null), 'none');

@@ -3,6 +3,15 @@
 Tutte le modifiche rilevanti di Mealler sono annotate qui.
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il [versionamento semantico](https://semver.org/lang/it/).
 
+## [1.7.0] - 2026-11-20
+
+### Aggiunto
+- Pasti fuori diario: per una cena importante o un pranzo che non vuoi segnare, nel Diario c'è «Fuori diario» accanto a «Salta». Il pasto conta come registrato, non arrivano promemoria e il diario va avanti. Puoi dire quanto era, a occhio (da «Leggero» a «Molto abbondante»), e aggiungere una nota.
+- Se hai segnato solo una parte del pasto, dalla schermata del pasto puoi mettere il resto fuori diario.
+- Un giorno con un pasto fuori diario mostra «almeno» davanti ai totali, e le soglie che non si possono ancora giudicare diventano «Non valutabile».
+- Quel giorno resta fuori dalle medie e dai giorni nella fascia, in Andamento e nei traguardi, ma conta per i giorni completi. Nel calendario ha un piccolo cerchio, in Andamento la sua barra è a righe.
+- Con il connettore di claude.ai, Claude vede i pasti fuori diario e può segnarli quando glielo chiedi.
+
 ## [1.6.5] - 2026-11-11
 
 ### Modificato

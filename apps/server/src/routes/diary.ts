@@ -2,13 +2,13 @@
 import type { FastifyInstance } from 'fastify';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { ALL_DAYS, NUTRIENTS, addDays, todayIn, type CalendarResponse, type DayResponse, type Threshold } from '@mealler/shared';
+import { ALL_DAYS, NUTRIENTS, UNTRACKED_SIZES, addDays, todayIn, type CalendarResponse, type DayResponse, type Threshold } from '@mealler/shared';
 import type { AppContext } from '../app.ts';
 import { requireUser } from '../auth.ts';
 import { entries, favorites, photos, slotSkips, slots, thresholds } from '../db/schema.ts';
 import { aiStatus, deletePhoto } from '../ai.ts';
 import { badRequest, notFound } from '../http.ts';
-import { buildDay, calendarDays, thresholdsOn, toEntry, toSlot, userSlots } from '../services.ts';
+import { buildDay, calendarDays, clearUntracked, markUntracked, thresholdsOn, toEntry, toSlot, userSlots } from '../services.ts';
 import {
   zAmount,
   zDate,
@@ -296,7 +296,11 @@ export async function diaryRoutes(app: FastifyInstance, { db, ai }: AppContext) 
     const user = requireUser(request);
     const { date, slotId } = z.object({ date: zDate, slotId: zId }).parse(request.params);
     if (!ownSlot(user.id, slotId)) throw notFound();
-    db.insert(slotSkips).values({ userId: user.id, slotId, date }).onConflictDoNothing().run();
+    db.transaction((tx) => {
+      // Skipped means not eaten: no longer off the diary.
+      clearUntracked(tx, user.id, slotId, date);
+      tx.insert(slotSkips).values({ userId: user.id, slotId, date }).onConflictDoNothing().run();
+    });
     return { ok: true };
   });
 
@@ -309,7 +313,30 @@ export async function diaryRoutes(app: FastifyInstance, { db, ai }: AppContext) 
     return { ok: true };
   });
 
-  // Month view: for each day, slots with a meal or skipped out of the slots of that day.
+  // A meal off the diary: eaten but not logged, or not all of it. It counts as filled and gets no
+  // reminder, and the day's totals become a lower bound. Entries logged in the slot stay beside it.
+  const untrackedBody = z.object({
+    size: z.enum(UNTRACKED_SIZES).nullable().default(null),
+    note: zOptionalText(200)
+  });
+
+  app.put('/day/:date/untracked/:slotId', async (request) => {
+    const user = requireUser(request);
+    const { date, slotId } = z.object({ date: zDate, slotId: zId }).parse(request.params);
+    const { size, note } = untrackedBody.parse(request.body ?? {});
+    if (!ownSlot(user.id, slotId)) throw notFound();
+    markUntracked(db, user.id, slotId, date, size, note ?? null);
+    return { ok: true };
+  });
+
+  app.delete('/day/:date/untracked/:slotId', async (request) => {
+    const user = requireUser(request);
+    const { date, slotId } = z.object({ date: zDate, slotId: zId }).parse(request.params);
+    clearUntracked(db, user.id, slotId, date);
+    return { ok: true };
+  });
+
+  // Month view: for each day, slots with a meal, skipped or off the diary out of the slots of that day.
   app.get('/calendar', async (request): Promise<CalendarResponse> => {
     const user = requireUser(request);
     const { from, to } = z.object({ from: zDate, to: zDate }).parse(request.query);

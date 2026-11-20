@@ -7,6 +7,7 @@ import { z } from 'zod';
 import {
   FOOD_CATEGORIES,
   NUTRIENTS,
+  UNTRACKED_SIZES,
   addDays,
   isIsoDate,
   isLocale,
@@ -21,7 +22,7 @@ import type { UserRow } from './auth.ts';
 import type { Db } from './db/index.ts';
 import { entries, slots } from './db/schema.ts';
 import { isMcpEnabled, publicBase, userFromBearer } from './oauth.ts';
-import { buildDay, thresholdsOn, toEntry, userSlots, waterByDay } from './services.ts';
+import { buildDay, clearUntracked, markUntracked, thresholdsOn, toEntry, untrackedDays, userSlots, waterByDay } from './services.ts';
 import { lastWeight, listWeights, saveWeight } from './routes/weight.ts';
 import { MAX_DRINK_ML, addWater } from './routes/water.ts';
 import { logProduct, searchProducts } from './routes/products.ts';
@@ -108,17 +109,24 @@ function dayForClaude(db: Db, user: UserRow, date: string) {
   return {
     date: day.date,
     is_today: day.date === day.today,
+    // A meal of the day is off the diary: the totals are only what was logged, a lower bound.
+    untracked: day.untracked,
+    ...(day.untracked
+      ? { note: 'At least one meal was eaten but not (fully) logged: totals are a lower bound; status "unknown" means the threshold cannot be judged.' }
+      : {}),
     totals: Object.fromEntries(
       NUTRIENTS.map((n) => [n, { value: day.summary[n].value, min: day.summary[n].min, max: day.summary[n].max, status: day.summary[n].status }])
     ),
     water: { ml: day.water, goal_ml: user.waterGoalMl },
-    slots: day.slots.map(({ slot, entries: list, totals, skipped }) => ({
+    slots: day.slots.map(({ slot, entries: list, totals, skipped, untracked }) => ({
       slot_id: slot.id,
       name: slot.name,
       time: slot.time,
       kcal: totals.kcal,
       // The user marked this meal as skipped.
       skipped,
+      // Eaten but not (all) logged: how much, roughly, and the user's note.
+      untracked: untracked ? { size: untracked.size, note: untracked.note } : null,
       entries: list.map((e) => ({
         entry_id: e.id,
         description: e.description,
@@ -386,7 +394,8 @@ const TOOLS: Tool[] = [
     name: 'get_summary',
     title: 'Summarise a period',
     description:
-      'Daily totals over a date range (max 92 days) with averages over the days that have entries, ' +
+      'Daily totals over a date range (max 92 days) with averages over the days that have entries ' +
+      '(days with a meal off the diary are left out of the averages, their totals being only a lower bound), ' +
       'water drunk per day against the goal, plus current thresholds. Use it for questions like "how was my protein this week?".',
     inputSchema: {
       type: 'object',
@@ -412,11 +421,18 @@ const TOOLS: Tool[] = [
       const byDate = new Map<string, typeof rows>();
       for (const r of rows) byDate.set(r.date, [...(byDate.get(r.date) ?? []), r]);
       const drunk = waterByDay(db, user.id, from, to);
-      for (const date of drunk.keys()) if (!byDate.has(date)) byDate.set(date, []);
+      const offDiary = untrackedDays(db, user.id, from, to);
+      for (const date of [...drunk.keys(), ...offDiary]) if (!byDate.has(date)) byDate.set(date, []);
       const days = [...byDate.entries()]
         .sort(([x], [y]) => x.localeCompare(y))
-        .map(([date, list]) => ({ date, entries: list.length, ...sumValues(list), water_ml: drunk.get(date) ?? 0 }));
-      const withEntries = days.filter((d) => d.entries > 0);
+        .map(([date, list]) => ({
+          date,
+          entries: list.length,
+          ...sumValues(list),
+          water_ml: drunk.get(date) ?? 0,
+          untracked: offDiary.has(date)
+        }));
+      const withEntries = days.filter((d) => d.entries > 0 && !d.untracked);
       const averages = Object.fromEntries(
         NUTRIENTS.map((n) => [n, withEntries.length ? Math.round((withEntries.reduce((s, d) => s + d[n], 0) / withEntries.length) * 10) / 10 : null])
       );
@@ -426,6 +442,8 @@ const TOOLS: Tool[] = [
         from,
         to,
         days_with_entries: withEntries.length,
+        // Days with a meal eaten but not (all) logged: not in the averages.
+        days_untracked: days.filter((d) => d.untracked).length,
         averages,
         water: {
           goal_ml: user.waterGoalMl,
@@ -534,6 +552,43 @@ const TOOLS: Tool[] = [
     }
   },
   {
+    name: 'mark_untracked',
+    title: 'Mark a meal as off the diary',
+    description:
+      'Marks a meal the user ate but will not log, or not all of it (a wedding, a big dinner out): the meal counts ' +
+      'as filled and gets no reminder, the day stays out of averages and threshold checks, and entries already in ' +
+      'the slot stay as what is known. Never estimate values for it. size is a rough "how much" if the user says ' +
+      'so; note is a short reminder in their words. With remove: true the mark goes away. Pick the slot by slot_id or slot_name.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        date: { type: 'string', description: 'YYYY-MM-DD; defaults to today' },
+        slot_id: { type: 'integer' },
+        slot_name: { type: 'string', description: 'Slot name, e.g. "Cena"' },
+        size: { type: 'string', enum: [...UNTRACKED_SIZES], description: 'Roughly how much: light, normal, large or huge; omit if not said' },
+        note: { type: 'string', description: 'Optional, e.g. "Matrimonio di Luca"' },
+        remove: { type: 'boolean', description: 'true to take the mark away' }
+      }
+    },
+    run: (db, user, args) => {
+      const a = z
+        .object({
+          date: z.string().optional(),
+          slot_id: z.number().int().optional(),
+          slot_name: z.string().max(100).optional(),
+          size: z.enum(UNTRACKED_SIZES).nullable().optional(),
+          note: z.string().trim().max(200).nullable().optional(),
+          remove: z.boolean().optional()
+        })
+        .parse(args ?? {});
+      const date = dateOrToday(user, a.date);
+      const slot = resolveSlot(db, user, a.slot_id, a.slot_name);
+      if (a.remove) clearUntracked(db, user.id, slot.id, date);
+      else markUntracked(db, user.id, slot.id, date, a.size ?? null, a.note || null);
+      return dayForClaude(db, user, date);
+    }
+  },
+  {
     name: 'get_weights',
     title: 'Get weight history',
     description: "Returns the user's weigh-ins between two dates (max 366 days) and the latest one.",
@@ -560,6 +615,7 @@ function instructions(user: UserRow): string {
     `The user's time zone is ${user.timezone}; it is now ${date} ${time} there. Interpret "today", "yesterday", "this morning" in that zone.`,
     'When the user says what they ate, estimate portions and nutritional values yourself and call add_entry with one item per food (each food becomes its own diary entry); for a dish whose ingredients they list, pass the ingredients as items with dish: true (one entry); choose the slot that matches the meal (list_slots shows them).',
     'When they say they drank water, call log_water with the amount in ml (plain water only; other drinks are diary entries).',
+    'When they say they ate a meal they will not log (a wedding, a big dinner out), call mark_untracked instead of guessing values; days with a meal off the diary have partial totals, so do not read them as days of eating little.',
     user.units === 'us'
       ? 'The user prefers US units (oz, fl oz, cups, lb): talk in those, but the tools take grams, ml and kg, so convert before calling them.'
       : 'The user uses metric units (g, ml, kg).',

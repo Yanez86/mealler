@@ -7,6 +7,7 @@
     NUTRIENTS,
     NUTRIENT_UNITS,
     addDays,
+    dayStatus,
     thresholdStatus,
     todayIn,
     type Nutrient,
@@ -46,8 +47,11 @@
 
   const unit = $derived(NUTRIENT_UNITS[nutrient]);
   const logged = $derived(trends ? trends.days.filter((d) => d.entries > 0) : []);
-  const average = $derived(logged.length ? logged.reduce((s, d) => s + d[nutrient], 0) / logged.length : null);
-  const withLimits = $derived(logged.filter((d) => d.limits[nutrient].min != null || d.limits[nutrient].max != null));
+  // Days with a meal off the diary have partial totals: they stay out of the average and of the days in range.
+  const offDiary = $derived(trends ? trends.days.filter((d) => d.untracked).length : 0);
+  const counted = $derived(logged.filter((d) => !d.untracked));
+  const average = $derived(counted.length ? counted.reduce((s, d) => s + d[nutrient], 0) / counted.length : null);
+  const withLimits = $derived(counted.filter((d) => d.limits[nutrient].min != null || d.limits[nutrient].max != null));
   const inRange = $derived(
     withLimits.filter((d) => thresholdStatus(d[nutrient], d.limits[nutrient].min, d.limits[nutrient].max) === 'ok').length
   );
@@ -57,16 +61,17 @@
           date: d.date,
           value: d.entries > 0 ? d[nutrient] : null,
           min: d.limits[nutrient].min,
-          max: d.limits[nutrient].max
+          max: d.limits[nutrient].max,
+          partial: d.untracked
         }))
       : []
   );
-  // Share of energy from protein, carbs and fat (4/4/9 kcal per gram), averaged over logged days.
+  // Share of energy from protein, carbs and fat (4/4/9 kcal per gram), averaged over the days counted.
   const split = $derived.by(() => {
-    if (!logged.length) return null;
-    const p = logged.reduce((s, d) => s + d.protein * 4, 0);
-    const c = logged.reduce((s, d) => s + d.carbs * 4, 0);
-    const f = logged.reduce((s, d) => s + d.fat * 9, 0);
+    if (!counted.length) return null;
+    const p = counted.reduce((s, d) => s + d.protein * 4, 0);
+    const c = counted.reduce((s, d) => s + d.carbs * 4, 0);
+    const f = counted.reduce((s, d) => s + d.fat * 9, 0);
     const total = p + c + f;
     if (!total) return null;
     return [
@@ -108,13 +113,17 @@
   const pickPoint = (date: string | null) => (selected = date ? { date, from: 'line' } : null);
   const dayName = (date: string) => formatDate(date, { weekday: 'long', day: 'numeric', month: 'long' });
   const dayHref = (date: string) => (date === today ? '/' : `/?d=${date}`);
-  const describeBar = (d: BarDatum) => `${dayName(d.date)}: ${formatNumber(d.value ?? 0, 1)} ${tab === 'water' ? waterUnit : unit}`;
+  const describeBar = (d: BarDatum) => {
+    const value = `${formatNumber(d.value ?? 0, 1)} ${tab === 'water' ? waterUnit : unit}`;
+    return d.partial ? t('trends.untrackedBar', { day: dayName(d.date), value }) : `${dayName(d.date)}: ${value}`;
+  };
 
   // ---------- Trend line, by day or by month ----------
   // The same measure as the bars: the nutrient chosen, or the water.
   let lineMode = $state<'day' | 'month'>('day');
+  // A day with a meal off the diary leaves a gap in the nutrient line: its total would only pull it down.
   const valueOf = (d: TrendDay): number | null =>
-    tab === 'water' ? (d.water > 0 ? waterShown(d.water) : null) : d.entries > 0 ? d[nutrient] : null;
+    tab === 'water' ? (d.water > 0 ? waterShown(d.water) : null) : d.entries > 0 && !d.untracked ? d[nutrient] : null;
   const limitsOf = (d: TrendDay) => (tab === 'water' ? { min: waterShown(goal), max: null } : d.limits[nutrient]);
   const dayLabel = (date: string, count: number) =>
     formatDate(date, { day: 'numeric', month: count > 8 ? 'numeric' : undefined, weekday: count <= 8 ? 'narrow' : undefined });
@@ -151,7 +160,9 @@
   });
   const monthStats = $derived(
     months.map((key) => {
-      const days = (monthly?.days ?? []).filter((d) => d.date.startsWith(key) && (tab === 'water' ? d.water > 0 : d.entries > 0));
+      const days = (monthly?.days ?? []).filter(
+        (d) => d.date.startsWith(key) && (tab === 'water' ? d.water > 0 : d.entries > 0 && !d.untracked)
+      );
       const raw = days.length ? days.reduce((s, d) => s + (tab === 'water' ? d.water : d[nutrient]), 0) / days.length : null;
       return { key, days: days.length, raw };
     })
@@ -180,13 +191,14 @@
 {#snippet nutrientDay(d: TrendDay)}
   <div class="detail" role="status">
     <p class="detail-title">{dayName(d.date)}</p>
+    {#if d.untracked}<p class="muted small">{t('trends.untrackedDay')}</p>{/if}
     <ul class="detail-list">
       {#each NUTRIENTS as n (n)}
-        {@const st = thresholdStatus(d[n], d.limits[n].min, d.limits[n].max)}
+        {@const st = dayStatus(d[n], d.limits[n].min, d.limits[n].max, d.untracked)}
         <li>
           <NutrientIcon nutrient={n} size={20} />
           <span class="grow">{t(`nutrient.${n}`)}</span>
-          <strong class={st === 'none' ? '' : `status-ink-${st}`}>{formatNumber(d[n], n === 'kcal' ? 0 : 1)} {NUTRIENT_UNITS[n]}</strong>
+          <strong class={st === 'none' ? '' : `status-ink-${st}`}>{#if d.untracked}{t('day.atLeast')} {/if}{formatNumber(d[n], n === 'kcal' ? 0 : 1)} {NUTRIENT_UNITS[n]}</strong>
         </li>
       {/each}
     </ul>
@@ -315,19 +327,20 @@
     {#if error}<p class="error" role="alert">{error}</p>{/if}
 
     {#if trends}
-      {#if !logged.length}
+      {#if !logged.length && !offDiary}
         <p class="notice">{t('trends.noData')}</p>
       {:else}
         <section class="card stack" aria-labelledby="avg-title">
           <div class="avg">
             <h2 id="avg-title" class="muted small">{t('trends.average')} · {t(`nutrient.${nutrient}`)}</h2>
             <div class="avg-row">
-              <p class="avg-value"><span class="big">{formatNumber(average ?? 0, nutrient === 'kcal' ? 0 : 1)}</span> <span class="muted">{unit}</span></p>
+              <p class="avg-value"><span class="big">{average == null ? '—' : formatNumber(average, nutrient === 'kcal' ? 0 : 1)}</span> <span class="muted">{unit}</span></p>
               {#if withLimits.length}
                 <p class="muted small right">{t('trends.inRange', { n: inRange, total: withLimits.length })}</p>
               {/if}
             </div>
-            <p class="muted small">{t('trends.averageNote', { n: logged.length })}</p>
+            <p class="muted small">{t('trends.averageNote', { n: counted.length })}</p>
+            {#if offDiary}<p class="muted small">{t('trends.untrackedNote', { n: offDiary })}</p>{/if}
           </div>
           {#key nutrient}
             <BarChart
@@ -347,6 +360,7 @@
             <span><span class="sw" style="background: var(--ok)"></span>{t('day.status.ok')}</span>
             <span><span class="sw" style="background: var(--under)"></span>{t('day.status.under')}</span>
             <span><span class="sw" style="background: var(--over)"></span>{t('day.status.over')}</span>
+            {#if offDiary}<span><span class="sw striped"></span>{t('trends.legendUntracked')}</span>{/if}
           </div>
           {#if selected?.from === 'bars' && selectedDay}
             {@render nutrientDay(selectedDay)}
@@ -509,6 +523,13 @@
   .sw.band {
     background: var(--accent-soft);
     border: 1px solid var(--accent);
+  }
+  .sw.striped {
+    background: repeating-linear-gradient(
+      45deg,
+      var(--text-2) 0 2px,
+      color-mix(in srgb, var(--text-2) 35%, transparent) 2px 4px
+    );
   }
   .splitbar {
     display: flex;
